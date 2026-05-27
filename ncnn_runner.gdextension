@@ -1,0 +1,11 @@
+[configuration]
+entry_symbol = "ncnn_runner_library_init"
+compatibility_minimum = "4.6"
+
+[libraries]
+macos.debug = "res://bin/libncnn_runner.macos.template_debug.framework"
+macos.release = "res://bin/libncnn_runner.macos.template_release.framework"
+windows.debug.x86_64 = "res://bin/libncnn_runner.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://bin/libncnn_runner.windows.template_release.x86_64.dll"
+linux.debug.x86_64 = "res://bin/libncnn_runner.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://bin/libncnn_runner.linux.template_release.x86_64.so"
