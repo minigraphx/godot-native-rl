@@ -7,6 +7,7 @@ from SCons.Script import ARGUMENTS, Default, Exit, File, Glob, SConscript
 env = SConscript("godot-cpp/SConstruct")
 sources = Glob("src/*.cpp")
 env.Append(CPPPATH=["src"])
+requested_arch = str(ARGUMENTS.get("arch", env.get("arch", "")))
 
 project_dir = os.path.abspath(".")
 ncnn_root = os.path.join(project_dir, "thirdparty", "ncnn")
@@ -17,10 +18,22 @@ if not os.path.isdir(ncnn_root):
 ncnn_include_candidates = [
     os.path.join(ncnn_root, "include"),
     os.path.join(ncnn_root, "src"),
+    os.path.join(ncnn_root, "build", "src"),
+    os.path.join(ncnn_root, "build-arm64", "src"),
+    os.path.join(ncnn_root, "build-x86_64", "src"),
+    os.path.join(ncnn_root, "install", "include"),
+    os.path.join(ncnn_root, "install", "include", "ncnn"),
+    os.path.join(ncnn_root, "install-arm64", "include"),
+    os.path.join(ncnn_root, "install-arm64", "include", "ncnn"),
+    os.path.join(ncnn_root, "install-x86_64", "include"),
+    os.path.join(ncnn_root, "install-x86_64", "include", "ncnn"),
     os.path.join(ncnn_root, "build", "install", "include"),
     os.path.join(ncnn_root, "build", "install", "include", "ncnn"),
 ]
-ncnn_include_paths = [path for path in ncnn_include_candidates if os.path.isdir(path)]
+ncnn_include_paths = []
+for path in ncnn_include_candidates:
+    if os.path.isdir(path) and path not in ncnn_include_paths:
+        ncnn_include_paths.append(path)
 if not ncnn_include_paths:
     print("Error: no ncnn include directories found under {}".format(ncnn_root))
     Exit(1)
@@ -45,7 +58,6 @@ if ncnn_static_lib is None:
     Exit(1)
 
 if env["platform"] == "macos":
-    requested_arch = str(ARGUMENTS.get("arch", env.get("arch", "")))
     try:
         lipo_info = subprocess.check_output(["lipo", "-info", ncnn_static_lib], text=True).strip()
     except Exception:
@@ -64,7 +76,7 @@ if env["platform"] == "macos":
             print("ncnn lib architectures detected: {}".format(", ".join(sorted(ncnn_arches)) if ncnn_arches else "(unknown)"))
             print("Fix options:")
             print("  1) Build extension single-arch: scons platform=macos arch=arm64 target=template_debug")
-            print("  2) Rebuild ncnn as universal: -DCMAKE_OSX_ARCHITECTURES='arm64;x86_64'")
+            print("  2) Build arm64 and x86_64 ncnn separately, then merge libncnn.a with lipo (see README).")
             Exit(1)
     elif requested_arch in ("arm64", "x86_64") and ncnn_arches and requested_arch not in ncnn_arches:
         print("Error: macOS arch={} requested, but ncnn static lib has architectures: {}.".format(
