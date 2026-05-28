@@ -25,11 +25,46 @@ Minimal Godot 4.6+ GDExtension (C++) for running ncnn inference from Godot.
 - CMake (to build ncnn)
 - `godot-cpp` checked out in `./godot-cpp` (matching your Godot version)
 
-## Setup
+## Platform Setup (macOS / Linux / Windows)
 
-### 1) Add dependencies
+### macOS
 
-Clone or place dependencies in this structure:
+```bash
+brew install scons cmake git
+xcode-select --install
+```
+
+### Linux (Ubuntu/Debian example)
+
+```bash
+sudo apt update
+sudo apt install -y build-essential scons cmake git
+```
+
+### Windows
+
+Use **x64 Native Tools Command Prompt for VS** (or Developer PowerShell with MSVC set up), then:
+
+```powershell
+python -m pip install --upgrade pip
+python -m pip install scons
+```
+
+Install CMake and Git with your preferred method (`winget`, installer, etc.).
+
+## Project Setup
+
+### 1) Clone dependencies
+
+From repository root, clone dependencies into the expected paths:
+
+```bash
+git clone -b 4.6 https://github.com/godotengine/godot-cpp.git
+mkdir -p thirdparty
+git clone https://github.com/Tencent/ncnn.git thirdparty/ncnn
+```
+
+Directory layout:
 
 ```text
 .
@@ -38,7 +73,20 @@ Clone or place dependencies in this structure:
     └── ncnn/
 ```
 
-### 2) Build ncnn as static library
+### 2) Build godot-cpp bindings
+
+From repository root:
+
+```bash
+cd godot-cpp
+scons platform=<platform> target=template_debug
+scons platform=<platform> target=template_release
+cd ..
+```
+
+Use `platform=macos`, `platform=linux`, or `platform=windows`.
+
+### 3) Build ncnn as static library
 
 From repository root:
 
@@ -60,15 +108,17 @@ cmake --install thirdparty/ncnn/build --prefix thirdparty/ncnn/build/install
 
 ## Build The GDExtension
 
-Example:
+From repository root:
+
+```bash
+scons platform=<platform> target=template_debug
+scons platform=<platform> target=template_release
+```
+
+Examples:
 
 ```bash
 scons platform=macos target=template_debug
-```
-
-Other common targets:
-
-```bash
 scons platform=linux target=template_debug
 scons platform=windows target=template_debug
 ```
