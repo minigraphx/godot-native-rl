@@ -34,6 +34,10 @@ brew install scons cmake git
 xcode-select --install
 ```
 
+Apple Silicon note:
+- If your ncnn static library is `arm64`-only, build the extension with `arch=arm64`.
+- `arch=universal` requires ncnn to include both `arm64` and `x86_64`.
+
 ### Linux (Ubuntu/Debian example)
 
 ```bash
@@ -118,7 +122,7 @@ scons platform=<platform> target=template_release
 Examples:
 
 ```bash
-scons platform=macos target=template_debug
+scons platform=macos arch=arm64 target=template_debug
 scons platform=linux target=template_debug
 scons platform=windows target=template_debug
 ```
