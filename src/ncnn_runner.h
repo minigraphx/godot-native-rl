@@ -9,6 +9,7 @@
 
 namespace ncnn {
 class Net;
+class Mat;
 }
 
 namespace godot {
@@ -25,6 +26,8 @@ public:
 
     bool load_model(const String &p_param_path, const String &p_bin_path);
     PackedFloat32Array run_inference(const PackedFloat32Array &p_input);
+    int run_discrete_action(const PackedFloat32Array &p_input);
+    bool is_model_loaded() const;
 
     void set_input_blob_name(const String &p_name);
     String get_input_blob_name() const;
@@ -32,6 +35,8 @@ public:
     String get_output_blob_name() const;
 
 private:
+    bool run_inference_internal(const PackedFloat32Array &p_input, ncnn::Mat &r_output) const;
+
     std::unique_ptr<ncnn::Net> net_;
     bool model_loaded_ = false;
     String input_blob_name_ = "input";

@@ -6,6 +6,7 @@
 #include <net.h>
 
 #include <cstring>
+#include <limits>
 
 using namespace godot;
 
@@ -17,6 +18,8 @@ NcnnRunner::~NcnnRunner() = default;
 void NcnnRunner::_bind_methods() {
     ClassDB::bind_method(D_METHOD("load_model", "param_path", "bin_path"), &NcnnRunner::load_model);
     ClassDB::bind_method(D_METHOD("run_inference", "input"), &NcnnRunner::run_inference);
+    ClassDB::bind_method(D_METHOD("run_discrete_action", "input"), &NcnnRunner::run_discrete_action);
+    ClassDB::bind_method(D_METHOD("is_model_loaded"), &NcnnRunner::is_model_loaded);
     ClassDB::bind_method(D_METHOD("set_input_blob_name", "name"), &NcnnRunner::set_input_blob_name);
     ClassDB::bind_method(D_METHOD("get_input_blob_name"), &NcnnRunner::get_input_blob_name);
     ClassDB::bind_method(D_METHOD("set_output_blob_name", "name"), &NcnnRunner::set_output_blob_name);
@@ -58,15 +61,60 @@ bool NcnnRunner::load_model(const String &p_param_path, const String &p_bin_path
 
 PackedFloat32Array NcnnRunner::run_inference(const PackedFloat32Array &p_input) {
     PackedFloat32Array output;
+    ncnn::Mat output_mat;
+    if (!run_inference_internal(p_input, output_mat)) {
+        return output;
+    }
 
+    const size_t output_count = output_mat.total();
+    output.resize(static_cast<int>(output_count));
+    if (output_count > 0) {
+        std::memcpy(output.ptrw(), output_mat.data, output_count * sizeof(float));
+    }
+
+    return output;
+}
+
+int NcnnRunner::run_discrete_action(const PackedFloat32Array &p_input) {
+    ncnn::Mat output_mat;
+    if (!run_inference_internal(p_input, output_mat)) {
+        return -1;
+    }
+
+    const size_t output_count = output_mat.total();
+    if (output_count == 0) {
+        UtilityFunctions::push_error("NcnnRunner.run_discrete_action: output tensor is empty.");
+        return -1;
+    }
+
+    const float *values = reinterpret_cast<const float *>(output_mat.data);
+    size_t best_index = 0;
+    float best_value = -std::numeric_limits<float>::infinity();
+
+    for (size_t i = 0; i < output_count; ++i) {
+        const float current = values[i];
+        if (current > best_value) {
+            best_value = current;
+            best_index = i;
+        }
+    }
+
+    return static_cast<int>(best_index);
+}
+
+bool NcnnRunner::is_model_loaded() const {
+    return model_loaded_ && static_cast<bool>(net_);
+}
+
+bool NcnnRunner::run_inference_internal(const PackedFloat32Array &p_input, ncnn::Mat &r_output) const {
     if (!model_loaded_ || !net_) {
         UtilityFunctions::push_error("NcnnRunner.run_inference: model is not loaded.");
-        return output;
+        return false;
     }
 
     if (p_input.is_empty()) {
         UtilityFunctions::push_error("NcnnRunner.run_inference: input array is empty.");
-        return output;
+        return false;
     }
 
     ncnn::Mat input_mat(static_cast<int>(p_input.size()));
@@ -78,24 +126,17 @@ PackedFloat32Array NcnnRunner::run_inference(const PackedFloat32Array &p_input) 
     const int input_result = extractor.input(input_blob_utf8.get_data(), input_mat);
     if (input_result != 0) {
         UtilityFunctions::push_error("NcnnRunner.run_inference: failed to bind input blob: ", input_blob_name_);
-        return output;
+        return false;
     }
 
-    ncnn::Mat output_mat;
     const CharString output_blob_utf8 = output_blob_name_.utf8();
-    const int output_result = extractor.extract(output_blob_utf8.get_data(), output_mat);
+    const int output_result = extractor.extract(output_blob_utf8.get_data(), r_output);
     if (output_result != 0) {
         UtilityFunctions::push_error("NcnnRunner.run_inference: failed to extract output blob: ", output_blob_name_);
-        return output;
+        return false;
     }
 
-    const size_t output_count = output_mat.total();
-    output.resize(static_cast<int>(output_count));
-    if (output_count > 0) {
-        std::memcpy(output.ptrw(), output_mat.data, output_count * sizeof(float));
-    }
-
-    return output;
+    return true;
 }
 
 void NcnnRunner::set_input_blob_name(const String &p_name) {

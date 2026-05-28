@@ -7,6 +7,8 @@ Minimal Godot 4.6+ GDExtension (C++) for running ncnn inference from Godot.
 - `NcnnRunner` C++ node class exposed to Godot.
 - `load_model(param_path, bin_path)` to load ncnn models.
 - `run_inference(input: PackedFloat32Array)` to run a forward pass.
+- `run_discrete_action(input: PackedFloat32Array)` for argmax-based discrete action selection.
+- `is_model_loaded()` to guard inference calls from GDScript.
 - Static ncnn linking from `thirdparty/ncnn`.
 
 ## Repository Layout
@@ -259,10 +261,16 @@ Example helper script:
 class_name NcnnAgentHelper
 extends Node
 
+enum ActionMode {
+    CONTINUOUS,
+    DISCRETE_ARGMAX,
+}
+
 @export_file("*.param") var model_param_path: String
 @export_file("*.bin") var model_bin_path: String
 @export var input_blob_name: String = "input"
 @export var output_blob_name: String = "output"
+@export_enum("Continuous", "Discrete Argmax") var action_mode: int = ActionMode.CONTINUOUS
 
 var _native_runner: NcnnRunner
 
@@ -280,14 +288,23 @@ func _ready() -> void:
     if not ok:
         push_error("Failed to load ncnn model.")
 
-func get_action(observations: Array[float]) -> PackedFloat32Array:
-    return _native_runner.run_inference(PackedFloat32Array(observations))
+func get_action(observations: Array[float]) -> Variant:
+    if not _native_runner.is_model_loaded():
+        push_error("NcnnAgentHelper.get_action: model not loaded.")
+        return null
+
+    var packed_obs := PackedFloat32Array(observations)
+    if action_mode == ActionMode.DISCRETE_ARGMAX:
+        return _native_runner.run_discrete_action(packed_obs)
+
+    return _native_runner.run_inference(packed_obs)
 ```
 
 ## Notes
 
 - `run_inference` currently maps input to a 1D `ncnn::Mat` of float32.
 - Output is returned as a flattened `PackedFloat32Array`.
+- `run_discrete_action` returns the argmax index over the output tensor (flattened).
 - Default blob names are `"input"` and `"output"`; override when your model uses different tensor names.
 
 ## Test Model Guide
