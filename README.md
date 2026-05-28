@@ -135,6 +135,10 @@ Build output is written to `bin/` and matched by `ncnn_runner.gdextension`.
 
 Build ncnn per-architecture, then merge static libs with `lipo`:
 
+- Do **not** build ncnn universal in one CMake build directory with `-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"` on Apple Silicon.
+- Use separate build directories per architecture.
+- For the `x86_64` build on Apple Silicon, run CMake under Rosetta (`arch -x86_64`).
+
 ```bash
 # arm64 build
 cmake -S thirdparty/ncnn -B thirdparty/ncnn/build-arm64 \
@@ -147,14 +151,14 @@ cmake --build thirdparty/ncnn/build-arm64 --config Release
 cmake --install thirdparty/ncnn/build-arm64 --prefix thirdparty/ncnn/install-arm64
 
 # x86_64 build
-cmake -S thirdparty/ncnn -B thirdparty/ncnn/build-x86_64 \
+arch -x86_64 cmake -S thirdparty/ncnn -B thirdparty/ncnn/build-x86_64 \
   -DNCNN_BUILD_TOOLS=OFF \
   -DNCNN_BUILD_EXAMPLES=OFF \
   -DNCNN_BUILD_BENCHMARK=OFF \
   -DBUILD_SHARED_LIBS=OFF \
   -DCMAKE_OSX_ARCHITECTURES=x86_64
-cmake --build thirdparty/ncnn/build-x86_64 --config Release
-cmake --install thirdparty/ncnn/build-x86_64 --prefix thirdparty/ncnn/install-x86_64
+arch -x86_64 cmake --build thirdparty/ncnn/build-x86_64 --config Release
+arch -x86_64 cmake --install thirdparty/ncnn/build-x86_64 --prefix thirdparty/ncnn/install-x86_64
 
 # merge to universal lib path expected by SConstruct
 mkdir -p thirdparty/ncnn/build/install/lib
