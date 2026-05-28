@@ -1,0 +1,21 @@
+# Godot editor/cache
+.godot/
+
+# Local build artifacts
+bin/
+*.os
+.sconsign.dblite
+
+# Local dependencies (built/managed outside this repo)
+godot-cpp/
+thirdparty/
+
+# Python env/cache
+.venv/
+__pycache__/
+models/__pycache__/
+models/*.pt
+models/*.onnx
+models/*.pnnx.*
+models/*_ncnn.py
+models/*_pnnx.py
