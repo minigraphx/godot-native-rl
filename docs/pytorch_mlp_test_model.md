@@ -10,7 +10,7 @@ From repository root:
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install torch pnnx
+python -m pip install numpy torch pnnx
 ```
 
 ## 2) Export a tiny model
@@ -28,8 +28,8 @@ Default output files:
 
 The script also prints suggested blob names. Use those names in your Godot helper:
 
-- `input_blob_name`
-- `output_blob_name`
+- `input_blob_name` -> `in0`
+- `output_blob_name` -> `out0`
 
 ## 3) Configure in Godot
 

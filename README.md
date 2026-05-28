@@ -136,7 +136,7 @@ Use `pnnx` (recommended) to convert ONNX models to ncnn files.
 ### 1) Install pnnx
 
 ```bash
-python3 -m pip install --user pnnx
+python3 -m pip install --user numpy pnnx
 ```
 
 ### 2) Convert model
