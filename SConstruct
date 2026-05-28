@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 import os
 
-from SCons.Script import Default, Exit, File, SConscript
+from SCons.Script import Default, Exit, File, Glob, SConscript
 
 env = SConscript("godot-cpp/SConstruct")
-env.add_source_files(env.modules_sources, "src/*.cpp")
+sources = Glob("src/*.cpp")
+env.Append(CPPPATH=["src"])
 
 project_dir = os.path.abspath(".")
 ncnn_root = os.path.join(project_dir, "thirdparty", "ncnn")
@@ -47,7 +48,7 @@ env.Append(LIBS=[File(ncnn_static_lib)])
 
 library = env.SharedLibrary(
     target=os.path.join("bin", "libncnn_runner{}{}".format(env["suffix"], env["SHLIBSUFFIX"])),
-    source=env.modules_sources,
+    source=sources,
 )
 
 Default(library)
