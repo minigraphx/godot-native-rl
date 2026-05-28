@@ -129,6 +129,50 @@ scons platform=windows target=template_debug
 
 Build output is written to `bin/` and matched by `ncnn_runner.gdextension`.
 
+## Convert ONNX To ncnn
+
+Use `pnnx` (recommended) to convert ONNX models to ncnn files.
+
+### 1) Install pnnx
+
+```bash
+python3 -m pip install --user pnnx
+```
+
+### 2) Convert model
+
+Basic conversion:
+
+```bash
+pnnx your_model.onnx
+```
+
+For models that need explicit shape hints, add `inputshape`:
+
+```bash
+pnnx your_model.onnx inputshape=[1,8]
+```
+
+Generated outputs include:
+
+- `your_model.ncnn.param`
+- `your_model.ncnn.bin`
+
+### 3) Use in this Godot project
+
+Move/copy the files to a project folder such as `models/`:
+
+```bash
+mkdir -p models
+cp your_model.ncnn.param models/
+cp your_model.ncnn.bin models/
+```
+
+Then set:
+
+- `model_param_path = "res://models/your_model.ncnn.param"`
+- `model_bin_path = "res://models/your_model.ncnn.bin"`
+
 ## Universal / Multi-Architecture Builds
 
 ### macOS (single universal dylib)
