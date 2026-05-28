@@ -245,3 +245,7 @@ func get_action(observations: Array[float]) -> PackedFloat32Array:
 - `run_inference` currently maps input to a 1D `ncnn::Mat` of float32.
 - Output is returned as a flattened `PackedFloat32Array`.
 - Default blob names are `"input"` and `"output"`; override when your model uses different tensor names.
+
+## Test Model Guide
+
+- See [docs/pytorch_mlp_test_model.md](/Users/andreas/Documents/Godot Native RL/docs/pytorch_mlp_test_model.md) for creating and exporting a tiny PyTorch MLP test model to ncnn.
