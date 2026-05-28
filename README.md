@@ -133,17 +133,35 @@ Build output is written to `bin/` and matched by `ncnn_runner.gdextension`.
 
 ### macOS (single universal dylib)
 
-Build ncnn as universal:
+Build ncnn per-architecture, then merge static libs with `lipo`:
 
 ```bash
-cmake -S thirdparty/ncnn -B thirdparty/ncnn/build \
+# arm64 build
+cmake -S thirdparty/ncnn -B thirdparty/ncnn/build-arm64 \
   -DNCNN_BUILD_TOOLS=OFF \
   -DNCNN_BUILD_EXAMPLES=OFF \
   -DNCNN_BUILD_BENCHMARK=OFF \
   -DBUILD_SHARED_LIBS=OFF \
-  -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
-cmake --build thirdparty/ncnn/build --config Release
-cmake --install thirdparty/ncnn/build --prefix thirdparty/ncnn/build/install
+  -DCMAKE_OSX_ARCHITECTURES=arm64
+cmake --build thirdparty/ncnn/build-arm64 --config Release
+cmake --install thirdparty/ncnn/build-arm64 --prefix thirdparty/ncnn/install-arm64
+
+# x86_64 build
+cmake -S thirdparty/ncnn -B thirdparty/ncnn/build-x86_64 \
+  -DNCNN_BUILD_TOOLS=OFF \
+  -DNCNN_BUILD_EXAMPLES=OFF \
+  -DNCNN_BUILD_BENCHMARK=OFF \
+  -DBUILD_SHARED_LIBS=OFF \
+  -DCMAKE_OSX_ARCHITECTURES=x86_64
+cmake --build thirdparty/ncnn/build-x86_64 --config Release
+cmake --install thirdparty/ncnn/build-x86_64 --prefix thirdparty/ncnn/install-x86_64
+
+# merge to universal lib path expected by SConstruct
+mkdir -p thirdparty/ncnn/build/install/lib
+lipo -create \
+  thirdparty/ncnn/install-arm64/lib/libncnn.a \
+  thirdparty/ncnn/install-x86_64/lib/libncnn.a \
+  -output thirdparty/ncnn/build/install/lib/libncnn.a
 ```
 
 Then build extension as universal:
