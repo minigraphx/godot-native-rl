@@ -129,6 +129,62 @@ scons platform=windows target=template_debug
 
 Build output is written to `bin/` and matched by `ncnn_runner.gdextension`.
 
+## Universal / Multi-Architecture Builds
+
+### macOS (single universal dylib)
+
+Build ncnn as universal:
+
+```bash
+cmake -S thirdparty/ncnn -B thirdparty/ncnn/build \
+  -DNCNN_BUILD_TOOLS=OFF \
+  -DNCNN_BUILD_EXAMPLES=OFF \
+  -DNCNN_BUILD_BENCHMARK=OFF \
+  -DBUILD_SHARED_LIBS=OFF \
+  -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+cmake --build thirdparty/ncnn/build --config Release
+cmake --install thirdparty/ncnn/build --prefix thirdparty/ncnn/build/install
+```
+
+Then build extension as universal:
+
+```bash
+scons platform=macos arch=universal target=template_debug
+scons platform=macos arch=universal target=template_release
+```
+
+### Linux (ship multiple architecture-specific `.so` files)
+
+Linux does not typically use one universal/fat `.so` for Godot extensions. Build once per architecture and package both artifacts:
+
+```bash
+scons platform=linux arch=x86_64 target=template_debug
+scons platform=linux arch=arm64 target=template_debug
+```
+
+Add architecture-specific entries in `.gdextension`, for example:
+
+```ini
+linux.debug.x86_64 = "res://bin/libncnn_runner.linux.template_debug.x86_64.so"
+linux.debug.arm64 = "res://bin/libncnn_runner.linux.template_debug.arm64.so"
+```
+
+### Windows (ship multiple architecture-specific `.dll` files)
+
+Windows also normally uses one DLL per architecture. Build each architecture and package both:
+
+```powershell
+scons platform=windows arch=x86_64 target=template_debug
+scons platform=windows arch=arm64 target=template_debug
+```
+
+Add architecture-specific entries in `.gdextension`, for example:
+
+```ini
+windows.debug.x86_64 = "res://bin/libncnn_runner.windows.template_debug.x86_64.dll"
+windows.debug.arm64 = "res://bin/libncnn_runner.windows.template_debug.arm64.dll"
+```
+
 ## Godot Usage
 
 Example helper script:
