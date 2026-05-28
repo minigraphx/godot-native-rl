@@ -3,6 +3,7 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
+#include <mat.h>
 #include <net.h>
 
 #include <cstring>
@@ -18,15 +19,20 @@ NcnnRunner::~NcnnRunner() = default;
 void NcnnRunner::_bind_methods() {
     ClassDB::bind_method(D_METHOD("load_model", "param_path", "bin_path"), &NcnnRunner::load_model);
     ClassDB::bind_method(D_METHOD("run_inference", "input"), &NcnnRunner::run_inference);
+    ClassDB::bind_method(D_METHOD("run_inference_image", "image", "normalize_to_zero_one"), &NcnnRunner::run_inference_image, DEFVAL(true));
     ClassDB::bind_method(D_METHOD("run_discrete_action", "input"), &NcnnRunner::run_discrete_action);
     ClassDB::bind_method(D_METHOD("is_model_loaded"), &NcnnRunner::is_model_loaded);
     ClassDB::bind_method(D_METHOD("set_input_blob_name", "name"), &NcnnRunner::set_input_blob_name);
     ClassDB::bind_method(D_METHOD("get_input_blob_name"), &NcnnRunner::get_input_blob_name);
     ClassDB::bind_method(D_METHOD("set_output_blob_name", "name"), &NcnnRunner::set_output_blob_name);
     ClassDB::bind_method(D_METHOD("get_output_blob_name"), &NcnnRunner::get_output_blob_name);
+    ClassDB::bind_method(D_METHOD("set_input_shape", "shape"), &NcnnRunner::set_input_shape);
+    ClassDB::bind_method(D_METHOD("get_input_shape"), &NcnnRunner::get_input_shape);
+    ClassDB::bind_method(D_METHOD("clear_input_shape"), &NcnnRunner::clear_input_shape);
 
     ADD_PROPERTY(PropertyInfo(Variant::STRING, "input_blob_name"), "set_input_blob_name", "get_input_blob_name");
     ADD_PROPERTY(PropertyInfo(Variant::STRING, "output_blob_name"), "set_output_blob_name", "get_output_blob_name");
+    ADD_PROPERTY(PropertyInfo(Variant::PACKED_INT32_ARRAY, "input_shape"), "set_input_shape", "get_input_shape");
 }
 
 bool NcnnRunner::load_model(const String &p_param_path, const String &p_bin_path) {
@@ -60,24 +66,70 @@ bool NcnnRunner::load_model(const String &p_param_path, const String &p_bin_path
 }
 
 PackedFloat32Array NcnnRunner::run_inference(const PackedFloat32Array &p_input) {
-    PackedFloat32Array output;
+    ncnn::Mat input_mat;
+    if (!create_input_mat_from_array(p_input, input_mat)) {
+        return PackedFloat32Array();
+    }
+
     ncnn::Mat output_mat;
-    if (!run_inference_internal(p_input, output_mat)) {
-        return output;
+    if (!run_inference_internal(input_mat, output_mat)) {
+        return PackedFloat32Array();
     }
 
-    const size_t output_count = output_mat.total();
-    output.resize(static_cast<int>(output_count));
-    if (output_count > 0) {
-        std::memcpy(output.ptrw(), output_mat.data, output_count * sizeof(float));
+    return output_mat_to_packed_float_array(output_mat);
+}
+
+PackedFloat32Array NcnnRunner::run_inference_image(const Ref<Image> &p_image, bool p_normalize_to_zero_one) {
+    if (p_image.is_null()) {
+        UtilityFunctions::push_error("NcnnRunner.run_inference_image: image is null.");
+        return PackedFloat32Array();
     }
 
-    return output;
+    if (p_image->is_empty()) {
+        UtilityFunctions::push_error("NcnnRunner.run_inference_image: image is empty.");
+        return PackedFloat32Array();
+    }
+
+    Ref<Image> working_image = p_image;
+    if (working_image->get_format() != Image::FORMAT_RGB8) {
+        working_image = working_image->duplicate();
+        working_image->convert(Image::FORMAT_RGB8);
+    }
+
+    const PackedByteArray image_data = working_image->get_data();
+    if (image_data.is_empty()) {
+        UtilityFunctions::push_error("NcnnRunner.run_inference_image: failed to access image bytes.");
+        return PackedFloat32Array();
+    }
+
+    ncnn::Mat input_mat = ncnn::Mat::from_pixels(
+        image_data.ptr(),
+        ncnn::Mat::PIXEL_RGB,
+        working_image->get_width(),
+        working_image->get_height()
+    );
+
+    if (p_normalize_to_zero_one) {
+        const float normalize_values[3] = {1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f};
+        input_mat.substract_mean_normalize(nullptr, normalize_values);
+    }
+
+    ncnn::Mat output_mat;
+    if (!run_inference_internal(input_mat, output_mat)) {
+        return PackedFloat32Array();
+    }
+
+    return output_mat_to_packed_float_array(output_mat);
 }
 
 int NcnnRunner::run_discrete_action(const PackedFloat32Array &p_input) {
+    ncnn::Mat input_mat;
+    if (!create_input_mat_from_array(p_input, input_mat)) {
+        return -1;
+    }
+
     ncnn::Mat output_mat;
-    if (!run_inference_internal(p_input, output_mat)) {
+    if (!run_inference_internal(input_mat, output_mat)) {
         return -1;
     }
 
@@ -106,24 +158,64 @@ bool NcnnRunner::is_model_loaded() const {
     return model_loaded_ && static_cast<bool>(net_);
 }
 
-bool NcnnRunner::run_inference_internal(const PackedFloat32Array &p_input, ncnn::Mat &r_output) const {
-    if (!model_loaded_ || !net_) {
-        UtilityFunctions::push_error("NcnnRunner.run_inference: model is not loaded.");
-        return false;
-    }
-
+bool NcnnRunner::create_input_mat_from_array(const PackedFloat32Array &p_input, ncnn::Mat &r_input) const {
     if (p_input.is_empty()) {
         UtilityFunctions::push_error("NcnnRunner.run_inference: input array is empty.");
         return false;
     }
 
-    ncnn::Mat input_mat(static_cast<int>(p_input.size()));
-    std::memcpy(input_mat.data, p_input.ptr(), static_cast<size_t>(p_input.size()) * sizeof(float));
+    if (input_shape_.is_empty()) {
+        r_input = ncnn::Mat(static_cast<int>(p_input.size()));
+        std::memcpy(r_input.data, p_input.ptr(), static_cast<size_t>(p_input.size()) * sizeof(float));
+        return true;
+    }
+
+    if (input_shape_.size() < 1 || input_shape_.size() > 3) {
+        UtilityFunctions::push_error("NcnnRunner.input_shape must have 1 to 3 dimensions.");
+        return false;
+    }
+
+    int64_t expected_count = 1;
+    for (int i = 0; i < input_shape_.size(); ++i) {
+        const int32_t dim = input_shape_[i];
+        if (dim <= 0) {
+            UtilityFunctions::push_error("NcnnRunner.input_shape dimensions must all be > 0.");
+            return false;
+        }
+        expected_count *= dim;
+    }
+
+    if (expected_count != static_cast<int64_t>(p_input.size())) {
+        UtilityFunctions::push_error(
+            "NcnnRunner.run_inference: input size does not match input_shape product. input_size=",
+            p_input.size(),
+            ", expected=",
+            static_cast<int>(expected_count)
+        );
+        return false;
+    }
+
+    if (input_shape_.size() == 1) {
+        r_input = ncnn::Mat(input_shape_[0]);
+    } else if (input_shape_.size() == 2) {
+        r_input = ncnn::Mat(input_shape_[0], input_shape_[1]);
+    } else {
+        r_input = ncnn::Mat(input_shape_[0], input_shape_[1], input_shape_[2]);
+    }
+    std::memcpy(r_input.data, p_input.ptr(), static_cast<size_t>(p_input.size()) * sizeof(float));
+    return true;
+}
+
+bool NcnnRunner::run_inference_internal(const ncnn::Mat &p_input, ncnn::Mat &r_output) const {
+    if (!model_loaded_ || !net_) {
+        UtilityFunctions::push_error("NcnnRunner.run_inference: model is not loaded.");
+        return false;
+    }
 
     ncnn::Extractor extractor = net_->create_extractor();
 
     const CharString input_blob_utf8 = input_blob_name_.utf8();
-    const int input_result = extractor.input(input_blob_utf8.get_data(), input_mat);
+    const int input_result = extractor.input(input_blob_utf8.get_data(), p_input);
     if (input_result != 0) {
         UtilityFunctions::push_error("NcnnRunner.run_inference: failed to bind input blob: ", input_blob_name_);
         return false;
@@ -137,6 +229,16 @@ bool NcnnRunner::run_inference_internal(const PackedFloat32Array &p_input, ncnn:
     }
 
     return true;
+}
+
+PackedFloat32Array NcnnRunner::output_mat_to_packed_float_array(const ncnn::Mat &p_output) {
+    PackedFloat32Array output;
+    const size_t output_count = p_output.total();
+    output.resize(static_cast<int>(output_count));
+    if (output_count > 0) {
+        std::memcpy(output.ptrw(), p_output.data, output_count * sizeof(float));
+    }
+    return output;
 }
 
 void NcnnRunner::set_input_blob_name(const String &p_name) {
@@ -153,4 +255,16 @@ void NcnnRunner::set_output_blob_name(const String &p_name) {
 
 String NcnnRunner::get_output_blob_name() const {
     return output_blob_name_;
+}
+
+void NcnnRunner::set_input_shape(const PackedInt32Array &p_shape) {
+    input_shape_ = p_shape;
+}
+
+PackedInt32Array NcnnRunner::get_input_shape() const {
+    return input_shape_;
+}
+
+void NcnnRunner::clear_input_shape() {
+    input_shape_ = PackedInt32Array();
 }

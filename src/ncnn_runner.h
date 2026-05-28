@@ -2,7 +2,9 @@
 #define NCNN_RUNNER_H
 
 #include <godot_cpp/classes/node.hpp>
+#include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/variant/packed_float32_array.hpp>
+#include <godot_cpp/variant/packed_int32_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
 #include <memory>
@@ -26,6 +28,7 @@ public:
 
     bool load_model(const String &p_param_path, const String &p_bin_path);
     PackedFloat32Array run_inference(const PackedFloat32Array &p_input);
+    PackedFloat32Array run_inference_image(const Ref<Image> &p_image, bool p_normalize_to_zero_one = true);
     int run_discrete_action(const PackedFloat32Array &p_input);
     bool is_model_loaded() const;
 
@@ -33,14 +36,20 @@ public:
     String get_input_blob_name() const;
     void set_output_blob_name(const String &p_name);
     String get_output_blob_name() const;
+    void set_input_shape(const PackedInt32Array &p_shape);
+    PackedInt32Array get_input_shape() const;
+    void clear_input_shape();
 
 private:
-    bool run_inference_internal(const PackedFloat32Array &p_input, ncnn::Mat &r_output) const;
+    bool create_input_mat_from_array(const PackedFloat32Array &p_input, ncnn::Mat &r_input) const;
+    bool run_inference_internal(const ncnn::Mat &p_input, ncnn::Mat &r_output) const;
+    static PackedFloat32Array output_mat_to_packed_float_array(const ncnn::Mat &p_output);
 
     std::unique_ptr<ncnn::Net> net_;
     bool model_loaded_ = false;
     String input_blob_name_ = "input";
     String output_blob_name_ = "output";
+    PackedInt32Array input_shape_;
 };
 
 } // namespace godot
