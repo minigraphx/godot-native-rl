@@ -65,7 +65,7 @@ func set_mode(mode: int) -> void:
 
 func get_action(observations: Array[float]) -> Variant:
 	if _native_runner == null or not _native_runner.is_model_loaded():
-		push_error("NcnnAgentHelper.get_action: native runner is not ready.")
+		push_error("NcnnAgentHelper.get_action: model not loaded.")
 		return null
 
 	var packed_obs := PackedFloat32Array(observations)
@@ -77,6 +77,7 @@ func get_action(observations: Array[float]) -> Variant:
 		return _native_runner.run_discrete_action(packed_obs)
 
 	return _native_runner.run_inference(packed_obs)
+
 
 func get_action_from_image(image: Image, normalize_to_zero_one: bool = true) -> PackedFloat32Array:
 	if _native_runner == null or not _native_runner.is_model_loaded():
