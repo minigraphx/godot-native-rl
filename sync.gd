@@ -1,7 +1,7 @@
 class_name NcnnSync
 extends Node
 
-enum ControlModes { HUMAN, TRAINING }
+enum ControlModes { HUMAN, TRAINING, NCNN_INFERENCE }
 
 var agents_training: Array[Node] = []
 var _action_space: Dictionary = {}
@@ -53,6 +53,7 @@ var stream: StreamPeerTCP = null
 var connected := false
 var all_agents: Array = []
 var agents_heuristic: Array = []
+var agents_inference: Array = []
 var need_to_send_obs := false
 var args = null
 var initialized := false
@@ -96,7 +97,9 @@ func _physics_process(_delta) -> void:
 		n_action_steps += 1
 		return
 	n_action_steps += 1
+	# Each process guards on its own agent list; only the active mode's list is populated.
 	_training_process()
+	_inference_process()
 	_heuristic_process()
 
 func _training_process() -> void:
@@ -121,13 +124,26 @@ func _heuristic_process() -> void:
 	if agents_heuristic.size() > 0:
 		_reset_agents_if_done(agents_heuristic)
 
+func _inference_process() -> void:
+	for agent in agents_inference:
+		agent.infer_and_act()
+	_reset_agents_if_done(agents_inference)
+
 func _get_agents() -> void:
 	all_agents = get_tree().get_nodes_in_group("AGENT")
 	for agent in all_agents:
 		if agent.control_mode == agent.ControlModes.INHERIT_FROM_SYNC:
-			agent.control_mode = (agent.ControlModes.TRAINING if control_mode == ControlModes.TRAINING else agent.ControlModes.HUMAN)
+			match control_mode:
+				ControlModes.TRAINING:
+					agent.control_mode = agent.ControlModes.TRAINING
+				ControlModes.NCNN_INFERENCE:
+					agent.control_mode = agent.ControlModes.NCNN_INFERENCE
+				_:
+					agent.control_mode = agent.ControlModes.HUMAN
 		if agent.control_mode == agent.ControlModes.TRAINING:
 			agents_training.append(agent)
+		elif agent.control_mode == agent.ControlModes.NCNN_INFERENCE:
+			agents_inference.append(agent)
 		elif agent.control_mode == agent.ControlModes.HUMAN:
 			agents_heuristic.append(agent)
 
