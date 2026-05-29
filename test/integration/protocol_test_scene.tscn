@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://sync.gd" id="1"]
+[ext_resource type="Script" path="res://test/integration/protocol_stub_agent.gd" id="2"]
+
+[node name="Root" type="Node2D"]
+
+[node name="Agent" type="Node2D" parent="."]
+script = ExtResource("2")
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("1")
+control_mode = 1
