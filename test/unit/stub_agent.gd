@@ -9,5 +9,7 @@ func get_reward() -> float:
 func get_action_space() -> Dictionary:
 	return {"move": {"size": 5, "action_type": "discrete"}}
 
+var last_action = null
+
 func set_action(action) -> void:
-	pass
+	last_action = action
