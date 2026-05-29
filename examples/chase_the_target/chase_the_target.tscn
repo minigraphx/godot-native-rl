@@ -1,0 +1,25 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://examples/chase_the_target/chase_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/chase_the_target/chase_agent.gd" id="2"]
+[ext_resource type="Script" path="res://sync.gd" id="3"]
+
+[node name="ChaseGame" type="Node2D"]
+script = ExtResource("1")
+agent_body_path = NodePath("AgentBody")
+target_path = NodePath("Target")
+
+[node name="AgentBody" type="Node2D" parent="."]
+
+[node name="Target" type="Node2D" parent="."]
+
+[node name="ChaseAgent" type="Node2D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+control_mode = 3
+model_param_path = "res://examples/chase_the_target/models/chase_dummy.ncnn.param"
+model_bin_path = "res://examples/chase_the_target/models/chase_dummy.ncnn.bin"
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("3")
+control_mode = 2
