@@ -307,6 +307,50 @@ func get_action_from_image(image: Image, normalize_to_zero_one: bool = true) -> 
     return _native_runner.run_inference_image(image, normalize_to_zero_one)
 ```
 
+## Training Bridge (Milestone 3 Step 1/2)
+
+Two new scripts are included:
+
+- `tcp_client.gd` (`TcpClientBridge`): TCP client with reconnect, request timeout, and response matching via `request_id`.
+- `sync_node.gd` (`SyncNode`): finds agents in a group, batches observations, sends one request, and routes actions back.
+
+### Agent Contract
+
+Agents participating in training should:
+
+- be added to group `ncnn_training_agents` (or configure `agent_group_name` on `SyncNode`),
+- implement `collect_observation() -> Array` or `PackedFloat32Array`,
+- implement `apply_training_action(action)` to consume one returned action.
+
+### Wire-Up In Scene
+
+1. Add one node with script `tcp_client.gd`.
+2. Add one node with script `sync_node.gd`.
+3. Set `sync_node.tcp_client_path` to your TCP client node.
+4. Add your agent nodes to group `ncnn_training_agents`.
+
+### JSON Line Protocol
+
+`TcpClientBridge` uses newline-delimited JSON (`\\n` framing).
+
+Request example:
+
+```json
+{"type":"action_request","request_id":1,"observations":[[0.1,0.2],[0.3,0.4]],"metadata":{"agent_count":2}}
+```
+
+Response example:
+
+```json
+{"request_id":1,"actions":[1,0]}
+```
+
+Optional error response:
+
+```json
+{"request_id":1,"ok":false,"error":"bad payload"}
+```
+
 ## Notes
 
 - If `input_shape` is empty, `run_inference` maps input to a 1D `ncnn::Mat`.
