@@ -23,6 +23,10 @@ func build_step_message(obs: Array, reward: Array, done: Array) -> Dictionary:
 func build_reset_message(obs: Array) -> Dictionary:
 	return {"type": "reset", "obs": obs}
 
+# Mirrors godot_rl_agents' `_extract_action_dict` verbatim (incl. `index += size`
+# for discrete). Used only by the ncnn inference path (added in Part 2). The exact
+# discrete encoding for multi-key action spaces is validated against the godot-rl
+# package in Part 2; do not change this without checking protocol parity first.
 func extract_action_dict(action_array: Array, action_space: Dictionary) -> Dictionary:
 	var index := 0
 	var result := {}
