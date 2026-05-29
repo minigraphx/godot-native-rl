@@ -263,6 +263,11 @@ Example helper script:
 class_name NcnnAgentHelper
 extends Node
 
+enum AgentMode {
+    INFERENCE,
+    TRAINING,
+}
+
 enum ActionMode {
     CONTINUOUS,
     DISCRETE_ARGMAX,
@@ -273,9 +278,12 @@ enum ActionMode {
 @export var input_blob_name: String = "input"
 @export var output_blob_name: String = "output"
 @export var input_shape: PackedInt32Array = PackedInt32Array()
+@export_enum("Inference", "Training") var agent_mode: int = AgentMode.INFERENCE
 @export_enum("Continuous", "Discrete Argmax") var action_mode: int = ActionMode.CONTINUOUS
 
 var _native_runner: NcnnRunner
+var _last_training_observation: PackedFloat32Array = PackedFloat32Array()
+var _latest_training_action: Variant = null
 
 func _ready() -> void:
     _native_runner = NcnnRunner.new()
@@ -298,6 +306,10 @@ func get_action(observations: Array[float]) -> Variant:
         return null
 
     var packed_obs := PackedFloat32Array(observations)
+    if agent_mode == AgentMode.TRAINING:
+        _last_training_observation = packed_obs
+        return _latest_training_action
+
     if action_mode == ActionMode.DISCRETE_ARGMAX:
         return _native_runner.run_discrete_action(packed_obs)
 
@@ -307,12 +319,13 @@ func get_action_from_image(image: Image, normalize_to_zero_one: bool = true) -> 
     return _native_runner.run_inference_image(image, normalize_to_zero_one)
 ```
 
-## Training Bridge (Milestone 3 Step 1/2)
+## Training Bridge (Milestone 3 Step 1/2/3)
 
 Two new scripts are included:
 
 - `tcp_client.gd` (`TcpClientBridge`): TCP client with reconnect, request timeout, and response matching via `request_id`.
 - `sync_node.gd` (`SyncNode`): finds agents in a group, batches observations, sends one request, and routes actions back.
+- `NcnnAgent.gd` now supports `Inference` and `Training` mode.
 
 ### Agent Contract
 
@@ -322,12 +335,17 @@ Agents participating in training should:
 - implement `collect_observation() -> Array` or `PackedFloat32Array`,
 - implement `apply_training_action(action)` to consume one returned action.
 
+`NcnnAgentHelper` now implements this contract directly when `agent_mode = Training`.
+
 ### Wire-Up In Scene
 
 1. Add one node with script `tcp_client.gd`.
 2. Add one node with script `sync_node.gd`.
 3. Set `sync_node.tcp_client_path` to your TCP client node.
 4. Add your agent nodes to group `ncnn_training_agents`.
+5. For `NcnnAgentHelper` in training mode, call either:
+   - `get_action(observations)` every step (stores observation and returns latest action), or
+   - `set_training_observation(observations)` and read `get_latest_training_action()`.
 
 ### JSON Line Protocol
 
