@@ -263,27 +263,19 @@ Example helper script:
 class_name NcnnAgentHelper
 extends Node
 
-enum AgentMode {
-    INFERENCE,
-    TRAINING,
-}
-
 enum ActionMode {
     CONTINUOUS,
     DISCRETE_ARGMAX,
 }
 
-@export_file("*.param") var model_param_path: String
-@export_file("*.bin") var model_bin_path: String
-@export var input_blob_name: String = "input"
-@export var output_blob_name: String = "output"
+@export_file("*.param") var model_param_path: String = "res://models/test_mlp.ncnn.param"
+@export_file("*.bin") var model_bin_path: String = "res://models/test_mlp.ncnn.bin"
+@export var input_blob_name: String = "in0"
+@export var output_blob_name: String = "out0"
 @export var input_shape: PackedInt32Array = PackedInt32Array()
-@export_enum("Inference", "Training") var agent_mode: int = AgentMode.INFERENCE
 @export_enum("Continuous", "Discrete Argmax") var action_mode: int = ActionMode.CONTINUOUS
 
 var _native_runner: NcnnRunner
-var _last_training_observation: PackedFloat32Array = PackedFloat32Array()
-var _latest_training_action: Variant = null
 
 func _ready() -> void:
     _native_runner = NcnnRunner.new()
@@ -301,73 +293,62 @@ func _ready() -> void:
         push_error("Failed to load ncnn model.")
 
 func get_action(observations: Array[float]) -> Variant:
-    if not _native_runner.is_model_loaded():
+    if _native_runner == null or not _native_runner.is_model_loaded():
         push_error("NcnnAgentHelper.get_action: model not loaded.")
         return null
 
     var packed_obs := PackedFloat32Array(observations)
-    if agent_mode == AgentMode.TRAINING:
-        _last_training_observation = packed_obs
-        return _latest_training_action
-
     if action_mode == ActionMode.DISCRETE_ARGMAX:
         return _native_runner.run_discrete_action(packed_obs)
 
     return _native_runner.run_inference(packed_obs)
 
 func get_action_from_image(image: Image, normalize_to_zero_one: bool = true) -> PackedFloat32Array:
+    if _native_runner == null or not _native_runner.is_model_loaded():
+        push_error("NcnnAgentHelper.get_action_from_image: native runner is not ready.")
+        return PackedFloat32Array()
     return _native_runner.run_inference_image(image, normalize_to_zero_one)
 ```
 
-## Training Bridge (Milestone 3 Step 1/2/3)
+## Training Bridge (godot_rl_agents-compatible)
 
-Two new scripts are included:
+Training uses a bridge that speaks the [`godot_rl_agents`](https://github.com/edbeeching/godot_rl_agents) wire protocol, so you can train with the existing `godot-rl` Python package (Stable-Baselines3 / CleanRL / Sample-Factory) — no custom Python required. Two reusable scripts provide it:
 
-- `tcp_client.gd` (`TcpClientBridge`): TCP client with reconnect, request timeout, and response matching via `request_id`.
-- `sync_node.gd` (`SyncNode`): finds agents in a group, batches observations, sends one request, and routes actions back.
-- `NcnnAgent.gd` now supports `Inference` and `Training` mode.
+- `sync.gd` (`NcnnSync`): connects to the Python trainer as a TCP client (default port `11008`), performs the handshake, sends `env_info`, then runs the synchronous step loop, pausing the SceneTree between steps and honoring `action_repeat` / `speed_up` / command-line args.
+- `ncnn_ai_controller_2d.gd` (`NcnnAIController2D`): the base class your agents extend. Agents are discovered via the `"AGENT"` group.
 
 ### Agent Contract
 
-Agents participating in training should:
+Agents extend `NcnnAIController2D` (auto-added to group `"AGENT"`) and implement:
 
-- be added to group `ncnn_training_agents` (or configure `agent_group_name` on `SyncNode`),
-- implement `collect_observation() -> Array` or `PackedFloat32Array`,
-- implement `apply_training_action(action)` to consume one returned action.
+- `get_obs() -> Dictionary` returning `{"obs": [...]}`
+- `get_reward() -> float`
+- `get_action_space() -> Dictionary`, e.g. `{"move": {"size": 5, "action_type": "discrete"}}`
+- `set_action(action)` to apply one action
 
-`NcnnAgentHelper` now implements this contract directly when `agent_mode = Training`.
+`get_obs_space`, `get_done`, `reset`, and the other contract methods are provided by the base class.
 
 ### Wire-Up In Scene
 
-1. Add one node with script `tcp_client.gd`.
-2. Add one node with script `sync_node.gd`.
-3. Set `sync_node.tcp_client_path` to your TCP client node.
-4. Add your agent nodes to group `ncnn_training_agents`.
-5. For `NcnnAgentHelper` in training mode, call either:
-   - `get_action(observations)` every step (stores observation and returns latest action), or
-   - `set_training_observation(observations)` and read `get_latest_training_action()`.
+1. Add one node with script `sync.gd` (`NcnnSync`) and set its `control_mode` to `Training`.
+2. Add your agent node(s) extending `NcnnAIController2D` (they auto-join group `"AGENT"`).
+3. Start the Python trainer (e.g. `gdrl`); Godot connects to it on launch.
 
-### JSON Line Protocol
+### Protocol
 
-`TcpClientBridge` uses newline-delimited JSON (`\\n` framing).
-
-Request example:
+Messages are length-prefixed (4-byte little-endian) JSON via `StreamPeerTCP.put_string` / `get_string`, matching godot_rl. Per step Godot sends:
 
 ```json
-{"type":"action_request","request_id":1,"observations":[[0.1,0.2],[0.3,0.4]],"metadata":{"agent_count":2}}
+{"type":"step","obs":[{"obs":[0.1,0.2]}],"reward":[0.0],"done":[false]}
 ```
 
-Response example:
+and the trainer replies:
 
 ```json
-{"request_id":1,"actions":[1,0]}
+{"type":"action","action":[{"move":2}]}
 ```
 
-Optional error response:
-
-```json
-{"request_id":1,"ok":false,"error":"bad payload"}
-```
+> A complete, runnable 2D example (chase-the-target) with an end-to-end train → convert → ncnn-inference walkthrough is coming as a dedicated example and tutorial.
 
 ## Notes
 
