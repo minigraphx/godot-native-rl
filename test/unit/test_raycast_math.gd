@@ -38,4 +38,25 @@ func _initialize() -> void:
 			unit_ok = false
 	h.assert_true(unit_ok, "all 2D dirs are unit length")
 
+	# --- ray_directions_3d ---
+	h.assert_eq(RaycastMath.ray_directions_3d(0, 2, 90.0, 45.0).size(), 0, "n_w 0 -> empty")
+	h.assert_eq(RaycastMath.ray_directions_3d(4, 0, 90.0, 45.0).size(), 0, "n_h 0 -> empty")
+
+	var grid: Array = RaycastMath.ray_directions_3d(4, 2, 90.0, 45.0)
+	h.assert_eq(grid.size(), 8, "4x2 grid -> 8 dirs")
+
+	var center: Array = RaycastMath.ray_directions_3d(1, 1, 90.0, 45.0)
+	h.assert_eq(center.size(), 1, "1x1 grid -> 1 dir")
+	h.assert_true((center[0] - Vector3(0.0, 0.0, -1.0)).length() < 1e-5, "1x1 dir points forward -Z")
+
+	var yaw_row: Array = RaycastMath.ray_directions_3d(3, 1, 90.0, 0.0)
+	h.assert_eq(yaw_row.size(), 3, "3x1 -> 3 dirs")
+	h.assert_true((yaw_row[1] - Vector3(0.0, 0.0, -1.0)).length() < 1e-5, "3x1 middle dir is forward")
+
+	var unit3_ok := true
+	for d in grid:
+		if absf(d.length() - 1.0) > 1e-5:
+			unit3_ok = false
+	h.assert_true(unit3_ok, "all 3D dirs are unit length")
+
 	h.finish(self)

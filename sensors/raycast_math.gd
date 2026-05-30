@@ -28,3 +28,27 @@ static func ray_directions_2d(n_rays: int, cone_degrees: float, forward_radians:
 	for i in range(n_rays):
 		dirs.append(Vector2.from_angle(start + step * float(i)))
 	return dirs
+
+# Grid of unit direction vectors centered on forward (-Z, Godot's 3D forward).
+# Yaw spreads across h_fov, pitch across v_fov, both endpoint-inclusive; a count of 1
+# on an axis means zero offset (centered) on that axis. Order is row-major: pitch
+# (height) outer, yaw (width) inner. n_w < 1 or n_h < 1 -> empty.
+static func ray_directions_3d(n_w: int, n_h: int, h_fov_deg: float, v_fov_deg: float) -> Array:
+	var dirs := []
+	if n_w < 1 or n_h < 1:
+		return dirs
+	var h_fov := deg_to_rad(h_fov_deg)
+	var v_fov := deg_to_rad(v_fov_deg)
+	var yaw_start := 0.0 if n_w == 1 else -h_fov / 2.0
+	var yaw_step := 0.0 if n_w == 1 else h_fov / float(n_w - 1)
+	var pitch_start := 0.0 if n_h == 1 else -v_fov / 2.0
+	var pitch_step := 0.0 if n_h == 1 else v_fov / float(n_h - 1)
+	for hi in range(n_h):
+		var pitch := pitch_start + pitch_step * float(hi)
+		for wi in range(n_w):
+			var yaw := yaw_start + yaw_step * float(wi)
+			var d := Vector3(0.0, 0.0, -1.0)
+			d = d.rotated(Vector3(1.0, 0.0, 0.0), pitch)
+			d = d.rotated(Vector3(0.0, 1.0, 0.0), yaw)
+			dirs.append(d)
+	return dirs
