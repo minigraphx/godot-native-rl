@@ -16,10 +16,10 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
 
 ## Now (highest leverage)
 
-1. ⬜ **Signal→Reward Adapter + Reward Builder** — Godot-native declarative reward authoring.
+1. ✅ **Signal→Reward Adapter + Reward Builder** — Godot-native declarative reward authoring.
    `RewardAdapter.on_signal(emitter, signal, delta)` + fluent `RewardBuilder`. Removes
    `compute_step_reward` boilerplate. *(novel-addons spec §3 A1/A2; top DX priority)*
-2. ⬜ **`export_to_ncnn.py` helper** — one-command convert+verify (`--skip-verify` opt-out,
+2. 🔄 **`export_to_ncnn.py` helper** — one-command convert+verify (`--skip-verify` opt-out,
    verify-on-default). Generalizes the manual pnnx + `verify_ncnn_parity.py` steps.
 3. ⬜ **RaycastSensor2D + RaycastSensor3D** — the most-used godot_rl observation type; biggest
    switching-friction gap. `get_observation()`/`obs_size()` interface. *(roadmap spec Track A.1)*
