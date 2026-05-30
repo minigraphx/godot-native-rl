@@ -67,9 +67,22 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
 
 ## Soon (parity + foundations)
 
-5. ⬜ **Addon structure + `NcnnAIController` base refactor** — reorganize into
+5. ✅ **Addon structure + `NcnnAIController` base refactor** — reorganize into
    `addons/godot_native_rl/` with `plugin.cfg`; split controller into base + 2D + 3D subclasses
    (backward-compatible). Prerequisite for Asset Library install + sensors. *(roadmap spec §4 Phase 1A)*
+   **Done 2026-05-31** — spec `docs/superpowers/specs/2026-05-30-addon-structure-and-controller-refactor-design.md`,
+   plan `docs/superpowers/plans/2026-05-30-addon-structure-and-controller-refactor.md`. Moved the GDScript
+   library (`sync.gd`, `reward/`, `sensors/`, controllers) into `addons/godot_native_rl/` + `plugin.cfg`
+   + minimal `plugin.gd`; the compiled GDExtension stays at root (packaging deferred → item 25). Split the
+   controller: new `NcnnControllerCore` (RefCounted state machine + reward accumulation + `obs_space_from_obs`,
+   unit-tested), `NcnnAIController2D` refactored to delegate via forwarding properties (API unchanged), new
+   thin `NcnnAIController3D`. Backward-compat proven by the unchanged controller/chase/trained-chase/golden
+   tests passing. **Robustness fix:** in-repo controller subclasses switched to **path-based `extends`** so
+   `class_name` resolution no longer depends on the gitignored editor cache — `./test/run_tests.sh` is now
+   green from a clean (cache-less) state. Not a Godot bug (related issues #93157/#78642 fixed editor-side in
+   4.3); it's the documented headless limitation CLAUDE.md already warns about.
+   **Deferred:** Asset Library binary packaging (item 25); 3D example + training (item 6); optionally fold
+   sensor auto-discovery (`collect_sensors()`, deferred from item 3) into the controller core later.
 6. ⬜ **3D controller + navigate-to-target example** — `NcnnAIController3D` + minimal 3D example;
    reuses the existing training pipeline unchanged (same obs/action shape).
 7. ⬜ **RelativePositionSensor** (godot_rl issue #177) — normalized direction + clipped distance.
