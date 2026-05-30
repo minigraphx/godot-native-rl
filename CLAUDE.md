@@ -60,7 +60,9 @@ complement to godot_rl, grow toward full replacement.
 - **Novel addons + protocol findings:**
   `docs/superpowers/specs/2026-05-30-novel-addons-and-protocol-design.md` (10 addons in neither
   godot_rl nor Unity; 4 protocol upgrades incl. the `terminated`/`truncated` correctness fix).
-- **Active work is queued as spawn-task chips** (15 of them): export_to_ncnn helper, ncnn_vs_onnx
+- **Actionable backlog (pick up by number):** `docs/BACKLOG.md` — mirrors the chips so any
+  session (incl. mobile) can start an item without clicking. Say "do backlog item N".
+- **Active work is also queued as spawn-task chips** (15 of them): export_to_ncnn helper, ncnn_vs_onnx
   doc, sensors (relative-position, camera, navmesh), 3D controller+example, training backends
   (CleanRL/SampleFactory/SKRL), expert-demo recording, Signal→Reward+RewardBuilder (top DX
   priority), protocol v0.8 upgrades, INT8 quantization, async inference, LOD policy switching.
