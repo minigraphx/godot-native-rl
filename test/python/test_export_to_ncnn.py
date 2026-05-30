@@ -57,5 +57,18 @@ class TestIntermediateFiles(unittest.TestCase):
         self.assertEqual(binf, Path("/o/m.ncnn.bin"))
 
 
+_MODEL = Path(__file__).resolve().parents[2] / "models" / "chase_policy.onnx"
+
+
+@unittest.skipUnless(_MODEL.is_file(), "chase_policy.onnx not present")
+class TestReadOnnxInputs(unittest.TestCase):
+    def test_reads_obs_and_state_ins(self):
+        inputs = ex.read_onnx_inputs(str(_MODEL))
+        names = {i.name for i in inputs}
+        self.assertIn("obs", names)
+        # Derivation on the real model yields the documented shape.
+        self.assertEqual(ex.derive_inputshape(inputs), "[1,5],[1]")
+
+
 if __name__ == "__main__":
     unittest.main()
