@@ -177,6 +177,40 @@ Then set:
 - `model_param_path = "res://models/your_model.ncnn.param"`
 - `model_bin_path = "res://models/your_model.ncnn.bin"`
 
+### 4) Verify the conversion (recommended)
+
+`pnnx` is reliable for the simple MLP policies typical of RL agents, but a conversion can
+silently go wrong (an unsupported operator, a wrong blob, numerical drift). For an RL policy this
+failure is **silent** — the agent behaves subtly wrong instead of crashing — so verifying is worth
+the few seconds. `scripts/verify_ncnn_parity.py` runs the ONNX (via onnxruntime) and the ncnn
+model over 50 random observations and confirms the **argmax matches** on every one:
+
+```bash
+python scripts/verify_ncnn_parity.py \
+  your_model.onnx your_model.ncnn.param your_model.ncnn.bin in0 out0
+```
+
+Expected: `PARITY OK: 50/50 argmax match between ONNX and ncnn`. (godot-rl-exported policies
+convert to the blob names `in0` / `out0` — `pnnx` prunes the vestigial `state_ins` input.)
+Verification requires `onnxruntime` and the `ncnn` Python package.
+
+### The "fast path" (skip verification)
+
+Verification is the **default**; skipping it is an explicit opt-out, never the reverse — defaulting
+to "skip" would quietly ship broken models.
+
+Skipping is reasonable when:
+
+- You have already verified this model **architecture** once and are only re-converting new weights
+  of the same shape (`pnnx` is deterministic, so re-verification is redundant), or
+- You are in a CI/iteration loop where speed matters and a separate periodic verification gate exists.
+
+The fast path also avoids the `onnxruntime` + `ncnn` dependencies — plain `pnnx` is enough to
+convert; those two packages are only needed to verify.
+
+> A one-command convenience helper (`scripts/export_to_ncnn.py`) that wraps convert + verify with a
+> `--skip-verify` opt-out is planned. Until then, run `pnnx` and `verify_ncnn_parity.py` as above.
+
 ## Universal / Multi-Architecture Builds
 
 ### macOS (single universal dylib)
@@ -348,7 +382,22 @@ and the trainer replies:
 {"type":"action","action":[{"move":2}]}
 ```
 
-> A complete, runnable 2D example (chase-the-target) with an end-to-end train → convert → ncnn-inference walkthrough is coming as a dedicated example and tutorial.
+## Examples
+
+### Chase The Target (2D)
+
+A complete, runnable 2D example: an agent learns to chase a relocating target, trained with
+`godot-rl` over the `NcnnSync` bridge and deployed via native `NcnnRunner` inference. It ships
+with a pre-trained model so it runs out of the box.
+
+- Scene: `examples/chase_the_target/chase_the_target.tscn`
+- From-scratch tutorial: [docs/examples/chase_the_target_tutorial.md](docs/examples/chase_the_target_tutorial.md)
+
+Run the headless checks (unit tests + protocol + inference smoke + trained-chase):
+
+```bash
+./test/run_tests.sh
+```
 
 ## Notes
 

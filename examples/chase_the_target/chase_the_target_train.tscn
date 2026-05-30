@@ -16,10 +16,8 @@ target_path = NodePath("Target")
 [node name="ChaseAgent" type="Node2D" parent="."]
 script = ExtResource("2")
 game_path = NodePath("..")
-control_mode = 3
-model_param_path = "res://examples/chase_the_target/models/chase_the_target.ncnn.param"
-model_bin_path = "res://examples/chase_the_target/models/chase_the_target.ncnn.bin"
+control_mode = 2
 
 [node name="Sync" type="Node" parent="."]
 script = ExtResource("3")
-control_mode = 2
+control_mode = 1

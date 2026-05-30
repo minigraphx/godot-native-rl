@@ -19,4 +19,7 @@ fi
 echo "== Inference smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/inference_smoke_scene.tscn
 
+echo "== Trained chase check (headless) =="
+"$GODOT" --headless --path . res://test/integration/trained_chase_scene.tscn
+
 echo "All tests passed."

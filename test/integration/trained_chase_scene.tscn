@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://examples/chase_the_target/chase_game.gd" id="1"]
 [ext_resource type="Script" path="res://examples/chase_the_target/chase_agent.gd" id="2"]
 [ext_resource type="Script" path="res://sync.gd" id="3"]
+[ext_resource type="Script" path="res://test/integration/trained_chase_checker.gd" id="4"]
 
 [node name="ChaseGame" type="Node2D"]
 script = ExtResource("1")
@@ -23,3 +24,10 @@ model_bin_path = "res://examples/chase_the_target/models/chase_the_target.ncnn.b
 [node name="Sync" type="Node" parent="."]
 script = ExtResource("3")
 control_mode = 2
+
+[node name="TrainedChecker" type="Node" parent="."]
+script = ExtResource("4")
+game_path = NodePath("..")
+agent_path = NodePath("../ChaseAgent")
+frames_to_run = 1800
+min_catches = 5
