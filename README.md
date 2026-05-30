@@ -392,7 +392,7 @@ and the trainer replies:
 {"type":"action","action":[{"move":2}]}
 ```
 
-### Sensors
+## Sensors
 
 Reusable observation sources implementing the shared sensor interface
 (`get_observation() -> Array`, `obs_size() -> int`). Compose them manually inside your

@@ -19,6 +19,7 @@ const RaycastMath = preload("res://sensors/raycast_math.gd")
 # Test seam: a Callable(origin: Vector3, dir: Vector3) -> float returning hit distance,
 # or a negative value for a miss. When null, the real physics query is used.
 var _cast_fn = null
+var _warned_degenerate := false
 
 func set_cast_fn_for_test(fn: Callable) -> void:
 	_cast_fn = fn
@@ -28,8 +29,11 @@ func obs_size() -> int:
 
 func get_observation() -> Array:
 	if n_rays_width < 1 or n_rays_height < 1:
-		push_warning("RaycastSensor3D: n_rays_width/height < 1; returning empty observation.")
+		if not _warned_degenerate:
+			push_warning("RaycastSensor3D: n_rays_width/height < 1; returning empty observation.")
+			_warned_degenerate = true
 		return []
+	_warned_degenerate = false
 	if _cast_fn == null and get_world_3d() == null:
 		push_error("RaycastSensor3D: no world_3d available and no injected cast; returning zeros.")
 		var zeros := []
@@ -55,11 +59,14 @@ func _cast(origin: Vector3, dir: Vector3) -> float:
 	var world := get_world_3d()
 	if world == null:
 		return -1.0
+	var space := world.direct_space_state
+	if space == null:
+		return -1.0
 	var to := origin + dir * ray_length
 	var query := PhysicsRayQueryParameters3D.create(origin, to, collision_mask)
 	query.collide_with_areas = collide_with_areas
 	query.collide_with_bodies = collide_with_bodies
-	var result := world.direct_space_state.intersect_ray(query)
+	var result := space.intersect_ray(query)
 	if result.is_empty():
 		return -1.0
 	return origin.distance_to(result.position)

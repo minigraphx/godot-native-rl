@@ -46,7 +46,8 @@ func _initialize() -> void:
 	var obs_half: Array = s.get_observation()
 	h.assert_true(absf(obs_half[0] - 0.5) < 1e-6, "distance 10 / length 20 -> 0.5")
 
-	# Directions rotate with the node's transform basis.
+	# Directions rotate with the node's basis. Detached from the tree, the sensor uses
+	# its local transform (the is_inside_tree() == false fallback), which we mirror here.
 	var recorded := []
 	s.rotation = Vector3(0.0, PI / 2.0, 0.0)
 	var record_fn := func(_o: Vector3, d: Vector3) -> float:
