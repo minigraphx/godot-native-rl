@@ -35,8 +35,36 @@ ncnn inference, or ONNX Runtime inference?"** for the platform you intend to shi
 > Two common misconceptions, corrected: (1) **ONNX Runtime can run on the web and on mobile** (ORT
 > Web / ORT Mobile) — ncnn's web edge is about *clean static C++ Godot integration*, not "ONNX can't
 > reach the browser." (2) By raw GitHub stars, **ncnn is currently larger** than the ONNX Runtime repo
-> (~23k vs ~21k, May 2026) — though ORT's *total* ecosystem (the ONNX org, bindings, Windows ML) is
-> far bigger.
+> (23.3k vs 20.7k, verified May 2026) — though ORT's *total* ecosystem (the ONNX org, bindings,
+> Windows ML) is far bigger.
+
+---
+
+## Quick lookup: which runtime for your target?
+
+Fit rating for each deployment target / use case. **🟢 strong fit · 🟡 workable, with caveats ·
+🔴 weak / not recommended.** "ONNX Runtime" below means the **stock `godot_rl_agents` native path**
+(which runs through Godot Mono/.NET) unless noted.
+
+| Target / use case | ncnn (this project) | ONNX Runtime (godot_rl path) | Notes |
+|---|:--:|:--:|---|
+| **Web / HTML5 export** | 🟡 | 🔴 | ncnn works but needs a brittle `wasm32` dlink build, CPU/SIMD only; the .NET-ONNX path **can't web-export at all** ([godot#70796][gh-70796]) |
+| **Desktop (Win/Mac/Linux)** | 🟢 | 🟢 | Both solid; ORT has more GPU EPs |
+| **Mobile (iOS / Android)** | 🟢 | 🟡 | ncnn tiny + dependency-free; ORT small only via custom minimal build + `.ort` |
+| **Console (Switch/PS/Xbox)** | 🟢 | 🔴 | Static C++ AOT has no managed runtime to certify; ncnn lists no turnkey console build though |
+| **Edge / IoT** | 🟢 | 🟡 | ncnn's lean static footprint shines |
+| **Server-side inference** | 🔴 | 🟢 | This is ORT's home turf — don't convert |
+| **NVIDIA GPU / TensorRT** | 🔴 | 🟢 | ncnn GPU is Vulkan-only; ORT has CUDA/TensorRT EPs |
+| **Mobile NPU (CoreML/NNAPI/QNN)** | 🔴 | 🟢 | ncnn has no NPU delegate (Vulkan GPU only) |
+| **Rapid iteration (no convert step)** | 🔴 | 🟢 | ncnn needs a convert+verify gate per re-train |
+| **Tiny / dependency-free binary** | 🟢 | 🟡 | ~3.4 MB static vs custom-built minimal ORT |
+| **INT8 size reduction (~4×)** | 🟢 | 🟢 | Both have PTQ; speedup is model/SoC-dependent for both |
+| **Broad / exotic operators** | 🟡 | 🟢 | ncnn is a leaner curated op set (~120 layers) |
+| **Closed-source commercial shipping** | 🟢 | 🟢 | BSD-3-Clause vs MIT — both permissive |
+
+> If your row is 🟢 under ncnn and 🔴/🟡 under ONNX Runtime, converting is worth it. If it's the
+> reverse, **stay on the stock `godot_rl_agents` ONNX path** — see "When ONNX Runtime is genuinely the
+> better choice" below.
 
 ---
 
