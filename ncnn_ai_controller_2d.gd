@@ -98,3 +98,6 @@ func _physics_process(_delta) -> void:
 	n_steps += 1
 	if n_steps > reset_after:
 		needs_reset = true
+		# Signal episode termination (godot_rl convention): the trainer reads this as
+		# `done`, which gives proper episode boundaries and reward statistics.
+		done = true
