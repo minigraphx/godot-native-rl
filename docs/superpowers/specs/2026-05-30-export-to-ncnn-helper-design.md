@@ -123,7 +123,11 @@ Fail fast with clear, actionable messages; never silently swallow:
 - Expected `.ncnn.*` outputs missing after pnnx → error.
 - Parity failure → keep intermediates, print reason, exit non-zero.
 
-## 8. Testing (pytest)
+## 8. Testing (stdlib `unittest`)
+
+> `pytest` is not installed in `.venv-train`; tests use stdlib `unittest` (no new dependency, run via
+> `.venv-train/bin/python -m unittest`). They are written as `TestCase` classes, so pytest can also
+> run them if it is added later.
 
 - **Unit (no venv/model/network needed):**
   - `derive_inputshape`: `obs`-only `[batch,5]` → `[1,5]`; `obs`+`state_ins` → `[1,5],[1]`;
@@ -137,12 +141,13 @@ Fail fast with clear, actionable messages; never silently swallow:
   - `run_export` with subprocess + verify **mocked**: asserts the right pnnx command is issued, that
     verify is/ isn't called per `--skip-verify`, and the exit code maps to outcomes.
   - Heavy deps stay un-imported in these tests (lazy import design).
-- **Integration (opt-in; `pytest.mark.skipif` when `.venv/bin/pnnx` or `models/chase_policy.onnx`
+- **Integration (`unittest.skipUnless` when `.venv/bin/pnnx` or `models/chase_policy.onnx`
   absent):** run end-to-end on `models/chase_policy.onnx` into a **temporary outdir** (never clobber
   the deployed `models/chase_policy.ncnn.*`); assert `.ncnn.param`/`.ncnn.bin` exist and parity `ok`.
-- Tests live in `test/python/` (new), run with `.venv-train/bin/python -m pytest test/python -q`.
-  `run_tests.sh` gains an optional step that runs the **unit** tests if `pytest` is importable in
-  `.venv-train` (skips cleanly otherwise, to avoid a hard new dependency in CI).
+- Tests live in `test/python/` (new), run with
+  `.venv-train/bin/python -m unittest discover -s test/python -p 'test_*.py'`. `run_tests.sh` gains a
+  step that runs this discovery; the integration test self-skips when its tools/model are absent, so
+  the step is safe everywhere.
 
 ## 9. Out of scope (YAGNI)
 
