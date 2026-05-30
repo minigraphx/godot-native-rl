@@ -38,5 +38,17 @@ func _initialize() -> void:
 	a.accumulate_reward()
 	h.assert_true(absf(a.reward - 0.75) < 1e-6, "3D accumulate_reward sums reward_source via core")
 
+	# step threshold flows through the 3D wrapper into core.step(reset_after)
+	a.reset_after = 3
+	a.reset()
+	a.set_done_false()
+	a._physics_process(0.0)
+	a._physics_process(0.0)
+	a._physics_process(0.0)
+	h.assert_true(not a.done, "3D not done at exactly reset_after steps")
+	a._physics_process(0.0)
+	h.assert_true(a.done, "3D done once n_steps > reset_after")
+	h.assert_true(a.needs_reset, "3D needs_reset set past threshold")
+
 	a.free()
 	h.finish(self)

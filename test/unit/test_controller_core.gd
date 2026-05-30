@@ -45,6 +45,7 @@ func _initialize() -> void:
 	c.n_steps = 5
 	c.reset_if_done()
 	h.assert_eq(c.n_steps, 0, "reset_if_done resets when done")
+	h.assert_true(c.done, "reset_if_done leaves done set (cleared separately via set_done_false)")
 
 	# done helpers
 	c.done = true

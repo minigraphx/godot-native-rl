@@ -1,3 +1,4 @@
+# Path-based extends for cache-independent headless resolution — see CLAUDE.md.
 extends "res://addons/godot_native_rl/controllers/ncnn_ai_controller_2d.gd"
 
 func get_obs() -> Dictionary:
