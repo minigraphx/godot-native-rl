@@ -60,6 +60,24 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
 18. ⬜ **SampleFactory backend** — async high-throughput training. *v-next, after CameraSensor.*
 19. ⬜ **SKRL backend** — multi-agent + JAX. *v-next, when multi-agent/JAX becomes priority.*
 
+## Deploy-side inference gaps (surfaced by `docs/ncnn_vs_onnx.md`)
+
+These are current limitations of the **inference helper** (`NcnnRunner` + controller), not of ncnn or
+of godot_rl training — godot_rl can train these; we just can't yet *deploy* them natively.
+
+21. ⬜ **Continuous + multi-key action deployment** — `run_discrete_action` is argmax-only on the first
+    action key. Add continuous (PPO-continuous / SAC: mean output, optional tanh squash), multi-discrete,
+    and multiple simultaneous action keys to the runner + controller. *(verification for continuous must
+    check numerical closeness, not argmax — see `ncnn_vs_onnx.md`)*
+22. ⬜ **Recurrent / LSTM policy support** — controller is feed-forward and stateless per call. Carry
+    hidden state across frames so recurrent policies deploy. (ncnn already has LSTM/GRU layers.)
+23. ⬜ **Batched multi-agent inference** — each agent currently runs its own forward pass (linear cost).
+    Add batched inference (batch dim) at the C++ level for crowds / large multi-agent scenes.
+24. ⬜ **Observation-normalization parity helper** — optional `VecNormalize`-style running mean/std
+    replay game-side, for policies trained with SB3 `VecNormalize`. Today obs must be hand-normalized in
+    `get_obs()` identically at train and deploy; this silently fails if mismatched. *(top silent-failure
+    risk called out in `ncnn_vs_onnx.md`)*
+
 ## Later (in catalog spec, not yet detailed)
 
 20. ⬜ Animation Policy Adapter · in-editor Policy Debugger · Running Normalization Sensor ·
