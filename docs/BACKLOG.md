@@ -23,7 +23,7 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
    verify-on-default). Generalizes the manual pnnx + `verify_ncnn_parity.py` steps.
 3. ⬜ **RaycastSensor2D + RaycastSensor3D** — the most-used godot_rl observation type; biggest
    switching-friction gap. `get_observation()`/`obs_size()` interface. *(roadmap spec Track A.1)*
-4. ⬜ **`ncnn_vs_onnx.md`** — balanced decision guide (honest pros/cons both sides), linked from README.
+4. ✅ **`ncnn_vs_onnx.md`** — balanced decision guide (honest pros/cons both sides), linked from README.
 
 ## Soon (parity + foundations)
 

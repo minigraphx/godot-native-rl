@@ -2,6 +2,10 @@
 
 Minimal Godot 4.6+ GDExtension (C++) for running ncnn inference from Godot.
 
+> **Should you use ncnn or stick with ONNX Runtime?** See the balanced decision guide:
+> [docs/ncnn_vs_onnx.md](docs/ncnn_vs_onnx.md) — honest pros/cons on both sides (web/console/mobile,
+> INT8, conversion, licensing), including where ONNX Runtime is genuinely the better choice.
+
 ## What This Repository Provides
 
 - `NcnnRunner` C++ node class exposed to Godot.
@@ -134,6 +138,10 @@ scons platform=windows target=template_debug
 Build output is written to `bin/` and matched by `ncnn_runner.gdextension`.
 
 ## Convert ONNX To ncnn
+
+> New here? Read [docs/ncnn_vs_onnx.md](docs/ncnn_vs_onnx.md) first to decide whether converting to
+> ncnn is the right call for your deployment target — for fast server-side iteration the stock
+> `godot_rl_agents` ONNX path may suit you better.
 
 Use `pnnx` (recommended) to convert ONNX models to ncnn files.
 
