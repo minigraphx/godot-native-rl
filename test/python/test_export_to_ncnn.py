@@ -1,4 +1,6 @@
 import sys
+import tempfile
+import types
 import unittest
 from pathlib import Path
 
@@ -29,6 +31,10 @@ class TestDeriveInputshape(unittest.TestCase):
         inputs = [ex.OnnxInput("foo", (1, 5))]
         with self.assertRaises(ValueError):
             ex.derive_inputshape(inputs)
+
+    def test_empty_obs_shape_raises(self):
+        with self.assertRaises(ValueError):
+            ex.derive_inputshape([ex.OnnxInput("obs", ())])
 
 
 class TestPnnxCommand(unittest.TestCase):
@@ -68,10 +74,6 @@ class TestReadOnnxInputs(unittest.TestCase):
         self.assertIn("obs", names)
         # Derivation on the real model yields the documented shape.
         self.assertEqual(ex.derive_inputshape(inputs), "[1,5],[1]")
-
-
-import tempfile  # noqa: E402
-import types  # noqa: E402
 
 
 def _fake_runner(*, returncode=0, make_outputs=True, make_intermediates=True):
@@ -179,6 +181,18 @@ class TestRunExport(unittest.TestCase):
                                runner=_fake_runner(make_outputs=False), verifier=_ok_verifier,
                                pnnx_exists=lambda p: True)
             self.assertEqual(rc, 1)
+
+    def test_outputs_land_in_explicit_outdir(self):
+        with tempfile.TemporaryDirectory() as src, tempfile.TemporaryDirectory() as dst:
+            onnx = Path(src) / "m.onnx"
+            onnx.write_text("dummy")
+            rc = ex.run_export(
+                str(onnx), outdir=dst, inputshape="[1,5]", pnnx="/fake/pnnx",
+                runner=_fake_runner(), verifier=_ok_verifier, pnnx_exists=lambda p: True,
+            )
+            self.assertEqual(rc, 0)
+            self.assertTrue((Path(dst) / "m.ncnn.param").is_file())
+            self.assertFalse((Path(src) / "m.ncnn.param").is_file())
 
 
 if __name__ == "__main__":

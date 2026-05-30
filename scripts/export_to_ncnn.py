@@ -120,11 +120,14 @@ def run_export(
 
     with tempfile.TemporaryDirectory() as workdir:
         work = Path(workdir)
-        # Copy the ONNX and any external-data sidecars (files whose name starts with
-        # the ONNX filename, e.g. "model.onnx.data") into the isolated work dir.
-        for sib in onnx_path.parent.glob(onnx_path.name + "*"):
-            if sib.is_file():
-                shutil.copy2(sib, work / sib.name)
+        # Copy the ONNX plus its external-data sidecar into the isolated work dir.
+        # torch/onnx emit the sidecar as "<onnx-name>.data". NOTE: only this
+        # conventional sidecar is handled; ONNX models with arbitrarily-named
+        # external-data shards would need those copied in too.
+        shutil.copy2(onnx_path, work / onnx_path.name)
+        sidecar = onnx_path.parent / (onnx_path.name + ".data")
+        if sidecar.is_file():
+            shutil.copy2(sidecar, work / sidecar.name)
 
         cmd = pnnx_command(pnnx, onnx_path.name, inputshape)
         print(f"running: {' '.join(cmd)} (cwd={work})")
@@ -156,7 +159,12 @@ def run_export(
 
         if not skip_verify:
             if verifier is None:
-                from verify_ncnn_parity import verify_parity as verifier  # type: ignore[assignment]
+                try:
+                    from verify_ncnn_parity import verify_parity
+                except ImportError as e:
+                    print(f"ERROR: cannot import verify_parity ({e}); is scripts/ on sys.path?", file=sys.stderr)
+                    return 1
+                verifier = verify_parity
             result = verifier(str(onnx_path), str(param_path), str(bin_path), in_blob, out_blob)
             if not result.ok:
                 _move_intermediates()  # keep debris for debugging

@@ -31,6 +31,10 @@ class TestParitySummary(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("1 distinct action", summary)
 
+    def test_two_distinct_actions_passes(self):
+        ok, summary = vp.parity_summary(0, 0, 2, 50)
+        self.assertTrue(ok)
+
     def test_verify_result_is_frozen(self):
         r = vp.VerifyResult(True, 0, 0, 3, 50, "ok")
         with self.assertRaises(Exception):
