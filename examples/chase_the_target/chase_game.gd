@@ -10,6 +10,7 @@ extends Node2D
 var _rng := RandomNumberGenerator.new()
 var _agent_body: Node2D
 var _target: Node2D
+var catches := 0
 
 func _ready() -> void:
 	_agent_body = get_node_or_null(agent_body_path) as Node2D
@@ -45,6 +46,7 @@ func move_agent(velocity: Vector2, delta: float) -> void:
 		_agent_body.position = clamp_to_bounds(_agent_body.position + velocity * delta)
 
 func relocate_target() -> void:
+	catches += 1
 	if _target != null:
 		_target.position = random_position()
 
