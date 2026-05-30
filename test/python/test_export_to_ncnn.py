@@ -70,5 +70,116 @@ class TestReadOnnxInputs(unittest.TestCase):
         self.assertEqual(ex.derive_inputshape(inputs), "[1,5],[1]")
 
 
+import tempfile  # noqa: E402
+import types  # noqa: E402
+
+
+def _fake_runner(*, returncode=0, make_outputs=True, make_intermediates=True):
+    """Returns a callable mimicking subprocess.run that writes pnnx-style files."""
+    def runner(cmd, cwd=None, capture_output=False, text=False):
+        out = Path(cwd)
+        stem = Path(cmd[1]).stem
+        if returncode == 0 and make_outputs:
+            (out / f"{stem}.ncnn.param").write_text("p")
+            (out / f"{stem}.ncnn.bin").write_text("b")
+            if make_intermediates:
+                for f in ex.intermediate_files(out, stem):
+                    f.write_text("x")
+        return types.SimpleNamespace(returncode=returncode, stdout="", stderr="err")
+    return runner
+
+
+def _ok_verifier(*args, **kwargs):
+    return types.SimpleNamespace(ok=True, summary="50/50 argmax match")
+
+
+def _fail_verifier(*args, **kwargs):
+    return types.SimpleNamespace(ok=False, summary="3/50 argmax mismatches")
+
+
+class TestRunExport(unittest.TestCase):
+    def _onnx(self, d):
+        p = Path(d) / "m.onnx"
+        p.write_text("dummy")
+        return p
+
+    def test_success_cleans_intermediates(self):
+        with tempfile.TemporaryDirectory() as d:
+            onnx = self._onnx(d)
+            rc = ex.run_export(
+                str(onnx), inputshape="[1,5],[1]", pnnx="/fake/pnnx",
+                runner=_fake_runner(), verifier=_ok_verifier,
+                pnnx_exists=lambda p: True,
+            )
+            self.assertEqual(rc, 0)
+            self.assertTrue((Path(d) / "m.ncnn.param").is_file())
+            self.assertTrue((Path(d) / "m.ncnn.bin").is_file())
+            self.assertFalse((Path(d) / "m.pnnx.bin").is_file())
+            self.assertFalse((Path(d) / "m_ncnn.py").is_file())
+
+    def test_keep_intermediates(self):
+        with tempfile.TemporaryDirectory() as d:
+            onnx = self._onnx(d)
+            rc = ex.run_export(
+                str(onnx), inputshape="[1,5],[1]", pnnx="/fake/pnnx",
+                keep_intermediates=True, runner=_fake_runner(), verifier=_ok_verifier,
+                pnnx_exists=lambda p: True,
+            )
+            self.assertEqual(rc, 0)
+            self.assertTrue((Path(d) / "m.pnnx.bin").is_file())
+
+    def test_parity_failure_keeps_intermediates_and_returns_1(self):
+        with tempfile.TemporaryDirectory() as d:
+            onnx = self._onnx(d)
+            rc = ex.run_export(
+                str(onnx), inputshape="[1,5],[1]", pnnx="/fake/pnnx",
+                runner=_fake_runner(), verifier=_fail_verifier,
+                pnnx_exists=lambda p: True,
+            )
+            self.assertEqual(rc, 1)
+            self.assertTrue((Path(d) / "m.pnnx.bin").is_file())
+
+    def test_skip_verify_does_not_call_verifier(self):
+        def boom(*a, **k):
+            raise AssertionError("verifier must not be called with --skip-verify")
+        with tempfile.TemporaryDirectory() as d:
+            onnx = self._onnx(d)
+            rc = ex.run_export(
+                str(onnx), inputshape="[1,5],[1]", pnnx="/fake/pnnx",
+                skip_verify=True, runner=_fake_runner(), verifier=boom,
+                pnnx_exists=lambda p: True,
+            )
+            self.assertEqual(rc, 0)
+
+    def test_missing_onnx_returns_1(self):
+        rc = ex.run_export("/nope/missing.onnx", inputshape="[1,5]", pnnx="/fake/pnnx",
+                           runner=_fake_runner(), verifier=_ok_verifier, pnnx_exists=lambda p: True)
+        self.assertEqual(rc, 1)
+
+    def test_pnnx_missing_returns_1(self):
+        with tempfile.TemporaryDirectory() as d:
+            onnx = self._onnx(d)
+            rc = ex.run_export(str(onnx), inputshape="[1,5]", pnnx="/fake/pnnx",
+                               runner=_fake_runner(), verifier=_ok_verifier,
+                               pnnx_exists=lambda p: False)
+            self.assertEqual(rc, 1)
+
+    def test_pnnx_nonzero_returns_1(self):
+        with tempfile.TemporaryDirectory() as d:
+            onnx = self._onnx(d)
+            rc = ex.run_export(str(onnx), inputshape="[1,5]", pnnx="/fake/pnnx",
+                               runner=_fake_runner(returncode=1), verifier=_ok_verifier,
+                               pnnx_exists=lambda p: True)
+            self.assertEqual(rc, 1)
+
+    def test_missing_outputs_returns_1(self):
+        with tempfile.TemporaryDirectory() as d:
+            onnx = self._onnx(d)
+            rc = ex.run_export(str(onnx), inputshape="[1,5]", pnnx="/fake/pnnx",
+                               runner=_fake_runner(make_outputs=False), verifier=_ok_verifier,
+                               pnnx_exists=lambda p: True)
+            self.assertEqual(rc, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

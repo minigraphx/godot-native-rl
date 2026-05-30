@@ -72,3 +72,104 @@ def intermediate_files(outdir: Path, stem: str) -> list[Path]:
 
 def ncnn_outputs(outdir: Path, stem: str) -> tuple[Path, Path]:
     return outdir / f"{stem}.ncnn.param", outdir / f"{stem}.ncnn.bin"
+
+
+def run_export(
+    onnx: str,
+    *,
+    outdir: str | None = None,
+    inputshape: str | None = None,
+    in_blob: str = "in0",
+    out_blob: str = "out0",
+    skip_verify: bool = False,
+    keep_intermediates: bool = False,
+    pnnx: str = str(DEFAULT_PNNX),
+    runner: Callable = subprocess.run,
+    verifier: Callable | None = None,
+    pnnx_exists: Callable[[str], bool] = lambda p: Path(p).is_file(),
+) -> int:
+    """Convert <onnx> to ncnn and (by default) verify parity. Returns an exit code."""
+    onnx_path = Path(onnx)
+    if not onnx_path.is_file():
+        print(f"ERROR: ONNX not found: {onnx}", file=sys.stderr)
+        return 1
+
+    out = Path(outdir) if outdir else onnx_path.parent
+    out.mkdir(parents=True, exist_ok=True)
+    stem = onnx_path.stem
+
+    if inputshape is None:
+        try:
+            inputshape = derive_inputshape(read_onnx_inputs(str(onnx_path)))
+        except ValueError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            return 1
+    print(f"inputshape: {inputshape}")
+
+    if not pnnx_exists(pnnx):
+        print(f"ERROR: pnnx not found at {pnnx} (override with --pnnx)", file=sys.stderr)
+        return 1
+
+    cmd = pnnx_command(pnnx, str(onnx_path.resolve()), inputshape)
+    print(f"running: {' '.join(cmd)} (cwd={out})")
+    proc = runner(cmd, cwd=str(out), capture_output=True, text=True)
+    if proc.returncode != 0:
+        if proc.stdout:
+            print(proc.stdout)
+        if proc.stderr:
+            print(proc.stderr, file=sys.stderr)
+        print(f"ERROR: pnnx failed (exit {proc.returncode})", file=sys.stderr)
+        return 1
+
+    param_path, bin_path = ncnn_outputs(out, stem)
+    if not param_path.is_file() or not bin_path.is_file():
+        print(f"ERROR: expected outputs missing: {param_path}, {bin_path}", file=sys.stderr)
+        return 1
+
+    if not skip_verify:
+        if verifier is None:
+            from verify_ncnn_parity import verify_parity as verifier  # type: ignore[assignment]
+        result = verifier(str(onnx_path), str(param_path), str(bin_path), in_blob, out_blob)
+        if not result.ok:
+            print(f"PARITY FAILED: {result.summary}", file=sys.stderr)
+            print("(intermediates kept for debugging)", file=sys.stderr)
+            return 1
+        print(f"PARITY OK: {result.summary}")
+
+    if not keep_intermediates:
+        for f in intermediate_files(out, stem):
+            if f.is_file():
+                f.unlink()
+
+    print(f"OK: {param_path}")
+    print(f"OK: {bin_path}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(
+        description="Convert an ONNX policy to ncnn and verify parity (one command)."
+    )
+    p.add_argument("onnx", help="path to the ONNX model")
+    p.add_argument("--outdir", default=None, help="output dir (default: the ONNX file's dir)")
+    p.add_argument("--inputshape", default=None, help="override, e.g. '[1,5],[1]'")
+    p.add_argument("--in-blob", default="in0", help="ncnn input blob name (default in0)")
+    p.add_argument("--out-blob", default="out0", help="ncnn output blob name (default out0)")
+    p.add_argument("--skip-verify", action="store_true", help="skip the parity check")
+    p.add_argument("--keep-intermediates", action="store_true", help="retain pnnx debris")
+    p.add_argument("--pnnx", default=str(DEFAULT_PNNX), help="pnnx binary path")
+    a = p.parse_args(argv)
+    return run_export(
+        a.onnx,
+        outdir=a.outdir,
+        inputshape=a.inputshape,
+        in_blob=a.in_blob,
+        out_blob=a.out_blob,
+        skip_verify=a.skip_verify,
+        keep_intermediates=a.keep_intermediates,
+        pnnx=a.pnnx,
+    )
+
+
+if __name__ == "__main__":
+    sys.exit(main())
