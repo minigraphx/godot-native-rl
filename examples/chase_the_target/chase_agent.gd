@@ -1,5 +1,7 @@
 class_name ChaseAgent
-extends NcnnAIController2D
+# Path-based extends (not bare `extends NcnnAIController2D`) so the class resolves in
+# headless/CLI runs that have no editor-generated global_script_class_cache.cfg — see CLAUDE.md.
+extends "res://addons/godot_native_rl/controllers/ncnn_ai_controller_2d.gd"
 
 const ACTION_KEY := "move"
 const ACTION_COUNT := 5

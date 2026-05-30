@@ -1,4 +1,4 @@
-extends NcnnAIController2D
+extends "res://addons/godot_native_rl/controllers/ncnn_ai_controller_2d.gd"
 
 func get_obs() -> Dictionary:
 	return {"obs": [0.0, 0.0, 1.0, 0.0, 0.5]}
