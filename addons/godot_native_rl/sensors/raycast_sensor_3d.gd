@@ -5,7 +5,7 @@ extends Node3D
 # Mirrors RaycastSensor2D: the physics cast is isolated behind _cast_fn for headless
 # testing via set_cast_fn_for_test. Composition into an agent's get_obs() is manual.
 
-const RaycastMath = preload("res://sensors/raycast_math.gd")
+const RaycastMath = preload("res://addons/godot_native_rl/sensors/raycast_math.gd")
 
 @export var n_rays_width: int = 4
 @export var n_rays_height: int = 2

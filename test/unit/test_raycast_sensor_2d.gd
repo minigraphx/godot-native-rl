@@ -1,8 +1,8 @@
 extends SceneTree
 
 const Harness = preload("res://test/harness.gd")
-const RaycastSensor2D = preload("res://sensors/raycast_sensor_2d.gd")
-const RaycastMath = preload("res://sensors/raycast_math.gd")
+const RaycastSensor2D = preload("res://addons/godot_native_rl/sensors/raycast_sensor_2d.gd")
+const RaycastMath = preload("res://addons/godot_native_rl/sensors/raycast_math.gd")
 
 func _initialize() -> void:
 	var h := Harness.new()

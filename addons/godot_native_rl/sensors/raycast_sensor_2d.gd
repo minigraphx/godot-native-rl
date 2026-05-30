@@ -6,7 +6,7 @@ extends Node2D
 # headlessly via set_cast_fn_for_test. Composition into an agent's get_obs() is manual:
 # call get_observation() and concatenate; obs_size() declares the contributed size.
 
-const RaycastMath = preload("res://sensors/raycast_math.gd")
+const RaycastMath = preload("res://addons/godot_native_rl/sensors/raycast_math.gd")
 
 @export var n_rays: int = 8
 @export var ray_length: float = 200.0
