@@ -392,6 +392,24 @@ and the trainer replies:
 {"type":"action","action":[{"move":2}]}
 ```
 
+### Sensors
+
+Reusable observation sources implementing the shared sensor interface
+(`get_observation() -> Array`, `obs_size() -> int`). Compose them manually inside your
+agent's `get_obs()` and concatenate with your other features.
+
+- **`RaycastSensor2D`** (`sensors/raycast_sensor_2d.gd`) — an even fan of `n_rays` 2D rays
+  across `cone_degrees`, centered on the node's forward. Each ray emits a *closeness* float:
+  `0.0` for no hit, up to `~1.0` for a near obstacle. Configurable `ray_length`,
+  `collision_mask`, `collide_with_areas`, `collide_with_bodies`.
+- **`RaycastSensor3D`** (`sensors/raycast_sensor_3d.gd`) — an `n_rays_width × n_rays_height`
+  grid of 3D rays across `horizontal_fov × vertical_fov`, centered on forward (−Z). Same
+  closeness encoding and physics options.
+
+Pure ray geometry and normalization live in `sensors/raycast_math.gd` (headless-unit-tested).
+This encoding matches `godot_rl`'s raycast convention, so ported environments behave the same —
+and the observations feed `NcnnRunner` for zero-runtime deployment on mobile/web/console.
+
 ## Examples
 
 ### Chase The Target (2D)
