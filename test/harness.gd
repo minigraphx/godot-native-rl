@@ -12,7 +12,15 @@ func _stringify(v: Variant) -> String:
 			return str(v)
 
 func assert_eq(actual: Variant, expected: Variant, label: String) -> void:
-	if actual == expected:
+	var matches := false
+
+	# For floats, use approximate equality with tolerance for precision issues
+	if typeof(actual) == TYPE_FLOAT and typeof(expected) == TYPE_FLOAT:
+		matches = absf(actual - expected) < 1e-6
+	else:
+		matches = actual == expected
+
+	if matches:
 		_passed += 1
 		print("  PASS: %s" % label)
 	else:
