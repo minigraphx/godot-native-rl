@@ -28,8 +28,18 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
    connections in `_exit_tree()` — relied on Godot 4 auto-disconnecting when the receiver is freed.
    Add explicit disconnect when pooled/respawned agents (multi-agent track, e.g. items 17–19 / SKRL)
    make freeing an adapter while its emitter lives a real scenario.
-2. ⬜ **`export_to_ncnn.py` helper** — one-command convert+verify (`--skip-verify` opt-out,
+2. ✅ **`export_to_ncnn.py` helper** — one-command convert+verify (`--skip-verify` opt-out,
    verify-on-default). Generalizes the manual pnnx + `verify_ncnn_parity.py` steps.
+   **Done 2026-05-30** — spec `docs/superpowers/specs/2026-05-30-export-to-ncnn-helper-design.md`,
+   plan `docs/superpowers/plans/2026-05-30-export-to-ncnn-helper.md`. `scripts/export_to_ncnn.py`
+   runs under `.venv-train`, auto-derives `inputshape` from the ONNX, shells out to `.venv/bin/pnnx`
+   in an isolated temp dir (so conversion never pollutes `models/`), verifies parity in-process via a
+   refactored `verify_parity()`, cleans intermediates, exits non-zero on failure. Flags:
+   `--skip-verify`, `--keep-intermediates`, `--inputshape`, `--outdir`, `--pnnx`. 26 stdlib-`unittest`
+   tests + end-to-end integration wired into `run_tests.sh`; README/CLAUDE updated.
+   **Deferred:** the isolated copy only handles the conventional `<onnx>.data` external-data sidecar;
+   ONNX models with arbitrarily-named external-data shards would need those copied in too (add when a
+   model actually uses them).
 3. ⬜ **RaycastSensor2D + RaycastSensor3D** — the most-used godot_rl observation type; biggest
    switching-friction gap. `get_observation()`/`obs_size()` interface. *(roadmap spec Track A.1)*
 4. ⬜ **`ncnn_vs_onnx.md`** — balanced decision guide (honest pros/cons both sides), linked from README.
