@@ -348,7 +348,22 @@ and the trainer replies:
 {"type":"action","action":[{"move":2}]}
 ```
 
-> A complete, runnable 2D example (chase-the-target) with an end-to-end train → convert → ncnn-inference walkthrough is coming as a dedicated example and tutorial.
+## Examples
+
+### Chase The Target (2D)
+
+A complete, runnable 2D example: an agent learns to chase a relocating target, trained with
+`godot-rl` over the `NcnnSync` bridge and deployed via native `NcnnRunner` inference. It ships
+with a pre-trained model so it runs out of the box.
+
+- Scene: `examples/chase_the_target/chase_the_target.tscn`
+- From-scratch tutorial: [docs/examples/chase_the_target_tutorial.md](docs/examples/chase_the_target_tutorial.md)
+
+Run the headless checks (unit tests + protocol + inference smoke + trained-chase):
+
+```bash
+./test/run_tests.sh
+```
 
 ## Notes
 
