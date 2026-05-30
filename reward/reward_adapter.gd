@@ -4,6 +4,13 @@ extends Node
 var _pending := 0.0
 var _reward_override = null   # set via bind_reward() for tests / non-child placement
 
+# When added under a controller, trigger a re-scan so adapters created after the
+# controller's _ready() (e.g. in a subclass _ready) are still collected for draining.
+func _ready() -> void:
+	var p := get_parent()
+	if p != null and p.has_method("collect_reward_adapters"):
+		p.collect_reward_adapters()
+
 # Fire-and-forget: accumulate `delta` whenever `emitter` emits `signal_name`.
 func on_signal(emitter: Object, signal_name: String, delta: float) -> void:
 	_connect(emitter, signal_name, _make_scalar_handler(delta))

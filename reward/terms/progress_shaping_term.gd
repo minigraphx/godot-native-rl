@@ -10,7 +10,7 @@ func _init(value_fn: Callable, scale, rebase_on: Array = []) -> void:
 	_value_fn = value_fn
 	_scale = scale
 	_rebase_on = rebase_on
-	_prev = float(_value_fn.call())   # prime baseline at construction
+	_prev = float(_value_fn.call())   # prime baseline now; call reset() after scene init if value_fn isn't ready yet
 
 func _current_scale() -> float:
 	return float(_scale.call()) if _scale is Callable else float(_scale)

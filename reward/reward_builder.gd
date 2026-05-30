@@ -33,5 +33,8 @@ func add_step_penalty(amount: float) -> RefCounted:
 func add_alive_bonus(amount: float) -> RefCounted:
 	return _with(AliveBonusTerm.new(amount))
 
+# Materialize the configured Reward. The returned Reward OWNS its (stateful, mutable)
+# terms; do not reuse this builder to build() a second live Reward, as the two would
+# share term instances and corrupt each other's per-step state.
 func build() -> RefCounted:
 	return RewardScript.new(_terms.duplicate())

@@ -34,8 +34,10 @@ func _initialize() -> void:
 	var emitter := Emitter.new()
 	get_root().add_child(emitter)
 	adapter.on_signal(emitter, "pinged", 0.5)
-	# Re-collect adapters (the adapter was added after the agent's _ready).
-	agent._collect_reward_adapters()
+	# collect_reward_adapters() is called automatically by the adapter's _ready(), but
+	# _ready() is deferred in synchronous _initialize() test contexts; call it explicitly
+	# here to prove the public API works (real game scenes get auto-registration for free).
+	agent.collect_reward_adapters()
 	emitter.pinged.emit()
 	agent.reward = 0.0
 	agent.accumulate_reward()
