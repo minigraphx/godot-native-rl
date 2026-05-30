@@ -95,15 +95,29 @@ type-checked, refactor-safe, and keeps each term to a one-line `value.call()`.
 
 ### 4.3 `Reward` (RefCounted)
 
-Owns the ordered term list and a per-step named-event queue.
+Owns the ordered term list and routes events to terms.
 
 | Method | Behavior |
 |---|---|
-| `evaluate(ctx) -> float` | Sum every term for this step, passing the set of events fired since last `evaluate`; then clear the event queue. |
-| `trigger_event(name: String)` | Queue `name` for the next `evaluate` (idempotent within a step). |
+| `evaluate(ctx) -> float` | Sum every term's `evaluate(ctx)` for this step. |
+| `trigger_event(name: String)` | Route the event **immediately** to every term's `on_event(name)`. |
+| `reset() -> void` | Route to every term's `reset()` — called at episode reset. |
 
-The **named-event bus** is the key mechanism: one `target_caught` event simultaneously (a) awards
-the event bonus and (b) rebases progress shaping — preserving ChaseAgent semantics exactly.
+**Term interface** (`RewardTerm` base, all methods overridable, default no-op):
+`evaluate(ctx) -> float`, `on_event(name) -> void`, `reset() -> void`.
+
+The **named-event bus** is the key mechanism: one `target_caught` event simultaneously (a) makes the
+event-bonus term add its bonus and (b) makes progress shaping rebase its baseline.
+
+**Event timing (return-preserving):** `trigger_event` runs synchronously when a signal fires — which
+is *after* the agent's `accumulate_reward()` for that step. So a progress rebase samples the new
+value immediately (correct), while the matching event **bonus lands on the next `evaluate`**. Across
+an episode the **return is identical** to the old inline formula; only the catch bonus is shifted one
+step (a return-preserving consequence of signal-driven rewards, not a semantic change).
+
+**`reset()` prevents a cross-episode leak:** at episode reset, `EventBonusTerm.reset()` clears any
+pending (queued-but-unpaid) bonus and `ProgressShapingTerm.reset()` rebases its baseline to the
+post-reset value — reproducing the old `_prev_dist = distance()` rebase after `reset_positions()`.
 
 ### 4.4 `NcnnAIController2D` additions (backward-compatible)
 
@@ -127,7 +141,7 @@ reward/
   reward_builder.gd          # RewardBuilder (RefCounted, copy-on-write)
   reward.gd                  # Reward evaluator + named-event bus
   terms/
-    reward_term.gd           # base: evaluate(ctx, fired_events: Dictionary) -> float
+    reward_term.gd           # base: evaluate(ctx)->float, on_event(name), reset()
     progress_shaping_term.gd
     event_bonus_term.gd
     step_penalty_term.gd
@@ -149,13 +163,16 @@ to the float so the shipped trained model and existing tests stay valid.
        .build()
    $RewardAdapter.on_signal_event(_game, "target_caught", "target_caught")
    ```
+   The adapter is created in code (`add_child(RewardAdapter.new())`) so no `.tscn` edits are needed;
+   it uses `on_signal_event` (event routing, no scalar drain).
 3. **`ChaseAgent._physics_process`** deletes `compute_step_reward` and the manual `_prev_dist`
-   bookkeeping; after moving the game, calls `accumulate_reward()`. The progress term's
-   `rebase_on=["target_caught"]` reproduces the existing "rebase baseline to the new target on
-   touch" behavior.
-4. **Semantic invariant:** new per-step reward equals the old formula
-   `(prev−cur)/max_dist − step_penalty (+ touch_bonus on touch)` exactly, including the relocate
-   frame.
+   bookkeeping. Order: move → `accumulate_reward()` (progress vs the current target) → if touched,
+   `relocate_target()` (emits `target_caught` → rebase baseline to the new target + queue the bonus
+   for next step). On episode reset, after `reset_positions()` it calls `reward_source.reset()` to
+   rebase the baseline and clear any pending bonus.
+4. **Parity invariant:** the **episode return** (sum of per-step rewards over a trajectory) equals the
+   old formula `(prev−cur)/max_dist − step_penalty (+ touch_bonus per catch)` exactly. Per-step values
+   match except the catch bonus, which is shifted one step later (return-preserving, see §4.3).
 
 ## 7. Testing (TDD, ≥80% coverage)
 
@@ -165,12 +182,13 @@ Headless GDScript tests via the existing `test/harness.gd` (`extends SceneTree`)
   step penalty, alive bonus).
 - **Unit — builder immutability:** `add_*` returns a new instance; the original builder is
   unmodified (guards the no-mutation rule).
-- **Unit — Reward:** `evaluate` sums terms and consumes the event queue; `trigger_event` is
-  idempotent within a step.
+- **Unit — Reward:** `evaluate` sums terms; `trigger_event` routes `on_event` to all terms; `reset`
+  routes `reset` to all terms.
 - **Unit — adapter:** signal → `drain()` for 0/1/2-arg signals; `on_signal_event` triggers the
   bound `Reward`.
 - **Parity test:** run the old `compute_step_reward` formula and the new pipeline over a scripted
-  trajectory that includes a relocate/rebase frame; assert per-step equality.
+  trajectory that includes a catch/relocate frame and an episode reset; assert **episode-return**
+  equality (float-exact).
 - **Regression:** full `./test/run_tests.sh` stays green. Inference is untouched, so trained-chase
   and golden-inference checks are unaffected.
 
@@ -185,7 +203,7 @@ Headless GDScript tests via the existing `test/harness.gd` (`extends SceneTree`)
 ## 9. Success criteria
 
 - `RewardBuilder`, `Reward`, `RewardAdapter`, and the four terms exist with unit tests ≥80%.
-- ChaseAgent runs on the new system with byte-identical per-step reward (parity test green).
+- ChaseAgent runs on the new system with identical episode return (parity test green).
 - `./test/run_tests.sh` fully green.
 - A developer can author a working reward for a new agent without writing a `compute_step_reward`
   method — only `RewardBuilder` calls and (optionally) `RewardAdapter.on_signal*`.
