@@ -1,7 +1,7 @@
 class_name NcnnAIController2D
 extends Node2D
 
-const RewardAdapterScript = preload("res://reward/reward_adapter.gd")
+const RewardAdapterScript = preload("res://addons/godot_native_rl/reward/reward_adapter.gd")
 
 enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
 @export var control_mode: ControlModes = ControlModes.INHERIT_FROM_SYNC  # read by NcnnSync

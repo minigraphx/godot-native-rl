@@ -1,8 +1,8 @@
 extends SceneTree
 
 const Harness = preload("res://test/harness.gd")
-const RewardBuilder = preload("res://reward/reward_builder.gd")
-const RewardAdapter = preload("res://reward/reward_adapter.gd")
+const RewardBuilder = preload("res://addons/godot_native_rl/reward/reward_builder.gd")
+const RewardAdapter = preload("res://addons/godot_native_rl/reward/reward_adapter.gd")
 const Stub = preload("res://test/unit/stub_agent.gd")
 
 class Emitter:

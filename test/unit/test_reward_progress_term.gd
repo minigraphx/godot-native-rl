@@ -1,7 +1,7 @@
 extends SceneTree
 
 const Harness = preload("res://test/harness.gd")
-const ProgressShapingTerm = preload("res://reward/terms/progress_shaping_term.gd")
+const ProgressShapingTerm = preload("res://addons/godot_native_rl/reward/terms/progress_shaping_term.gd")
 
 # Mutable holder so a Callable can read a changing "distance".
 class Holder:

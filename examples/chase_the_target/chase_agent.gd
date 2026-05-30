@@ -3,7 +3,7 @@ extends NcnnAIController2D
 
 const ACTION_KEY := "move"
 const ACTION_COUNT := 5
-const RewardBuilderScript = preload("res://reward/reward_builder.gd")
+const RewardBuilderScript = preload("res://addons/godot_native_rl/reward/reward_builder.gd")
 # RewardAdapterScript is inherited from NcnnAIController2D — do not redeclare.
 
 @export var game_path: NodePath

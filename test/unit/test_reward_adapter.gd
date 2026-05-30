@@ -1,9 +1,9 @@
 extends SceneTree
 
 const Harness = preload("res://test/harness.gd")
-const RewardAdapter = preload("res://reward/reward_adapter.gd")
-const Reward = preload("res://reward/reward.gd")
-const EventBonusTerm = preload("res://reward/terms/event_bonus_term.gd")
+const RewardAdapter = preload("res://addons/godot_native_rl/reward/reward_adapter.gd")
+const Reward = preload("res://addons/godot_native_rl/reward/reward.gd")
+const EventBonusTerm = preload("res://addons/godot_native_rl/reward/terms/event_bonus_term.gd")
 
 # Emitters with signals of varying arity.
 class Emitter0:

@@ -1,7 +1,7 @@
 extends SceneTree
 
 const Harness = preload("res://test/harness.gd")
-const EventBonusTerm = preload("res://reward/terms/event_bonus_term.gd")
+const EventBonusTerm = preload("res://addons/godot_native_rl/reward/terms/event_bonus_term.gd")
 
 func _initialize() -> void:
 	var h := Harness.new()

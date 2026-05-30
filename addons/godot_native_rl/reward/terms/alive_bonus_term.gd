@@ -1,5 +1,5 @@
 class_name AliveBonusTerm
-extends "res://reward/terms/reward_term.gd"
+extends "res://addons/godot_native_rl/reward/terms/reward_term.gd"
 
 var _amount: float
 

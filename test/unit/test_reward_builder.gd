@@ -1,7 +1,7 @@
 extends SceneTree
 
 const Harness = preload("res://test/harness.gd")
-const RewardBuilder = preload("res://reward/reward_builder.gd")
+const RewardBuilder = preload("res://addons/godot_native_rl/reward/reward_builder.gd")
 
 class Holder:
 	extends RefCounted

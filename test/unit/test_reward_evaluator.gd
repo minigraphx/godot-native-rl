@@ -1,10 +1,10 @@
 extends SceneTree
 
 const Harness = preload("res://test/harness.gd")
-const Reward = preload("res://reward/reward.gd")
-const StepPenaltyTerm = preload("res://reward/terms/step_penalty_term.gd")
-const AliveBonusTerm = preload("res://reward/terms/alive_bonus_term.gd")
-const EventBonusTerm = preload("res://reward/terms/event_bonus_term.gd")
+const Reward = preload("res://addons/godot_native_rl/reward/reward.gd")
+const StepPenaltyTerm = preload("res://addons/godot_native_rl/reward/terms/step_penalty_term.gd")
+const AliveBonusTerm = preload("res://addons/godot_native_rl/reward/terms/alive_bonus_term.gd")
+const EventBonusTerm = preload("res://addons/godot_native_rl/reward/terms/event_bonus_term.gd")
 
 func _initialize() -> void:
 	var h := Harness.new()
