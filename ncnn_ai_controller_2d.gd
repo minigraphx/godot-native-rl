@@ -1,6 +1,8 @@
 class_name NcnnAIController2D
 extends Node2D
 
+const RewardAdapterScript = preload("res://reward/reward_adapter.gd")
+
 enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
 @export var control_mode: ControlModes = ControlModes.INHERIT_FROM_SYNC  # read by NcnnSync
 @export var reset_after := 1000
@@ -15,9 +17,12 @@ var reward := 0.0
 var n_steps := 0
 var needs_reset := false
 var _ncnn_runner = null
+var reward_source = null         # optional Reward (from RewardBuilder.build()); null = legacy behavior
+var _reward_adapters: Array = []
 
 func _ready() -> void:
 	add_to_group("AGENT")
+	_collect_reward_adapters()
 	if control_mode == ControlModes.NCNN_INFERENCE:
 		_setup_ncnn_runner()
 
@@ -93,6 +98,20 @@ func set_done_false() -> void:
 
 func zero_reward() -> void:
 	reward = 0.0
+
+func _collect_reward_adapters() -> void:
+	_reward_adapters.clear()
+	for child in get_children():
+		if child is RewardAdapterScript:
+			_reward_adapters.append(child)
+
+# Sum the declarative reward for this step into the accumulator that NcnnSync drains.
+# Call this from the concrete agent's _physics_process AFTER world state is updated.
+func accumulate_reward() -> void:
+	if reward_source != null:
+		reward += reward_source.evaluate(self)
+	for adapter in _reward_adapters:
+		reward += adapter.drain()
 
 func _physics_process(_delta) -> void:
 	n_steps += 1
