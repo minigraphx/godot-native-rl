@@ -7,6 +7,8 @@ extends Node2D
 @export var agent_body_path: NodePath
 @export var target_path: NodePath
 
+signal target_caught  ## emitted when the target is caught and relocated
+
 var _rng := RandomNumberGenerator.new()
 var _agent_body: Node2D
 var _target: Node2D
@@ -49,6 +51,7 @@ func relocate_target() -> void:
 	catches += 1
 	if _target != null:
 		_target.position = random_position()
+	target_caught.emit()
 
 func reset_positions() -> void:
 	if _agent_body != null:

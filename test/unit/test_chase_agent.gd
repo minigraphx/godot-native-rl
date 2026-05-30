@@ -28,15 +28,6 @@ func _initialize() -> void:
 	h.assert_eq(a.action_index_to_velocity(3, 300.0), Vector2(-300, 0), "left")
 	h.assert_eq(a.action_index_to_velocity(4, 300.0), Vector2(300, 0), "right")
 
-	a.step_penalty = 0.001
-	a.touch_bonus = 1.0
-	var r_closer: float = a.compute_step_reward(100.0, 60.0, 1000.0, false)
-	h.assert_true(r_closer > 0.0, "moving closer yields positive reward")
-	var r_touch: float = a.compute_step_reward(60.0, 30.0, 1000.0, true)
-	h.assert_true(r_touch > 1.0, "touch adds bonus on top of progress")
-	var r_farther: float = a.compute_step_reward(60.0, 90.0, 1000.0, false)
-	h.assert_true(r_farther < 0.0, "moving away yields negative reward")
-
 	h.assert_eq(a.get_action_space(), {"move": {"size": 5, "action_type": "discrete"}}, "action space")
 
 	a.free()

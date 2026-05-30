@@ -3,6 +3,8 @@ extends NcnnAIController2D
 
 const ACTION_KEY := "move"
 const ACTION_COUNT := 5
+const RewardBuilderScript = preload("res://reward/reward_builder.gd")
+# RewardAdapterScript is inherited from NcnnAIController2D — do not redeclare.
 
 @export var game_path: NodePath
 @export var step_penalty := 0.001
@@ -10,7 +12,6 @@ const ACTION_COUNT := 5
 
 var _game  # ChaseGame (typed at runtime via duck-typing to avoid class_name scope issues)
 var _action_index := 0
-var _prev_dist := 0.0
 
 func _ready() -> void:
 	super._ready()
@@ -18,7 +19,14 @@ func _ready() -> void:
 	if _game == null:
 		push_warning("ChaseAgent: game_path is not set or invalid — agent will produce null observations.")
 		return
-	_prev_dist = _game.distance()
+	reward_source = RewardBuilderScript.new() \
+		.add_progress_shaping(_game.distance, _game.max_distance, ["target_caught"]) \
+		.add_event_bonus("target_caught", touch_bonus) \
+		.add_step_penalty(step_penalty) \
+		.build()
+	var adapter := RewardAdapterScript.new()
+	add_child(adapter)
+	adapter.on_signal_event(_game, "target_caught", "target_caught")
 
 # --- Pure helpers (unit-tested) ---
 func compute_obs(agent_pos: Vector2, target_pos: Vector2, arena_size: Vector2) -> Array:
@@ -40,13 +48,6 @@ func action_index_to_velocity(idx: int, speed: float) -> Vector2:
 		3: return Vector2(-speed, 0.0)
 		4: return Vector2(speed, 0.0)
 		_: return Vector2.ZERO
-
-func compute_step_reward(prev_dist: float, cur_dist: float, max_dist: float, touched: bool) -> float:
-	var progress := (prev_dist - cur_dist) / max_dist
-	var r := progress - step_penalty
-	if touched:
-		r += touch_bonus
-	return r
 
 # --- godot_rl contract ---
 func get_action_space() -> Dictionary:
@@ -74,18 +75,18 @@ func _physics_process(delta: float) -> void:
 	var velocity := action_index_to_velocity(_action_index, _game.move_speed)
 	_game.move_agent(velocity, delta)
 
-	var cur_dist: float = _game.distance()
-	var touched: bool = cur_dist < _game.touch_radius
-	reward += compute_step_reward(_prev_dist, cur_dist, _game.max_distance(), touched)
-	if touched:
+	# Accumulate reward against the CURRENT target BEFORE relocating. The catch is
+	# signalled by relocate_target() -> RewardAdapter -> Reward: it rebases the progress
+	# baseline to the new target immediately and queues the catch bonus for next step.
+	accumulate_reward()
+
+	if _game.distance() < _game.touch_radius:
 		_game.relocate_target()
-		_prev_dist = _game.distance()  # baseline is distance to the NEW target after relocate
-	else:
-		_prev_dist = cur_dist
 
 	if needs_reset:
 		needs_reset = false
 		_game.reset_positions()
 		reset()
 		zero_reward()
-		_prev_dist = _game.distance()
+		if reward_source != null:
+			reward_source.reset()   # rebase baseline to post-reset distance; clear pending bonus

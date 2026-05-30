@@ -21,5 +21,12 @@ func _initialize() -> void:
 			all_in_bounds = false
 	h.assert_true(all_in_bounds, "random_position within bounds")
 
+	# target_caught fires once per relocate_target() call.
+	var caught := [0]
+	g.target_caught.connect(func() -> void: caught[0] += 1)
+	g.relocate_target()
+	g.relocate_target()
+	h.assert_eq(caught[0], 2, "target_caught emitted once per relocate_target")
+
 	g.free()
 	h.finish(self)
