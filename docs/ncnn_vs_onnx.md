@@ -172,6 +172,57 @@ stable** at those magnitudes. This project verifies every conversion with `scrip
 
 ---
 
+## What every game dev / researcher should know before deploying
+
+These caveats are independent of marketing and bite people in practice. Some apply to **any** native
+RL deployment (ncnn *or* ONNX); others are **current limitations of this project specifically** — we
+list both honestly so you can plan around them.
+
+### Applies to any native deployment (ncnn or ONNX Runtime)
+
+- **Observation preprocessing parity is on you — this is the #1 silent failure.** Neither runtime
+  normalizes inputs. If your training observations were scaled or normalized, you **must** reproduce the
+  exact same transform (same operations, same order) at deploy, or the policy silently receives garbage
+  and acts nonsensically — with **no error**. This project's safe pattern: normalize *inside*
+  `get_obs()` and run that **same code** during training and inference (the chase example does this; its
+  trainer uses `VecMonitor` but **not** `VecNormalize`). If you instead train with SB3 `VecNormalize`
+  (or any running mean/std), you have to export those statistics and replay them yourself game-side —
+  the converted network does not carry them.
+- **Deploy is deterministic; training was stochastic.** PPO explores by *sampling* its action
+  distribution. This project deploys via **argmax** (`run_discrete_action`), i.e. the greedy mode.
+  That's usually what you want at runtime, but it is a behavior change — researchers comparing
+  eval-time results should match the action-selection rule (sample vs mode) on both sides.
+- **Cross-platform float determinism is NOT guaranteed.** No mainstream runtime promises bit-identical
+  outputs across CPUs, SIMD paths, or architectures (nor vs the Python trainer). Fine for single-player.
+  For **lockstep multiplayer or replay systems, do not rely on raw NN output for sync** — threshold or
+  quantize the action, or run inference authoritatively (e.g. server-side).
+- **Inference only — training stays in Python.** ncnn (and the ONNX deploy path) run forward passes;
+  there is no on-device learning or fine-tuning. Your train → convert → deploy loop is one-directional.
+- **Mind the frame budget.** A tiny policy MLP runs in microseconds — negligible at 60 Hz. But large
+  models, image observations, or many agents can blow the ~16 ms budget; move inference to a background
+  thread and/or run it every *N* frames (see "Threading" above).
+- **Verify after every conversion.** Argmax parity can pass while logits quietly drift; this repo's
+  `scripts/verify_ncnn_parity.py` checks both. For **continuous** actions, argmax parity is meaningless —
+  check numerical closeness instead.
+
+### Current limitations of this project (truth in advertising)
+
+- **Discrete, single action-key only.** `run_discrete_action` returns one argmax index for the first
+  action key. **Continuous** action spaces (PPO-continuous, SAC), **multi-discrete**, and multiple
+  simultaneous action keys are not yet handled by the inference helper — you'd extend `NcnnRunner` /
+  the controller. (godot_rl *training* supports more; this is a deploy-side gap, not an ncnn limit.)
+- **No recurrent / LSTM state handling.** The controller is feed-forward and stateless per call. A
+  recurrent policy would need you to carry hidden state across frames yourself. (ncnn itself supports
+  LSTM/GRU layers — the gap is in this project's controller, not the runtime.)
+- **No batched multi-agent inference.** Each agent runs its own forward pass, so cost scales linearly
+  with agent count. For crowds / large multi-agent scenes, budget accordingly or add batching at the
+  C++ level. (ONNX Runtime can batch along the batch dimension; ncnn typically loops per input.)
+- **Two model files + blob-name matching.** ncnn models are a `.param` + `.bin` pair — pack **both**
+  into your Godot `.pck`, and make sure `input_blob_name` / `output_blob_name` (default `in0` / `out0`)
+  match what `pnnx` emitted.
+
+---
+
 ## Licensing
 
 Both are permissive and fine for closed-source commercial games: **ncnn is BSD-3-Clause**
