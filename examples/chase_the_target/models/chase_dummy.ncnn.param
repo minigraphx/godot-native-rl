@@ -1,0 +1,5 @@
+7767517
+3 3
+Input                    in0                      0 1 in0
+InnerProduct             fcrelu_0                 1 1 in0 1 0=32 1=1 2=160 9=1
+InnerProduct             linear_1                 1 1 1 out0 0=5 1=1 2=160
