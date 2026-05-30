@@ -40,8 +40,21 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
    **Deferred:** the isolated copy only handles the conventional `<onnx>.data` external-data sidecar;
    ONNX models with arbitrarily-named external-data shards would need those copied in too (add when a
    model actually uses them).
-3. ⬜ **RaycastSensor2D + RaycastSensor3D** — the most-used godot_rl observation type; biggest
+3. ✅ **RaycastSensor2D + RaycastSensor3D** — the most-used godot_rl observation type; biggest
    switching-friction gap. `get_observation()`/`obs_size()` interface. *(roadmap spec Track A.1)*
+   **Done 2026-05-30** — spec `docs/superpowers/specs/2026-05-30-raycast-sensors-design.md`,
+   plan `docs/superpowers/plans/2026-05-30-raycast-sensors.md`. Shipped a root-level `sensors/`
+   module: pure `raycast_math.gd` (`closeness`, `ray_directions_2d` fan, `ray_directions_3d` grid —
+   all headless-unit-tested), plus `RaycastSensor2D` (Node2D) and `RaycastSensor3D` (Node3D) with
+   the physics cast isolated behind an injectable `_cast_fn` seam (`set_cast_fn_for_test`) so the
+   full `get_observation()` path is verified headlessly without a ticking physics world. Per-ray
+   encoding is **closeness** (miss→0, near→~1, godot_rl-compatible). Composition into `get_obs()` is
+   manual (no controller change). README has a top-level Sensors section. Full suite green incl.
+   trained-chase + golden regression.
+   **Deferred (follow-ups):** (a) real ticking-physics `.tscn` integration scene asserting true
+   `RayCast` hits; (b) controller auto-discovery `collect_sensors()` — fold into item 5; (c) per-ray
+   detectable-class one-hot, if a ported godot_rl env needs it; (d) migrate `sensors/` into
+   `addons/godot_native_rl/sensors/` with item 5.
 4. ⬜ **`ncnn_vs_onnx.md`** — balanced decision guide (honest pros/cons both sides), linked from README.
 
 ## Soon (parity + foundations)
