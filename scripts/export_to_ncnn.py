@@ -59,8 +59,37 @@ def read_onnx_inputs(onnx_path: str) -> list[OnnxInput]:
     return [OnnxInput(i.name, tuple(i.shape)) for i in sess.get_inputs()]
 
 
-def pnnx_command(pnnx_path: str, onnx_abs: str, inputshape: str) -> list[str]:
-    return [pnnx_path, onnx_abs, f"inputshape={inputshape}"]
+def pnnx_command(
+    pnnx_path: str,
+    onnx_abs: str,
+    inputshape: str,
+    outdir: Path | None = None,
+) -> tuple[list[str], str]:
+    """Return (argv, cwd) for the pnnx subprocess.
+
+    pnnx must run in the ONNX file's parent directory so it can resolve companion
+    external-data files (e.g. ``chase_policy.onnx.data``). When ``outdir`` differs
+    from that parent we pass explicit output-path flags so the ncnn/pnnx artefacts
+    land in ``outdir`` rather than alongside the source ONNX.
+    """
+    onnx_path = Path(onnx_abs)
+    onnx_dir = onnx_path.parent
+    stem = onnx_path.stem
+    # pnnx is invoked with just the filename so it finds companion .onnx.data in cwd
+    cmd = [pnnx_path, onnx_path.name, f"inputshape={inputshape}"]
+    if outdir is not None and outdir.resolve() != onnx_dir.resolve():
+        out = outdir.resolve()
+        cmd += [
+            f"pnnxparam={out / f'{stem}.pnnx.param'}",
+            f"pnnxbin={out / f'{stem}.pnnx.bin'}",
+            f"pnnxpy={out / f'{stem}_pnnx.py'}",
+            f"pnnxonnx={out / f'{stem}.pnnx.onnx'}",
+            f"ncnnparam={out / f'{stem}.ncnn.param'}",
+            f"ncnnbin={out / f'{stem}.ncnn.bin'}",
+            f"ncnnpy={out / f'{stem}_ncnn.py'}",
+        ]
+    cwd = str(onnx_dir)
+    return cmd, cwd
 
 
 def intermediate_files(outdir: Path, stem: str) -> list[Path]:
@@ -110,9 +139,10 @@ def run_export(
         print(f"ERROR: pnnx not found at {pnnx} (override with --pnnx)", file=sys.stderr)
         return 1
 
-    cmd = pnnx_command(pnnx, str(onnx_path.resolve()), inputshape)
-    print(f"running: {' '.join(cmd)} (cwd={out})")
-    proc = runner(cmd, cwd=str(out), capture_output=True, text=True)
+    pnnx_out = out if outdir else None
+    cmd, cwd = pnnx_command(pnnx, str(onnx_path.resolve()), inputshape, outdir=pnnx_out)
+    print(f"running: {' '.join(cmd)} (cwd={cwd})")
+    proc = runner(cmd, cwd=cwd, capture_output=True, text=True)
     if proc.returncode != 0:
         if proc.stdout:
             print(proc.stdout)

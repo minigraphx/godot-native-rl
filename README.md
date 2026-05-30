@@ -135,6 +135,16 @@ Build output is written to `bin/` and matched by `ncnn_runner.gdextension`.
 
 ## Convert ONNX To ncnn
 
+### One command (recommended)
+
+Convert and verify in a single step — auto-derives `inputshape` from the ONNX, checks ncnn↔ONNX
+argmax/logit parity, and cleans up pnnx intermediates:
+
+    .venv-train/bin/python scripts/export_to_ncnn.py models/your_model.onnx
+
+Useful flags: `--skip-verify`, `--keep-intermediates`, `--inputshape '[1,N],[1]'`, `--outdir DIR`.
+The manual `pnnx` + `verify_ncnn_parity.py` steps below are the underlying operations it wraps.
+
 Use `pnnx` (recommended) to convert ONNX models to ncnn files.
 
 ### 1) Install pnnx

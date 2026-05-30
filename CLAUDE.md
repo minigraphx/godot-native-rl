@@ -27,8 +27,10 @@ complement to godot_rl, grow toward full replacement.
   inference smoke + trained-chase check + golden inference regression. Must be green before merge.
 - **Train:** `TIMESTEPS=120000 ./scripts/train_chase.sh` (starts SB3 trainer, launches headless
   Godot training scene which connects on port 11008). ~34 min at 120k steps.
-- **Convert ONNX→ncnn:** `cd models && ../.venv/bin/pnnx model.onnx 'inputshape=[1,5],[1]'`
-- **Verify conversion:** `.venv-train/bin/python scripts/verify_ncnn_parity.py <onnx> <param> <bin> in0 out0`
+- **Convert + verify (one command):** `.venv-train/bin/python scripts/export_to_ncnn.py models/model.onnx`
+  (auto-derives inputshape, runs pnnx, verifies parity, cleans intermediates). Flags: `--skip-verify`,
+  `--keep-intermediates`, `--inputshape`, `--outdir`. Underlying manual steps: `../.venv/bin/pnnx model.onnx
+  'inputshape=[1,5],[1]'` then `scripts/verify_ncnn_parity.py <onnx> <param> <bin> in0 out0`.
 
 ## Operational gotchas (learned the hard way)
 
