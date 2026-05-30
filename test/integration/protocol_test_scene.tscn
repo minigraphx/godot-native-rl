@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://sync.gd" id="1"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="1"]
 [ext_resource type="Script" path="res://test/integration/protocol_stub_agent.gd" id="2"]
 
 [node name="Root" type="Node2D"]

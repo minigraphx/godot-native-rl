@@ -1,7 +1,7 @@
 extends SceneTree
 
 const Harness = preload("res://test/harness.gd")
-const SyncScript = preload("res://sync.gd")
+const SyncScript = preload("res://addons/godot_native_rl/sync.gd")
 
 func _initialize() -> void:
 	var h := Harness.new()
