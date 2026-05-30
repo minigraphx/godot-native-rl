@@ -35,13 +35,14 @@ def main() -> None:
     )
     env = VecMonitor(env)
 
+    # Note: do NOT pass seed= to PPO — StableBaselinesGodotEnv.seed() raises
+    # NotImplementedError. The env seed is set via the env constructor above.
     model = PPO(
         "MultiInputPolicy",
         env,
         verbose=1,
         n_steps=256,
         batch_size=64,
-        seed=args.seed,
         tensorboard_log="logs/sb3",
     )
     model.learn(args.timesteps)
