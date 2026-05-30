@@ -2,23 +2,51 @@ class_name NcnnAIController2D
 extends Node2D
 
 const RewardAdapterScript = preload("res://addons/godot_native_rl/reward/reward_adapter.gd")
+const NcnnControllerCore = preload("res://addons/godot_native_rl/controllers/ncnn_controller_core.gd")
 
 enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
-@export var control_mode: ControlModes = ControlModes.INHERIT_FROM_SYNC  # read by NcnnSync
+@export var control_mode: ControlModes = ControlModes.INHERIT_FROM_SYNC  # read/written by NcnnSync
 @export var reset_after := 1000
 @export_file("*.param") var model_param_path: String = ""
 @export_file("*.bin") var model_bin_path: String = ""
 @export var input_blob_name: String = "in0"
 @export var output_blob_name: String = "out0"
 
-var heuristic := "human"
-var done := false
-var reward := 0.0
-var n_steps := 0
-var needs_reset := false
+var _core := NcnnControllerCore.new()
 var _ncnn_runner = null
-var reward_source = null         # optional Reward (from RewardBuilder.build()); null = legacy behavior
 var _reward_adapters: Array = []
+
+# --- Forwarding properties: preserve the historical public state API (subclasses + NcnnSync) ---
+var done: bool:
+	get:
+		return _core.done
+	set(value):
+		_core.done = value
+var reward: float:
+	get:
+		return _core.reward
+	set(value):
+		_core.reward = value
+var n_steps: int:
+	get:
+		return _core.n_steps
+	set(value):
+		_core.n_steps = value
+var needs_reset: bool:
+	get:
+		return _core.needs_reset
+	set(value):
+		_core.needs_reset = value
+var heuristic: String:
+	get:
+		return _core.heuristic
+	set(value):
+		_core.heuristic = value
+var reward_source:
+	get:
+		return _core.reward_source
+	set(value):
+		_core.reward_source = value
 
 func _ready() -> void:
 	add_to_group("AGENT")
@@ -74,30 +102,27 @@ func get_action_space() -> Dictionary:
 func set_action(_action) -> void:
 	assert(false, "set_action must be implemented by the agent extending NcnnAIController2D")
 
-# --- Concrete contract methods used by NcnnSync ---
+# --- Concrete contract methods used by NcnnSync (delegate to the shared core) ---
 func get_obs_space() -> Dictionary:
-	var obs := get_obs()
-	return {"obs": {"size": [obs["obs"].size()], "space": "box"}}
+	return NcnnControllerCore.obs_space_from_obs(get_obs())
 
 func reset() -> void:
-	n_steps = 0
-	needs_reset = false
+	_core.reset()
 
 func reset_if_done() -> void:
-	if done:
-		reset()
+	_core.reset_if_done()
 
 func set_heuristic(h: String) -> void:
-	heuristic = h
+	_core.set_heuristic(h)
 
 func get_done() -> bool:
-	return done
+	return _core.get_done()
 
 func set_done_false() -> void:
-	done = false
+	_core.set_done_false()
 
 func zero_reward() -> void:
-	reward = 0.0
+	_core.zero_reward()
 
 func collect_reward_adapters() -> void:
 	_reward_adapters.clear()
@@ -106,20 +131,9 @@ func collect_reward_adapters() -> void:
 			_reward_adapters.append(child)
 
 # Sum the declarative reward for this step into the accumulator that NcnnSync drains.
-# Call this from the concrete agent's _physics_process AFTER world state is updated.
-# NOTE: agents that reset episodes on a timer (needs_reset) should also call
-# reward_source.reset() at the episode boundary to rebase progress shaping and clear
-# any pending event bonus (see ChaseAgent for the pattern).
+# Call from the concrete agent's _physics_process AFTER world state is updated.
 func accumulate_reward() -> void:
-	if reward_source != null:
-		reward += reward_source.evaluate(self)
-	for adapter in _reward_adapters:
-		reward += adapter.drain()
+	_core.accumulate(_reward_adapters, self)
 
 func _physics_process(_delta) -> void:
-	n_steps += 1
-	if n_steps > reset_after:
-		needs_reset = true
-		# Signal episode termination (godot_rl convention): the trainer reads this as
-		# `done`, which gives proper episode boundaries and reward statistics.
-		done = true
+	_core.step(reset_after)
