@@ -87,4 +87,5 @@ func _physics_process(delta: float) -> void:
 		needs_reset = false
 		_game.reset_positions()
 		reset()
+		zero_reward()
 		_prev_dist = _game.distance()

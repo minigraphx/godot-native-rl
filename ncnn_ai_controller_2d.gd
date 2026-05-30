@@ -46,6 +46,10 @@ func infer_and_act() -> void:
 	assert("obs" in obs_dict, "get_obs() must return a dictionary with an 'obs' key")
 	var obs_flat := PackedFloat32Array(obs_dict["obs"])
 	var action_index: int = _ncnn_runner.run_discrete_action(obs_flat)
+	if action_index < 0:
+		push_error("NcnnAIController2D: run_discrete_action returned error sentinel; skipping action.")
+		return
+	# Single discrete action branch: use the first (and only) action key.
 	var action_key: String = get_action_space().keys()[0]
 	set_action({action_key: action_index})
 
