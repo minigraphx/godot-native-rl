@@ -19,3 +19,8 @@ models/*.onnx
 models/*.pnnx.*
 models/*_ncnn.py
 models/*_pnnx.py
+
+# Part 2B training
+.venv-train/
+logs/
+models/chase_policy.*
