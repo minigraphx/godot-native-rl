@@ -32,24 +32,9 @@ class TestDeriveInputshape(unittest.TestCase):
 
 
 class TestPnnxCommand(unittest.TestCase):
-    def test_same_dir_uses_filename_and_onnx_parent_as_cwd(self):
-        # When outdir is None (or same as onnx parent), pnnx runs in the onnx parent dir.
-        cmd, cwd = ex.pnnx_command("/p/pnnx", "/a/m.onnx", "[1,5],[1]")
-        self.assertEqual(cmd, ["/p/pnnx", "m.onnx", "inputshape=[1,5],[1]"])
-        self.assertEqual(cwd, "/a")
-
-    def test_different_outdir_adds_explicit_output_flags(self):
-        # When outdir differs, pnnx gets explicit output-path flags.
-        cmd, cwd = ex.pnnx_command("/p/pnnx", "/a/m.onnx", "[1,5],[1]", outdir=Path("/b"))
-        self.assertEqual(cmd[0], "/p/pnnx")
-        self.assertEqual(cmd[1], "m.onnx")
-        self.assertEqual(cmd[2], "inputshape=[1,5],[1]")
-        # Explicit output flags present
-        flag_keys = [f.split("=")[0] for f in cmd[3:]]
-        self.assertIn("ncnnparam", flag_keys)
-        self.assertIn("ncnnbin", flag_keys)
-        # cwd is still the onnx parent, not outdir
-        self.assertEqual(cwd, "/a")
+    def test_command(self):
+        cmd = ex.pnnx_command("/p/pnnx", "/a/m.onnx", "[1,5],[1]")
+        self.assertEqual(cmd, ["/p/pnnx", "/a/m.onnx", "inputshape=[1,5],[1]"])
 
 
 class TestIntermediateFiles(unittest.TestCase):

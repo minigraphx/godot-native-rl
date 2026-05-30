@@ -10,8 +10,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Callable, NamedTuple, Sequence
 
@@ -59,37 +61,8 @@ def read_onnx_inputs(onnx_path: str) -> list[OnnxInput]:
     return [OnnxInput(i.name, tuple(i.shape)) for i in sess.get_inputs()]
 
 
-def pnnx_command(
-    pnnx_path: str,
-    onnx_abs: str,
-    inputshape: str,
-    outdir: Path | None = None,
-) -> tuple[list[str], str]:
-    """Return (argv, cwd) for the pnnx subprocess.
-
-    pnnx must run in the ONNX file's parent directory so it can resolve companion
-    external-data files (e.g. ``chase_policy.onnx.data``). When ``outdir`` differs
-    from that parent we pass explicit output-path flags so the ncnn/pnnx artefacts
-    land in ``outdir`` rather than alongside the source ONNX.
-    """
-    onnx_path = Path(onnx_abs)
-    onnx_dir = onnx_path.parent
-    stem = onnx_path.stem
-    # pnnx is invoked with just the filename so it finds companion .onnx.data in cwd
-    cmd = [pnnx_path, onnx_path.name, f"inputshape={inputshape}"]
-    if outdir is not None and outdir.resolve() != onnx_dir.resolve():
-        out = outdir.resolve()
-        cmd += [
-            f"pnnxparam={out / f'{stem}.pnnx.param'}",
-            f"pnnxbin={out / f'{stem}.pnnx.bin'}",
-            f"pnnxpy={out / f'{stem}_pnnx.py'}",
-            f"pnnxonnx={out / f'{stem}.pnnx.onnx'}",
-            f"ncnnparam={out / f'{stem}.ncnn.param'}",
-            f"ncnnbin={out / f'{stem}.ncnn.bin'}",
-            f"ncnnpy={out / f'{stem}_ncnn.py'}",
-        ]
-    cwd = str(onnx_dir)
-    return cmd, cwd
+def pnnx_command(pnnx_path: str, onnx_arg: str, inputshape: str) -> list[str]:
+    return [pnnx_path, onnx_arg, f"inputshape={inputshape}"]
 
 
 def intermediate_files(outdir: Path, stem: str) -> list[Path]:
@@ -117,14 +90,18 @@ def run_export(
     verifier: Callable | None = None,
     pnnx_exists: Callable[[str], bool] = lambda p: Path(p).is_file(),
 ) -> int:
-    """Convert <onnx> to ncnn and (by default) verify parity. Returns an exit code."""
+    """Convert <onnx> to ncnn and (by default) verify parity. Returns an exit code.
+
+    pnnx runs in a private temp working directory (the ONNX and any external-data
+    sidecars are copied in) so external data resolves and no pnnx debris pollutes the
+    source/model directory. Only the requested artefacts are moved into outdir.
+    """
     onnx_path = Path(onnx)
     if not onnx_path.is_file():
         print(f"ERROR: ONNX not found: {onnx}", file=sys.stderr)
         return 1
 
     out = Path(outdir) if outdir else onnx_path.parent
-    out.mkdir(parents=True, exist_ok=True)
     stem = onnx_path.stem
 
     if inputshape is None:
@@ -139,37 +116,57 @@ def run_export(
         print(f"ERROR: pnnx not found at {pnnx} (override with --pnnx)", file=sys.stderr)
         return 1
 
-    pnnx_out = out if outdir else None
-    cmd, cwd = pnnx_command(pnnx, str(onnx_path.resolve()), inputshape, outdir=pnnx_out)
-    print(f"running: {' '.join(cmd)} (cwd={cwd})")
-    proc = runner(cmd, cwd=cwd, capture_output=True, text=True)
-    if proc.returncode != 0:
-        if proc.stdout:
-            print(proc.stdout)
-        if proc.stderr:
-            print(proc.stderr, file=sys.stderr)
-        print(f"ERROR: pnnx failed (exit {proc.returncode})", file=sys.stderr)
-        return 1
+    out.mkdir(parents=True, exist_ok=True)
 
-    param_path, bin_path = ncnn_outputs(out, stem)
-    if not param_path.is_file() or not bin_path.is_file():
-        print(f"ERROR: expected outputs missing: {param_path}, {bin_path}", file=sys.stderr)
-        return 1
+    with tempfile.TemporaryDirectory() as workdir:
+        work = Path(workdir)
+        # Copy the ONNX and any external-data sidecars (files whose name starts with
+        # the ONNX filename, e.g. "model.onnx.data") into the isolated work dir.
+        for sib in onnx_path.parent.glob(onnx_path.name + "*"):
+            if sib.is_file():
+                shutil.copy2(sib, work / sib.name)
 
-    if not skip_verify:
-        if verifier is None:
-            from verify_ncnn_parity import verify_parity as verifier  # type: ignore[assignment]
-        result = verifier(str(onnx_path), str(param_path), str(bin_path), in_blob, out_blob)
-        if not result.ok:
-            print(f"PARITY FAILED: {result.summary}", file=sys.stderr)
-            print("(intermediates kept for debugging)", file=sys.stderr)
+        cmd = pnnx_command(pnnx, onnx_path.name, inputshape)
+        print(f"running: {' '.join(cmd)} (cwd={work})")
+        proc = runner(cmd, cwd=str(work), capture_output=True, text=True)
+        if proc.returncode != 0:
+            if proc.stdout:
+                print(proc.stdout)
+            if proc.stderr:
+                print(proc.stderr, file=sys.stderr)
+            print(f"ERROR: pnnx failed (exit {proc.returncode})", file=sys.stderr)
             return 1
-        print(f"PARITY OK: {result.summary}")
 
-    if not keep_intermediates:
-        for f in intermediate_files(out, stem):
-            if f.is_file():
-                f.unlink()
+        src_param, src_bin = ncnn_outputs(work, stem)
+        if not src_param.is_file() or not src_bin.is_file():
+            print(
+                f"ERROR: expected outputs missing: {src_param.name}, {src_bin.name}",
+                file=sys.stderr,
+            )
+            return 1
+
+        param_path, bin_path = ncnn_outputs(out, stem)
+        shutil.move(str(src_param), str(param_path))
+        shutil.move(str(src_bin), str(bin_path))
+
+        def _move_intermediates() -> None:
+            for f in intermediate_files(work, stem):
+                if f.is_file():
+                    shutil.move(str(f), str(out / f.name))
+
+        if not skip_verify:
+            if verifier is None:
+                from verify_ncnn_parity import verify_parity as verifier  # type: ignore[assignment]
+            result = verifier(str(onnx_path), str(param_path), str(bin_path), in_blob, out_blob)
+            if not result.ok:
+                _move_intermediates()  # keep debris for debugging
+                print(f"PARITY FAILED: {result.summary}", file=sys.stderr)
+                print(f"(intermediates kept in {out} for debugging)", file=sys.stderr)
+                return 1
+            print(f"PARITY OK: {result.summary}")
+
+        if keep_intermediates:
+            _move_intermediates()
 
     print(f"OK: {param_path}")
     print(f"OK: {bin_path}")
