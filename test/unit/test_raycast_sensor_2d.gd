@@ -10,8 +10,6 @@ func _initialize() -> void:
 	s.n_rays = 4
 	s.ray_length = 100.0
 	s.cone_degrees = 90.0
-	# Add to the tree so global_position / global_rotation resolve.
-	get_root().add_child(s)
 
 	# obs_size reflects n_rays
 	h.assert_eq(s.obs_size(), 4, "obs_size == n_rays")
@@ -46,20 +44,20 @@ func _initialize() -> void:
 	var obs_half: Array = s.get_observation()
 	h.assert_true(absf(obs_half[0] - 0.5) < 1e-6, "distance 50 / length 100 -> 0.5")
 
-	# Directions passed to the cast match ray_directions_2d at rotation 0
+	# Directions passed to the cast rotate with the node's rotation.
 	var recorded := []
-	s.rotation = 0.0
+	s.rotation = PI / 2.0
 	var record_fn := func(_o: Vector2, d: Vector2) -> float:
 		recorded.append(d)
 		return -1.0
 	s.set_cast_fn_for_test(record_fn)
 	s.get_observation()
-	var expected: Array = RaycastMath.ray_directions_2d(4, 90.0, 0.0)
+	var expected: Array = RaycastMath.ray_directions_2d(4, 90.0, PI / 2.0)
 	var dirs_match := recorded.size() == expected.size()
 	for i in range(mini(recorded.size(), expected.size())):
 		if (recorded[i] - expected[i]).length() > 1e-5:
 			dirs_match = false
-	h.assert_true(dirs_match, "cast directions match ray_directions_2d at rotation 0")
+	h.assert_true(dirs_match, "cast directions rotate with node rotation (PI/2)")
 
 	# n_rays < 1 -> empty obs + obs_size 0
 	s.n_rays = 0

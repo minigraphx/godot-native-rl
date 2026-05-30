@@ -37,8 +37,12 @@ func get_observation() -> Array:
 		zeros.fill(0.0)
 		return zeros
 	var dirs := RaycastMath.ray_directions_3d(n_rays_width, n_rays_height, horizontal_fov, vertical_fov)
-	var origin := global_position
-	var basis := global_transform.basis
+	# Use the world transform when in the tree; fall back to the local transform when
+	# detached (e.g. unit tests) so directions still resolve without a Node3D
+	# not-in-tree error. In normal use the sensor is in the scene tree -> global.
+	var xform := global_transform if is_inside_tree() else transform
+	var origin := xform.origin
+	var basis := xform.basis
 	var out := []
 	for local_dir in dirs:
 		var world_dir: Vector3 = basis * local_dir
