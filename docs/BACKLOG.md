@@ -16,9 +16,18 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
 
 ## Now (highest leverage)
 
-1. ⬜ **Signal→Reward Adapter + Reward Builder** — Godot-native declarative reward authoring.
+1. ✅ **Signal→Reward Adapter + Reward Builder** — Godot-native declarative reward authoring.
    `RewardAdapter.on_signal(emitter, signal, delta)` + fluent `RewardBuilder`. Removes
    `compute_step_reward` boilerplate. *(novel-addons spec §3 A1/A2; top DX priority)*
+   **Done 2026-05-30** — spec `docs/superpowers/specs/2026-05-30-signal-reward-adapter-and-builder-design.md`,
+   plan `docs/superpowers/plans/2026-05-30-signal-reward-adapter-and-builder.md`. Shipped the `reward/`
+   module (4 terms + `Reward` event bus + immutable `RewardBuilder` + `RewardAdapter`),
+   `NcnnAIController2D.accumulate_reward()` (backward-compatible), ChaseAgent migrated onto it, and an
+   episode-return parity test. Full suite green incl. trained-chase inference.
+   **Deferred (revisit for multi-agent):** `RewardAdapter` does not explicitly disconnect its signal
+   connections in `_exit_tree()` — relied on Godot 4 auto-disconnecting when the receiver is freed.
+   Add explicit disconnect when pooled/respawned agents (multi-agent track, e.g. items 17–19 / SKRL)
+   make freeing an adapter while its emitter lives a real scenario.
 2. ⬜ **`export_to_ncnn.py` helper** — one-command convert+verify (`--skip-verify` opt-out,
    verify-on-default). Generalizes the manual pnnx + `verify_ncnn_parity.py` steps.
 3. ⬜ **RaycastSensor2D + RaycastSensor3D** — the most-used godot_rl observation type; biggest
