@@ -55,7 +55,15 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
    `RayCast` hits; (b) controller auto-discovery `collect_sensors()` — fold into item 5; (c) per-ray
    detectable-class one-hot, if a ported godot_rl env needs it; (d) migrate `sensors/` into
    `addons/godot_native_rl/sensors/` with item 5.
-4. ⬜ **`ncnn_vs_onnx.md`** — balanced decision guide (honest pros/cons both sides), linked from README.
+4. ✅ **`ncnn_vs_onnx.md`** — balanced decision guide (honest pros/cons both sides), linked from README.
+   **Done 2026-05-30** — `docs/ncnn_vs_onnx.md` (layered: TL;DR + at-a-glance table + per-target quick
+   lookup, then detailed "when ncnn" / "when ONNX Runtime" / conversion-fidelity / deploy caveats /
+   licensing). Linked from README (top + "Convert ONNX To ncnn"). Honest about where ONNX Runtime wins
+   (server-side, NVIDIA/TensorRT, NPU, exotic ops, no convert step). Hard claims fact-checked: GitHub
+   stars (ncnn 23.3k vs ORT 20.7k), licenses (ncnn core BSD-3-Clause + permissive third-party headers;
+   ORT MIT), and project-specific claims (`VecMonitor` not `VecNormalize`; discrete single-key argmax
+   deploy) all verified against source. Adopted from draft PR #1 (rebased onto current main; its stale
+   backlog edits dropped). Writing the guide surfaced deploy-side inference gaps → items 21–24 below.
 
 ## Soon (parity + foundations)
 
@@ -91,6 +99,24 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
 17. ⬜ **CleanRL backend** — single-file PPO; godot_rl wrapper already exists. Small.
 18. ⬜ **SampleFactory backend** — async high-throughput training. *v-next, after CameraSensor.*
 19. ⬜ **SKRL backend** — multi-agent + JAX. *v-next, when multi-agent/JAX becomes priority.*
+
+## Deploy-side inference gaps (surfaced by `docs/ncnn_vs_onnx.md`)
+
+These are current limitations of the **inference helper** (`NcnnRunner` + controller), not of ncnn or
+of godot_rl training — godot_rl can train these; we just can't yet *deploy* them natively.
+
+21. ⬜ **Continuous + multi-key action deployment** — `run_discrete_action` is argmax-only on the first
+    action key. Add continuous (PPO-continuous / SAC: mean output, optional tanh squash), multi-discrete,
+    and multiple simultaneous action keys to the runner + controller. *(verification for continuous must
+    check numerical closeness, not argmax — see `ncnn_vs_onnx.md`)*
+22. ⬜ **Recurrent / LSTM policy support** — controller is feed-forward and stateless per call. Carry
+    hidden state across frames so recurrent policies deploy. (ncnn already has LSTM/GRU layers.)
+23. ⬜ **Batched multi-agent inference** — each agent currently runs its own forward pass (linear cost).
+    Add batched inference (batch dim) at the C++ level for crowds / large multi-agent scenes.
+24. ⬜ **Observation-normalization parity helper** — optional `VecNormalize`-style running mean/std
+    replay game-side, for policies trained with SB3 `VecNormalize`. Today obs must be hand-normalized in
+    `get_obs()` identically at train and deploy; this silently fails if mismatched. *(top silent-failure
+    risk called out in `ncnn_vs_onnx.md`)*
 
 ## Later (in catalog spec, not yet detailed)
 
