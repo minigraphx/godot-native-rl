@@ -6,6 +6,15 @@ Minimal Godot 4.6+ GDExtension (C++) for running ncnn inference from Godot.
 > [docs/ncnn_vs_onnx.md](docs/ncnn_vs_onnx.md) — honest pros/cons on both sides (web/console/mobile,
 > INT8, conversion, licensing), including where ONNX Runtime is genuinely the better choice.
 
+> **Library moved (2026-05-31):** the reusable scripts now live under
+> `addons/godot_native_rl/` (controllers, `sync.gd`, `reward/`, `sensors/`). `class_name`-based
+> usage is unchanged — `extends NcnnAIController2D` / `NcnnAIController3D`, `NcnnSync`,
+> `RewardBuilder`, `RaycastSensor2D/3D`, etc. all still resolve in the editor. If you `preload`
+> old paths like `res://sync.gd` or `res://reward/…`, update them to `res://addons/godot_native_rl/…`.
+> In headless/CLI runs (no editor cache), prefer path-based `extends "res://addons/godot_native_rl/…"`
+> over bare `class_name` (see CLAUDE.md). The compiled GDExtension (`ncnn_runner.gdextension`,
+> `bin/`) still lives at the project root.
+
 ## What This Repository Provides
 
 - `NcnnRunner` C++ node class exposed to Godot.

@@ -117,6 +117,10 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     replay game-side, for policies trained with SB3 `VecNormalize`. Today obs must be hand-normalized in
     `get_obs()` identically at train and deploy; this silently fails if mismatched. *(top silent-failure
     risk called out in `ncnn_vs_onnx.md`)*
+25. ⬜ **Asset Library release (extension packaging)** — move `ncnn_runner.gdextension` + a `bin/`
+    of prebuilt per-platform binaries into `addons/godot_native_rl/`, repoint the manifest's library
+    paths + the `SConstruct` output target, build macOS/Windows/Linux (+ web/mobile) binaries, fill
+    `plugin.cfg` metadata, and submit. *(surfaced by item 5; the addon layout is already in place)*
 
 ## Later (in catalog spec, not yet detailed)
 
