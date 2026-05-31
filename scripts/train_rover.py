@@ -37,6 +37,7 @@ def remaining_timesteps(total: int, done: int) -> int:
 
 def main() -> None:
     from stable_baselines3 import PPO
+    from stable_baselines3.common.callbacks import CheckpointCallback
     from stable_baselines3.common.vec_env.vec_monitor import VecMonitor
     from godot_rl.wrappers.stable_baselines_wrapper import StableBaselinesGodotEnv
     from godot_rl.wrappers.onnx.stable_baselines_export import export_model_as_onnx
@@ -48,6 +49,9 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--save_model_path", type=str, default="models/rover_policy.zip")
     parser.add_argument("--onnx_export_path", type=str, default="models/rover_policy.onnx")
+    parser.add_argument("--checkpoint_freq", type=int, default=25_000)
+    parser.add_argument("--checkpoint_dir", type=str, default="models/rover_checkpoints")
+    parser.add_argument("--fresh", action="store_true", help="ignore any checkpoint and start over")
     args = parser.parse_args()
 
     # env_path=None => in-editor training: opens the server and waits for a Godot client.
@@ -61,17 +65,33 @@ def main() -> None:
     )
     env = VecMonitor(env)
 
-    # Note: do NOT pass seed= to PPO — StableBaselinesGodotEnv.seed() raises
-    # NotImplementedError. The env seed is set via the env constructor above.
-    model = PPO(
-        "MultiInputPolicy",
-        env,
-        verbose=1,
-        n_steps=256,
-        batch_size=64,
-        tensorboard_log="logs/sb3",
+    # Periodic checkpoints so an interrupted run (e.g. shutdown) can resume.
+    checkpoint_cb = CheckpointCallback(
+        save_freq=args.checkpoint_freq,
+        save_path=args.checkpoint_dir,
+        name_prefix="rover_ckpt",
     )
-    model.learn(args.timesteps)
+
+    ckpt = None if args.fresh else latest_checkpoint(args.checkpoint_dir)
+    if ckpt is not None:
+        model = PPO.load(ckpt, env=env)
+        steps = remaining_timesteps(args.timesteps, model.num_timesteps)
+        print("Resuming from %s at %d steps; %d remaining" % (ckpt, model.num_timesteps, steps))
+        if steps > 0:
+            model.learn(steps, reset_num_timesteps=False, callback=checkpoint_cb)
+    else:
+        print("Starting fresh (%d timesteps)" % args.timesteps)
+        # Note: do NOT pass seed= to PPO — StableBaselinesGodotEnv.seed() raises
+        # NotImplementedError. The env seed is set via the env constructor above.
+        model = PPO(
+            "MultiInputPolicy",
+            env,
+            verbose=1,
+            n_steps=256,
+            batch_size=64,
+            tensorboard_log="logs/sb3",
+        )
+        model.learn(args.timesteps, callback=checkpoint_cb)
 
     zip_path = pathlib.Path(args.save_model_path).with_suffix(".zip")
     zip_path.parent.mkdir(parents=True, exist_ok=True)
