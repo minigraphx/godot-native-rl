@@ -95,7 +95,10 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
    closing the real-physics verification deferred from item 3. Full suite green from a clean cache state.
    **Remaining (final step, in progress):** run real PPO training → `export_to_ncnn.py` →
    `models/rover_policy.ncnn.*` → `trained_rover_scene` + golden-inference regression wired into
-   `run_tests.sh` (matches chase's bar); optional tutorial doc.
+   `run_tests.sh` (matches chase's bar); optional tutorial doc. **The training run is now
+   checkpoint/resume-capable** (`train_rover.py` auto-resumes from `models/rover_checkpoints/`;
+   `FRESH=1` to restart) — spec `docs/superpowers/specs/2026-05-31-rover-trainer-checkpoint-resume-design.md`,
+   so a shutdown-interrupted run continues on re-run instead of starting over.
 7. ⬜ **RelativePositionSensor** (godot_rl issue #177) — normalized direction + clipped distance.
 8. ⬜ **CameraSensor** (godot_rl issue #78) — SubViewport → `run_inference_image`. **Do together with
    item 9** (camera obs encoding is a protocol change). *(spike godot_rl's impl first)*
