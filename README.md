@@ -444,6 +444,16 @@ Run the headless checks (unit tests + protocol + inference smoke + trained-chase
 ./test/run_tests.sh
 ```
 
+### 3D Raycast Rover
+
+A tank-steered 3D rover (`examples/rover_3d/`) that uses a `RaycastSensor3D` to avoid a fixed
+obstacle field and reach a goal it senses egocentrically. Demonstrates `NcnnAIController3D` +
+`RaycastSensor3D` + declarative `RewardBuilder`/`RewardAdapter` reward. Discrete tank actions
+(`idle / forward / turn-left / turn-right`); observation = 5 ray closeness values + `[sin, cos]`
+of the goal bearing + normalized distance. Train with `scripts/train_rover.sh`; the headless
+smoke test (`test/integration/rover_smoke_scene.tscn`) exercises the full obs + physics-raycast
+pipeline. *(The pre-trained ncnn model + golden regression land in a follow-up training step.)*
+
 ## Notes
 
 - If `input_shape` is empty, `run_inference` maps input to a 1D `ncnn::Mat`.
