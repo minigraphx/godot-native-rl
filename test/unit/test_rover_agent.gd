@@ -32,5 +32,19 @@ func _initialize() -> void:
 	# action space
 	h.assert_eq(a.get_action_space(), {"move": {"size": 4, "action_type": "discrete"}}, "action space")
 
+	# get_obs with no game/sensor -> a correctly-sized zero vector (no crash)
+	var obs_dict: Dictionary = a.get_obs()
+	h.assert_true("obs" in obs_dict, "get_obs returns an obs key")
+	h.assert_eq(obs_dict["obs"].size(), 8, "fallback obs size = default rays(5) + goal(3)")
+	var any_nonzero := false
+	for v in obs_dict["obs"]:
+		if absf(v) > 1e-9:
+			any_nonzero = true
+	h.assert_true(not any_nonzero, "fallback obs is all zeros")
+
+	# set_action stores a valid discrete index
+	a.set_action({"move": 3})
+	h.assert_eq(a._action_index, 3, "set_action stores the index")
+
 	a.free()
 	h.finish(self)
