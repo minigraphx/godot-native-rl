@@ -160,6 +160,21 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     paths + the `SConstruct` output target, build macOS/Windows/Linux (+ web/mobile) binaries, fill
     `plugin.cfg` metadata, and submit. *(surfaced by item 5; the addon layout is already in place)*
 
+## Training throughput
+
+30. 🔄 **Parallel multi-agent training (`ParallelArena`)** — reusable addon node that tiles N copies
+    of an agent "world" sub-scene in one Godot process (spatial tiling, default 200u spacing). `NcnnSync`
+    already batches the `AGENT` group and godot-rl auto-vectorizes over `n_agents`, so it's a scene-only
+    change (trainer unchanged) → ~Nx samples/sec. *(spec
+    `docs/superpowers/specs/2026-05-31-parallel-multi-agent-training-design.md`; rover model has shipped,
+    so the training port is free. Includes a tile-offset-safety fix to `RoverGame.read_obstacles` →
+    `to_local`.)*
+31. ⬜ **JAX/NumPy + Gymnasium env "twin" (train without Godot)** — reimplement a simple example's
+    dynamics (kinematics + analytic raycast-vs-AABB + reward) as a vectorized pure-Python/JAX Gymnasium
+    env to train at 100–1000× the speed, then deploy the policy back in Godot via ncnn. Only viable for
+    simple envs and reintroduces a sim-to-deploy gap to validate (run the trained policy in the Godot
+    smoke scene). *Later.* *(brainstormed alongside item 30)*
+
 ## Later (in catalog spec, not yet detailed)
 
 20. ⬜ Animation Policy Adapter · in-editor Policy Debugger · Running Normalization Sensor ·
