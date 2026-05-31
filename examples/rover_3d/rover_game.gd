@@ -70,7 +70,7 @@ func read_obstacles(parent: Node) -> Array:
 		var col = child.get_node_or_null("Col")
 		if col != null and col.shape is BoxShape3D:
 			half = (col.shape as BoxShape3D).size * 0.5
-		result.append({"center": child.position, "half_extent": half})
+		result.append({"center": child.global_position, "half_extent": half})
 	return result
 
 # --- Runtime helpers (exercised by the scene + smoke test) ---

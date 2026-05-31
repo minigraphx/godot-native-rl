@@ -7,11 +7,11 @@ func _initialize() -> void:
 	var h := Harness.new()
 	var a = RoverAgentScript.new()
 
-	# action_index_to_motion: 0 idle, 1 forward, 2 turn-left (-yaw), 3 turn-right (+yaw)
+	# action_index_to_motion: 0 idle, 1 forward, 2 turn-left (+yaw toward -X), 3 turn-right (-yaw toward +X)
 	h.assert_eq(a.action_index_to_motion(0, 6.0, 2.5), {"forward": 0.0, "yaw": 0.0}, "idle")
 	h.assert_eq(a.action_index_to_motion(1, 6.0, 2.5), {"forward": 6.0, "yaw": 0.0}, "forward")
-	h.assert_eq(a.action_index_to_motion(2, 6.0, 2.5), {"forward": 0.0, "yaw": -2.5}, "turn left")
-	h.assert_eq(a.action_index_to_motion(3, 6.0, 2.5), {"forward": 0.0, "yaw": 2.5}, "turn right")
+	h.assert_eq(a.action_index_to_motion(2, 6.0, 2.5), {"forward": 0.0, "yaw": 2.5}, "turn left (+yaw toward -X)")
+	h.assert_eq(a.action_index_to_motion(3, 6.0, 2.5), {"forward": 0.0, "yaw": -2.5}, "turn right (-yaw toward +X)")
 
 	# compute_goal_obs(bearing, dist, max_dist) -> [sin, cos, clamped distance]
 	var goal_obs: Array = a.compute_goal_obs(0.0, 10.0, 40.0)

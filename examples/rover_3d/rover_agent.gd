@@ -23,8 +23,8 @@ var _action_index := 0
 func action_index_to_motion(idx: int, move_speed: float, turn_speed: float) -> Dictionary:
 	match idx:
 		1: return {"forward": move_speed, "yaw": 0.0}
-		2: return {"forward": 0.0, "yaw": -turn_speed}
-		3: return {"forward": 0.0, "yaw": turn_speed}
+		2: return {"forward": 0.0, "yaw": turn_speed}   # turn left: +yaw rotates the -Z heading toward -X
+		3: return {"forward": 0.0, "yaw": -turn_speed}  # turn right: -yaw toward +X
 		_: return {"forward": 0.0, "yaw": 0.0}
 
 func compute_goal_obs(bearing: float, dist: float, max_dist: float) -> Array:
@@ -68,6 +68,13 @@ func _ready() -> void:
 	var bump_adapter := RewardAdapterScript.new()
 	add_child(bump_adapter)
 	bump_adapter.on_signal_event(_game, "bumped", "bumped")
+	# Children _ready runs before the parent RoverGame._ready that positions agent/goal,
+	# so rebase the progress-shaping baseline once the world is initialized.
+	call_deferred("_reset_reward_baseline")
+
+func _reset_reward_baseline() -> void:
+	if reward_source != null:
+		reward_source.reset()
 
 func get_obs() -> Dictionary:
 	if _game == null or _sensor == null:
