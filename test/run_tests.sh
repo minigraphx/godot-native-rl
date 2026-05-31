@@ -22,6 +22,9 @@ echo "== Inference smoke test (headless) =="
 echo "== Trained chase check (headless) =="
 "$GODOT" --headless --path . res://test/integration/trained_chase_scene.tscn
 
+echo "== Rover 3D smoke test (headless) =="
+"$GODOT" --headless --path . res://test/integration/rover_smoke_scene.tscn
+
 echo "== Python helper tests =="
 PY_TRAIN="${PY_TRAIN:-.venv-train/bin/python}"
 "$PY_TRAIN" -m unittest discover -s test/python -p 'test_*.py'
