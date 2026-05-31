@@ -25,6 +25,9 @@ echo "== Trained chase check (headless) =="
 echo "== Rover 3D smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/rover_smoke_scene.tscn
 
+echo "== Parallel arena smoke test (headless) =="
+"$GODOT" --headless --path . res://test/integration/parallel_arena_smoke_scene.tscn
+
 echo "== Trained rover check (headless) =="
 "$GODOT" --headless --path . res://test/integration/trained_rover_scene.tscn
 
