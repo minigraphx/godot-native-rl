@@ -450,9 +450,14 @@ A tank-steered 3D rover (`examples/rover_3d/`) that uses a `RaycastSensor3D` to 
 obstacle field and reach a goal it senses egocentrically. Demonstrates `NcnnAIController3D` +
 `RaycastSensor3D` + declarative `RewardBuilder`/`RewardAdapter` reward. Discrete tank actions
 (`idle / forward / turn-left / turn-right`); observation = 5 ray closeness values + `[sin, cos]`
-of the goal bearing + normalized distance. Train with `scripts/train_rover.sh`; the headless
-smoke test (`test/integration/rover_smoke_scene.tscn`) exercises the full obs + physics-raycast
-pipeline. *(The pre-trained ncnn model + golden regression land in a follow-up training step.)*
+of the goal bearing + normalized distance. The headless smoke test
+(`test/integration/rover_smoke_scene.tscn`) exercises the full obs + physics-raycast pipeline.
+
+Train with `./scripts/train_rover.sh`. Training is **checkpoint/resume-capable**: it saves to
+`models/rover_checkpoints/` every 25k steps and **auto-resumes** from the latest checkpoint on
+re-run, so an interrupted run (e.g. a shutdown) continues instead of restarting. Use
+`FRESH=1 ./scripts/train_rover.sh` to start from scratch, or `CHECKPOINT_FREQ=N` to change the
+interval. *(The pre-trained ncnn model + golden regression land in a follow-up training step.)*
 
 ## Notes
 
