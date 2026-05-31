@@ -162,13 +162,21 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
 
 ## Training throughput
 
-30. 🔄 **Parallel multi-agent training (`ParallelArena`)** — reusable addon node that tiles N copies
+30. ✅ **Parallel multi-agent training (`ParallelArena`)** — reusable addon node that tiles N copies
     of an agent "world" sub-scene in one Godot process (spatial tiling, default 200u spacing). `NcnnSync`
     already batches the `AGENT` group and godot-rl auto-vectorizes over `n_agents`, so it's a scene-only
-    change (trainer unchanged) → ~Nx samples/sec. *(spec
-    `docs/superpowers/specs/2026-05-31-parallel-multi-agent-training-design.md`; rover model has shipped,
-    so the training port is free. Includes a tile-offset-safety fix to `RoverGame.read_obstacles` →
-    `to_local`.)*
+    change (trainer unchanged) → ~Nx samples/sec.
+    **Done 2026-06-01** — spec `docs/superpowers/specs/2026-05-31-parallel-multi-agent-training-design.md`,
+    plan `docs/superpowers/plans/2026-06-01-parallel-multi-agent-training.md`. Shipped
+    `addons/godot_native_rl/training/parallel_arena.gd` (`ParallelArena`, pure unit-tested `tile_offset`),
+    `examples/rover_3d/rover_world.tscn` (reusable world) + `rover_3d_train_parallel.tscn` (8 agents),
+    a tile-offset-safety fix to `RoverGame.read_obstacles` (stores obstacle centers in RoverGame-local
+    frame via `parent.transform * child.position` — equivalent to `to_local` but tree-independent for
+    headless), a headless parallel-arena smoke test (spawn count + obs + isolation) wired into
+    `run_tests.sh`, a `SCENE=` override on `train_rover.sh`, and `scripts/throughput_compare.sh`.
+    Throughput validated parallel-vs-single (see commit/PR for numbers). Full suite green from a clean cache.
+    **Follow-ups:** item 31 (JAX/NumPy Gymnasium twin); optionally retrofit the arena into the chase
+    example; document the measured speedup in `README`/`ncnn_vs_onnx.md`.
 31. ⬜ **JAX/NumPy + Gymnasium env "twin" (train without Godot)** — reimplement a simple example's
     dynamics (kinematics + analytic raycast-vs-AABB + reward) as a vectorized pure-Python/JAX Gymnasium
     env to train at 100–1000× the speed, then deploy the policy back in Godot via ncnn. Only viable for

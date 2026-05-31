@@ -17,11 +17,12 @@ complement to godot_rl, grow toward full replacement.
 - The reusable library lives under **`addons/godot_native_rl/`** (item 5): `sync.gd` (`NcnnSync`,
   the bridge), `controllers/` (`NcnnControllerCore` RefCounted core + thin `NcnnAIController2D`/
   `NcnnAIController3D`), `reward/` (`RewardBuilder`/`RewardAdapter`/terms), `sensors/`
-  (`RaycastSensor2D`/`RaycastSensor3D` + pure `raycast_math`), `plugin.cfg`. The C++ GDExtension
+  (`RaycastSensor2D`/`RaycastSensor3D` + pure `raycast_math`), `training/` (`ParallelArena` — tiles N
+  agent worlds in one process for ~Nx-faster training), `plugin.cfg`. The C++ GDExtension
   stays at the repo root: `src/ncnn_runner.{h,cpp}` (`NcnnRunner`), `ncnn_runner.gdextension`, `bin/`.
 - Examples: `examples/chase_the_target/` (2D, ships a pre-trained ncnn model) and
-  `examples/rover_3d/` (3D tank-steered raycast obstacle-avoidance rover; scaffold + headless tests
-  done, trained model + golden regression pending).
+  `examples/rover_3d/` (3D tank-steered raycast obstacle-avoidance rover; ships a trained ncnn model +
+  golden regression; `rover_world.tscn` sub-scene + `rover_3d_train_parallel.tscn` for parallel training).
 - Wire protocol is **fully godot_rl v0.8.2-compatible** (proven by real SB3 PPO training).
 
 ## Key commands
@@ -36,6 +37,11 @@ complement to godot_rl, grow toward full replacement.
   every 25k steps and **auto-resumes** on re-run. `FRESH=1` restart; `CHECKPOINT_FREQ=N` tune;
   `TIMESTEPS=N` raise the target to **refine** an existing model further. On macOS/Apple Silicon wrap
   it: `caffeinate -is ./scripts/train_rover.sh` (see sleep gotcha below).
+- **Train (rover, parallel — fast):** `SCENE=res://examples/rover_3d/rover_3d_train_parallel.tscn
+  ./scripts/train_rover.sh` — tiles 8 rover worlds in one process (`ParallelArena`), so godot-rl
+  vectorizes over 8 agents (~Nx samples/sec). Trainer code is unchanged.
+- **Throughput check:** `./scripts/throughput_compare.sh` — short fresh runs of the parallel vs
+  single-agent scene into temp dirs (never touches `models/`); prints samples/sec + speedup.
 - **Export a checkpoint (no full run):** `.venv-train/bin/python scripts/export_checkpoint.py`
   (latest checkpoint → `models/rover_policy.onnx`, non-destructive) then `scripts/export_to_ncnn.py`.
 - **Convert + verify (one command):** `.venv-train/bin/python scripts/export_to_ncnn.py models/model.onnx`
