@@ -11,9 +11,11 @@ const RewardBuilderScript = preload("res://addons/godot_native_rl/reward/reward_
 
 @export var game_path: NodePath
 @export var sensor_path: NodePath
-@export var goal_bonus := 1.0
-@export var step_penalty := 0.005
-@export var collision_penalty := 0.25
+# Reward weights (tuned 2026-05-31). step_penalty + collision_penalty are applied per physics
+# frame (~1000/episode at reset_after=1000), so they stay small; goal_bonus fires per goal reached.
+@export var goal_bonus := 3.0
+@export var step_penalty := 0.001
+@export var collision_penalty := 0.05
 
 var _game
 var _sensor

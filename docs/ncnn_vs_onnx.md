@@ -170,6 +170,22 @@ parity within `atol ≈ 1e-2` to `1e-3` is normal, and for **discrete-action pol
 stable** at those magnitudes. This project verifies every conversion with `scripts/verify_ncnn_parity.py`
 (see the README "Convert ONNX To ncnn" section) — keep that check in your pipeline.
 
+### Measured model-file sizes (this repo's examples)
+
+Beyond the library footprint, the converted **model files** are smaller too. Measured on the shipped
+policies (small MLPs):
+
+| Model | ONNX (`.onnx` + `.onnx.data`) | ncnn (`.param` + `.bin`) | ncnn vs ONNX |
+|---|---|---|---|
+| Chase (5→5) | 2,348 + 18,944 = **21,292 B** | 410 + 10,016 = **10,426 B** | **−51%** |
+| Rover (8→4) | 2,344 + 19,456 = **21,800 B** | 410 + 10,268 = **10,678 B** | **−51%** |
+
+> **Gotcha:** the PyTorch dynamo exporter writes weights to an **external-data sidecar**
+> (`<model>.onnx.data`); the bare `.onnx` is only ~2 KB (just the graph). A fair size comparison
+> **must include the `.onnx.data`** — otherwise you understate the ONNX on-disk size by ~10×.
+> Counted properly, ncnn (param + bin) is roughly **half** the on-disk size here. (INT8 quantization,
+> above, shrinks the ncnn weights a further ~4×.)
+
 ---
 
 ## What every game dev / researcher should know before deploying

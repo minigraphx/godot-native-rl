@@ -450,14 +450,28 @@ A tank-steered 3D rover (`examples/rover_3d/`) that uses a `RaycastSensor3D` to 
 obstacle field and reach a goal it senses egocentrically. Demonstrates `NcnnAIController3D` +
 `RaycastSensor3D` + declarative `RewardBuilder`/`RewardAdapter` reward. Discrete tank actions
 (`idle / forward / turn-left / turn-right`); observation = 5 ray closeness values + `[sin, cos]`
-of the goal bearing + normalized distance. The headless smoke test
-(`test/integration/rover_smoke_scene.tscn`) exercises the full obs + physics-raycast pipeline.
+of the goal bearing + normalized distance. It ships with a pre-trained ncnn model
+(`examples/rover_3d/models/rover_policy.ncnn.*`), a deterministic trained-rover behavioral check, and
+a golden-inference regression. The headless smoke test (`test/integration/rover_smoke_scene.tscn`)
+exercises the full obs + physics-raycast pipeline.
 
 Train with `./scripts/train_rover.sh`. Training is **checkpoint/resume-capable**: it saves to
 `models/rover_checkpoints/` every 25k steps and **auto-resumes** from the latest checkpoint on
-re-run, so an interrupted run (e.g. a shutdown) continues instead of restarting. Use
-`FRESH=1 ./scripts/train_rover.sh` to start from scratch, or `CHECKPOINT_FREQ=N` to change the
-interval. *(The pre-trained ncnn model + golden regression land in a follow-up training step.)*
+re-run, so an interrupted run continues instead of restarting. `FRESH=1` starts from scratch;
+`CHECKPOINT_FREQ=N` changes the interval.
+
+- **Refine later:** because checkpoints are kept, raise the target and re-run to keep improving:
+  `TIMESTEPS=600000 ./scripts/train_rover.sh` resumes from the latest checkpoint toward 600k.
+- **Export a checkpoint without finishing:** `scripts/export_checkpoint.py` loads a checkpoint (latest
+  by default) and writes the ONNX (then `scripts/export_to_ncnn.py` converts it) — non-destructive, so
+  the checkpoints remain for further refinement.
+- **⚠️ Apple Silicon / macOS — do not let the machine sleep while training.** Sleep suspends the
+  headless Godot client; the trainer then blocks forever on a dead socket and the run stalls (you'll
+  see `total_timesteps` stop advancing at 0% CPU). Keep it awake for the whole run, e.g.
+  `caffeinate -is ./scripts/train_rover.sh` (`-i` prevents idle sleep, `-s` prevents sleep on AC). If
+  a run does stall, kill it and just re-run — it resumes from the last checkpoint (≤25k steps lost).
+  For unattended long runs prefer an always-on machine or CI; the local trainer + Godot can't survive
+  the host sleeping.
 
 ## Notes
 

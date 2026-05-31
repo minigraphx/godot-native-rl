@@ -83,8 +83,19 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
    4.3); it's the documented headless limitation CLAUDE.md already warns about.
    **Deferred:** Asset Library binary packaging (item 25); 3D example + training (item 6); optionally fold
    sensor auto-discovery (`collect_sensors()`, deferred from item 3) into the controller core later.
-6. 🔄 **3D controller + raycast-rover example** — `NcnnAIController3D` + minimal 3D example;
+6. ✅ **3D controller + raycast-rover example** — `NcnnAIController3D` + minimal 3D example;
    reuses the existing training pipeline unchanged (same obs/action shape).
+   **Done 2026-06-01** — reward weights tuned (spec
+   `docs/superpowers/specs/2026-05-31-rover-reward-tuning-design.md`; `ep_rew_mean` climbed −7→+9
+   within 50k, holding ~9 by 225k). Shipped the **225k-step checkpoint** (the full run was stopped
+   early by choice to ship a robust model rather than risk a longer run; 225k already reaches goals
+   well) via the new non-destructive `scripts/export_checkpoint.py` → ONNX → ncnn
+   (`examples/rover_3d/models/rover_policy.ncnn.*`, parity 50/50). Added a deterministic
+   `trained_rover_scene` behavioral check (seed=1 → **5 goals / 1800 frames**, threshold 3) + a
+   golden-inference regression, both wired into `run_tests.sh`. Measured ONNX-vs-ncnn model sizes
+   documented in `ncnn_vs_onnx.md`. Checkpoints are kept, so `TIMESTEPS=N ./scripts/train_rover.sh`
+   resumes to refine the policy further. (The macOS sleep gotcha in README/CLAUDE is a real risk for
+   long runs — documented preventively.)
    **Scaffold done 2026-05-31** (reframed from navigate-to-target to a raycast obstacle-avoidance
    rover) — spec `docs/superpowers/specs/2026-05-31-rover-3d-example-design.md`, plan
    `docs/superpowers/plans/2026-05-31-rover-3d-example.md`. Shipped `examples/rover_3d/`: `RoverGame`

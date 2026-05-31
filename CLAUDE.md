@@ -33,8 +33,11 @@ complement to godot_rl, grow toward full replacement.
 - **Train (chase):** `TIMESTEPS=120000 ./scripts/train_chase.sh` (starts SB3 trainer, launches headless
   Godot training scene which connects on port 11008). ~34 min at 120k steps.
 - **Train (rover, resumable):** `./scripts/train_rover.sh` — checkpoints to `models/rover_checkpoints/`
-  every 25k steps and **auto-resumes** on re-run (survives shutdown / interruption). `FRESH=1` to
-  restart from scratch; `CHECKPOINT_FREQ=N` to tune.
+  every 25k steps and **auto-resumes** on re-run. `FRESH=1` restart; `CHECKPOINT_FREQ=N` tune;
+  `TIMESTEPS=N` raise the target to **refine** an existing model further. On macOS/Apple Silicon wrap
+  it: `caffeinate -is ./scripts/train_rover.sh` (see sleep gotcha below).
+- **Export a checkpoint (no full run):** `.venv-train/bin/python scripts/export_checkpoint.py`
+  (latest checkpoint → `models/rover_policy.onnx`, non-destructive) then `scripts/export_to_ncnn.py`.
 - **Convert + verify (one command):** `.venv-train/bin/python scripts/export_to_ncnn.py models/model.onnx`
   (auto-derives inputshape, runs pnnx, verifies parity, cleans intermediates). Flags: `--skip-verify`,
   `--keep-intermediates`, `--inputshape`, `--outdir`. Underlying manual steps: `../.venv/bin/pnnx model.onnx
@@ -64,6 +67,14 @@ complement to godot_rl, grow toward full replacement.
 - **Don't commit Godot-generated `*.gd.uid` files** — an editor/import pass scatters them (and can
   re-materialize moved scripts at their old paths); `git clean -f -- '*.gd.uid'` and delete stray
   root duplicates before committing.
+- **macOS/Apple Silicon: never let the machine sleep during training.** Sleep suspends the headless
+  Godot client → the SB3 trainer blocks forever on the dead socket (`total_timesteps` freezes, process
+  ~0% CPU, no `godot` process). Kill and re-run (resumes from checkpoint). Prevent with
+  `caffeinate -is ./scripts/train_rover.sh`. The local trainer+Godot can't survive the host sleeping —
+  for unattended runs use an always-on machine/CI.
+- **Capture golden-inference values with blob names set** (`runner.input_blob_name = "in0"`,
+  `output_blob_name = "out0"`) — a bare `NcnnRunner` binds the wrong blob and returns the `-1` error
+  sentinel for every input.
 
 ## Conventions
 

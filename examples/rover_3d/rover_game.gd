@@ -8,6 +8,7 @@ extends Node3D
 @export var agent_body_path: NodePath
 @export var goal_path: NodePath
 @export var obstacles_path: NodePath
+@export var rng_seed := -1  ## >= 0 seeds the RNG at _ready for reproducible runs; -1 leaves it random
 
 signal goal_reached
 signal bumped
@@ -22,6 +23,8 @@ func _ready() -> void:
 	_agent_body = get_node_or_null(agent_body_path) as Node3D
 	_goal = get_node_or_null(goal_path) as Node3D
 	obstacles = read_obstacles(get_node_or_null(obstacles_path))
+	if rng_seed >= 0:
+		_rng.seed = rng_seed
 	reset_positions()
 
 # --- Pure helpers (unit-tested) ---
