@@ -11,10 +11,15 @@ PY="${PY:-.venv-train/bin/python}"
 TIMESTEPS="${TIMESTEPS:-400000}"
 SPEEDUP="${SPEEDUP:-8}"
 ACTION_REPEAT="${ACTION_REPEAT:-8}"
+CHECKPOINT_FREQ="${CHECKPOINT_FREQ:-25000}"
+FRESH_FLAG=""
+if [ -n "${FRESH:-}" ]; then
+	FRESH_FLAG="--fresh"
+fi
 SCENE="res://examples/rover_3d/rover_3d_train.tscn"
 
 echo "Starting SB3 trainer (timesteps=$TIMESTEPS)..."
-"$PY" scripts/train_rover.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" &
+"$PY" scripts/train_rover.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" --checkpoint_freq "$CHECKPOINT_FREQ" $FRESH_FLAG &
 TRAINER_PID=$!
 
 # Give the trainer a moment to bind the server socket before Godot connects.

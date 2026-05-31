@@ -24,3 +24,5 @@ models/*_pnnx.py
 .venv-train/
 logs/
 models/chase_policy.*
+models/rover_checkpoints/
+models/rover_policy.*
