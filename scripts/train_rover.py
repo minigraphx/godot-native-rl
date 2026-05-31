@@ -6,15 +6,41 @@ training scene which connects as the client. See scripts/train_rover.sh for orch
 """
 import argparse
 import pathlib
+import re
 
-from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env.vec_monitor import VecMonitor
+_CKPT_RE = re.compile(r"^rover_ckpt_(\d+)_steps\.zip$")
 
-from godot_rl.wrappers.stable_baselines_wrapper import StableBaselinesGodotEnv
-from godot_rl.wrappers.onnx.stable_baselines_export import export_model_as_onnx
+
+def latest_checkpoint(checkpoint_dir: str):
+    """Path to the checkpoint with the highest step count in checkpoint_dir, or None.
+
+    Matches SB3 CheckpointCallback's `rover_ckpt_<N>_steps.zip` naming; tolerates a
+    missing/empty directory and ignores non-matching filenames.
+    """
+    d = pathlib.Path(checkpoint_dir)
+    if not d.is_dir():
+        return None
+    best = None
+    best_steps = -1
+    for f in d.iterdir():
+        m = _CKPT_RE.match(f.name)
+        if m is not None and int(m.group(1)) > best_steps:
+            best_steps = int(m.group(1))
+            best = str(f)
+    return best
+
+
+def remaining_timesteps(total: int, done: int) -> int:
+    """Timesteps left to reach `total` given `done` already trained (never negative)."""
+    return max(0, total - done)
 
 
 def main() -> None:
+    from stable_baselines3 import PPO
+    from stable_baselines3.common.vec_env.vec_monitor import VecMonitor
+    from godot_rl.wrappers.stable_baselines_wrapper import StableBaselinesGodotEnv
+    from godot_rl.wrappers.onnx.stable_baselines_export import export_model_as_onnx
+
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument("--timesteps", type=int, default=400_000)
     parser.add_argument("--speedup", type=int, default=8)
