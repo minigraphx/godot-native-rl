@@ -83,8 +83,19 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
    4.3); it's the documented headless limitation CLAUDE.md already warns about.
    **Deferred:** Asset Library binary packaging (item 25); 3D example + training (item 6); optionally fold
    sensor auto-discovery (`collect_sensors()`, deferred from item 3) into the controller core later.
-6. ⬜ **3D controller + navigate-to-target example** — `NcnnAIController3D` + minimal 3D example;
+6. 🔄 **3D controller + raycast-rover example** — `NcnnAIController3D` + minimal 3D example;
    reuses the existing training pipeline unchanged (same obs/action shape).
+   **Scaffold done 2026-05-31** (reframed from navigate-to-target to a raycast obstacle-avoidance
+   rover) — spec `docs/superpowers/specs/2026-05-31-rover-3d-example-design.md`, plan
+   `docs/superpowers/plans/2026-05-31-rover-3d-example.md`. Shipped `examples/rover_3d/`: `RoverGame`
+   (pure helpers: bounds/blocking/bearing/free-position + tank `move_agent` with `bumped`/`goal_reached`
+   signals), `RoverAgent` (tank actions, `RaycastSensor3D` + egocentric-goal obs = 8 floats, reward via
+   `RewardBuilder` + two `RewardAdapter`s for goal/collision), play + train scenes, `train_rover.py/.sh`,
+   README pointer. A headless smoke scene exercises the **real `RaycastSensor3D` physics raycasts** —
+   closing the real-physics verification deferred from item 3. Full suite green from a clean cache state.
+   **Remaining (final step, in progress):** run real PPO training → `export_to_ncnn.py` →
+   `models/rover_policy.ncnn.*` → `trained_rover_scene` + golden-inference regression wired into
+   `run_tests.sh` (matches chase's bar); optional tutorial doc.
 7. ⬜ **RelativePositionSensor** (godot_rl issue #177) — normalized direction + clipped distance.
 8. ⬜ **CameraSensor** (godot_rl issue #78) — SubViewport → `run_inference_image`. **Do together with
    item 9** (camera obs encoding is a protocol change). *(spike godot_rl's impl first)*
