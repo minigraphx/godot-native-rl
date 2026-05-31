@@ -73,7 +73,11 @@ func read_obstacles(parent: Node) -> Array:
 		var col = child.get_node_or_null("Col")
 		if col != null and col.shape is BoxShape3D:
 			half = (col.shape as BoxShape3D).size * 0.5
-		result.append({"center": child.global_position, "half_extent": half})
+		# Store centers in RoverGame's LOCAL frame so blocking stays correct when this world
+		# is tiled at an offset by ParallelArena. child.position is already parent-local, so
+		# parent.transform * child.position converts it to RoverGame-local without using
+		# global_position (which would bake in the tile offset, and also needs the scene tree).
+		result.append({"center": parent.transform * child.position, "half_extent": half})
 	return result
 
 # --- Runtime helpers (exercised by the scene + smoke test) ---
