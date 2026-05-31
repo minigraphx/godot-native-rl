@@ -11,7 +11,7 @@ import re
 _CKPT_RE = re.compile(r"^rover_ckpt_(\d+)_steps\.zip$")
 
 
-def latest_checkpoint(checkpoint_dir: str):
+def latest_checkpoint(checkpoint_dir: str) -> str | None:
     """Path to the checkpoint with the highest step count in checkpoint_dir, or None.
 
     Matches SB3 CheckpointCallback's `rover_ckpt_<N>_steps.zip` naming; tolerates a
@@ -66,8 +66,10 @@ def main() -> None:
     env = VecMonitor(env)
 
     # Periodic checkpoints so an interrupted run (e.g. shutdown) can resume.
+    # CheckpointCallback's save_freq counts env.step() calls; divide by the number of
+    # parallel envs so --checkpoint_freq stays in total-timestep units (n_parallel=1 today).
     checkpoint_cb = CheckpointCallback(
-        save_freq=args.checkpoint_freq,
+        save_freq=max(args.checkpoint_freq // env.num_envs, 1),
         save_path=args.checkpoint_dir,
         name_prefix="rover_ckpt",
     )
