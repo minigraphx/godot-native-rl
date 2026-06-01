@@ -16,7 +16,9 @@ FRESH_FLAG=""
 if [ -n "${FRESH:-}" ]; then
 	FRESH_FLAG="--fresh"
 fi
-SCENE="res://examples/rover_3d/rover_3d_train.tscn"
+# SCENE override lets you target the parallel training scene:
+#   SCENE=res://examples/rover_3d/rover_3d_train_parallel.tscn ./scripts/train_rover.sh
+SCENE="${SCENE:-res://examples/rover_3d/rover_3d_train.tscn}"
 
 echo "Starting SB3 trainer (timesteps=$TIMESTEPS)..."
 # $FRESH_FLAG is intentionally unquoted: empty when FRESH is unset, "--fresh" when set.

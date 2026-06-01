@@ -460,6 +460,9 @@ Train with `./scripts/train_rover.sh`. Training is **checkpoint/resume-capable**
 re-run, so an interrupted run continues instead of restarting. `FRESH=1` starts from scratch;
 `CHECKPOINT_FREQ=N` changes the interval.
 
+- **Train faster (parallel):** `SCENE=res://examples/rover_3d/rover_3d_train_parallel.tscn
+  ./scripts/train_rover.sh` tiles 8 rover worlds in one Godot process via `ParallelArena`, so
+  godot-rl vectorizes over 8 agents (~Nx samples/sec) — see "Parallel training" below.
 - **Refine later:** because checkpoints are kept, raise the target and re-run to keep improving:
   `TIMESTEPS=600000 ./scripts/train_rover.sh` resumes from the latest checkpoint toward 600k.
 - **Export a checkpoint without finishing:** `scripts/export_checkpoint.py` loads a checkpoint (latest
@@ -472,6 +475,30 @@ re-run, so an interrupted run continues instead of restarting. `FRESH=1` starts 
   a run does stall, kill it and just re-run — it resumes from the last checkpoint (≤25k steps lost).
   For unattended long runs prefer an always-on machine or CI; the local trainer + Godot can't survive
   the host sleeping.
+
+#### Parallel training (faster)
+
+Training throughput is bottlenecked by the Godot environment (physics + raycasts + per-step socket
+round-trip), not the tiny PPO net. `ParallelArena` (in `addons/godot_native_rl/training/`) tiles N
+copies of an agent "world" sub-scene in one Godot process, spaced far enough apart that each
+agent's raycasts only see its own obstacles. `NcnnSync` already batches every agent in the `AGENT`
+group, and godot-rl auto-detects `n_agents` from the handshake, so this is a scene-only change —
+**the Python trainer is unchanged**.
+
+Run the parallel rover training scene (8 agents) instead of the single-agent one:
+
+```bash
+SCENE=res://examples/rover_3d/rover_3d_train_parallel.tscn ./scripts/train_rover.sh
+```
+
+Measured on this machine via `./scripts/throughput_compare.sh` (8k timesteps, fresh): single-agent
+**55.9 samples/s** vs parallel-×8 **347.8 samples/s** — a **6.2× speedup** (sub-linear at short run
+lengths because of fixed startup/handshake overhead; it approaches 8× over a full run).
+
+To reuse it for your own env: make a world sub-scene containing exactly one `AGENT`-group agent
+(keep its game logic in the world's local frame so it's tile-offset-safe), add a `ParallelArena`
+node, set `world_scene` to it, and pick `count` / `spacing` (spacing must exceed your arena extent
++ ray length).
 
 ## Notes
 
