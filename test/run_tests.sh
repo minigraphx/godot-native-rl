@@ -16,6 +16,12 @@ if [ -f test/integration/run_protocol_test.py ]; then
 	"$PY" test/integration/run_protocol_test.py
 fi
 
+if [ -f test/integration/run_timeout_test.py ]; then
+	echo "== Socket read-timeout test =="
+	PY="${PY:-.venv/bin/python}"
+	"$PY" test/integration/run_timeout_test.py
+fi
+
 echo "== Inference smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/inference_smoke_scene.tscn
 
