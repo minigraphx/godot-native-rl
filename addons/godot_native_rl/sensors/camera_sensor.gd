@@ -68,6 +68,14 @@ func get_observation() -> String:
 		return ""
 	return CameraObsMath.encode_image_bytes(bytes)
 
+# Raw captured frame for native deploy inference (NcnnRunner.run_inference_image handles
+# the RGB8 conversion + /255 itself, so no hex/format coercion here). Returns null when
+# there is nothing to capture.
+func get_image() -> Image:
+	if viewport == null and _capture_fn == null:
+		return null
+	return _capture()
+
 func _capture() -> Image:
 	if _capture_fn != null:
 		return _capture_fn.call()

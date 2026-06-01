@@ -15,8 +15,10 @@ complement to godot_rl, grow toward full replacement.
 
 - Full **train → convert → deploy loop** works end-to-end and is in CI-style headless tests.
 - The reusable library lives under **`addons/godot_native_rl/`** (item 5): `sync.gd` (`NcnnSync`,
-  the bridge), `controllers/` (`NcnnControllerCore` RefCounted core + thin `NcnnAIController2D`/
-  `NcnnAIController3D`), `reward/` (`RewardBuilder`/`RewardAdapter`/terms), `sensors/`
+  the bridge), `controllers/` (`NcnnControllerCore` RefCounted core with shared
+  `choose_and_apply_action` for float + **image** (`run_inference_image`) deploy + `InferenceMath.argmax`;
+  thin `NcnnAIController2D`/`NcnnAIController3D` with a `get_inference_image()` hook),
+  `reward/` (`RewardBuilder`/`RewardAdapter`/terms), `sensors/`
   (`RaycastSensor2D`/`RaycastSensor3D` + `RelativePositionSensor2D`/`RelativePositionSensor3D` +
   `CameraSensor` (SubViewport → hex image obs, godot_rl-compatible) + pure
   `raycast_math`/`relative_position_math`/`camera_obs_math`), `training/` (`ParallelArena` — tiles N
@@ -130,7 +132,10 @@ complement to godot_rl, grow toward full replacement.
   start an item without clicking. Say "do backlog item N".
   - **Done:** 1 (Signal→Reward + RewardBuilder), 2 (export_to_ncnn helper), 3 (RaycastSensor2D/3D),
     4 (ncnn_vs_onnx guide), 5 (addon structure + controller refactor), 6 (3D rover + trained model +
-    golden regression), 30 (ParallelArena — parallel multi-agent training, ~6.2× speedup measured).
+    golden regression), 7 (RelativePositionSensor2D/3D), 8 (CameraSensor — hex image obs protocol),
+    36 (deploy-side image inference — `run_inference_image` glue + synthetic-CNN golden),
+    30 (ParallelArena — parallel multi-agent training, ~6.2× speedup measured). 9 partial (socket
+    timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 21–24 (deploy-side inference gaps: continuous/multi-key
     actions, recurrent/LSTM, batched multi-agent, VecNormalize parity) and 25 (Asset Library release —
     move the GDExtension + prebuilt binaries into the addon and submit).

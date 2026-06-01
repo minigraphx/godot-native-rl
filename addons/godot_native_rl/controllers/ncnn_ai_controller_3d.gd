@@ -73,18 +73,7 @@ func set_ncnn_runner_for_test(runner) -> void:
 	_ncnn_runner = runner
 
 func infer_and_act() -> void:
-	if _ncnn_runner == null or not _ncnn_runner.is_model_loaded():
-		return
-	var obs_dict := get_obs()
-	assert("obs" in obs_dict, "get_obs() must return a dictionary with an 'obs' key")
-	var obs_flat := PackedFloat32Array(obs_dict["obs"])
-	var action_index: int = _ncnn_runner.run_discrete_action(obs_flat)
-	if action_index < 0:
-		push_error("NcnnAIController3D: run_discrete_action returned error sentinel; skipping action.")
-		return
-	# Single discrete action branch: use the first (and only) action key.
-	var action_key: String = get_action_space().keys()[0]
-	set_action({action_key: action_index})
+	_core.choose_and_apply_action(self, _ncnn_runner)
 
 # --- Abstract: implemented by the concrete agent ---
 func get_obs() -> Dictionary:
@@ -101,6 +90,11 @@ func get_action_space() -> Dictionary:
 
 func set_action(_action) -> void:
 	assert(false, "set_action must be implemented by the agent extending NcnnAIController3D")
+
+# Override in an image agent to return the live frame for native inference, e.g.
+# `return _camera.get_image()`. Non-null routes infer_and_act through run_inference_image.
+func get_inference_image() -> Image:
+	return null
 
 # Optional per-agent info (godot_rl reads response.get("info", ...)); default empty.
 # Agents may override to return e.g. {"is_success": true}.

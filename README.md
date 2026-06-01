@@ -459,8 +459,10 @@ agent's `get_obs()` and concatenate with your other features.
   `"2d"`** even for a `Camera3D` view (name it e.g. `"camera_3d_2d"`) — `godot_rl` routes image obs
   on that substring, decoding to `Box(0, 255, uint8)` for
   SB3's `MultiInputPolicy`/`NatureCNN` (which does its own `/255`). Size the obs by sizing the
-  `SubViewport`. *Native ncnn **deploy** of image policies is pending (backlog item 36); the
-  `NcnnRunner.run_inference_image` primitive already exists, the controller glue does not.*
+  `SubViewport`. *Native ncnn **deploy** works for **discrete, RGB** image policies: set the agent's
+  `control_mode = NCNN_INFERENCE` and override `get_inference_image()` to return
+  `camera.get_image()` — the controller feeds it to `NcnnRunner.run_inference_image` (RGB8 + `/255`)
+  and acts on the argmax. Grayscale and continuous image policies are follow-ups (backlog item 38/21).*
 
 Pure ray geometry lives in `sensors/raycast_math.gd`; the relative-position frame/clip math
 lives in `sensors/relative_position_math.gd`; the camera shape + hex encoding lives in

@@ -52,4 +52,23 @@ func _initialize() -> void:
 	h.assert_true(not s3.is_key_valid("camera"), "key without 2d is invalid")
 	s3.free()
 
+	# --- get_image(): returns the raw captured Image (deploy path, no hex) ---
+	var s4 = CameraSensor.new()
+	var vp4 := SubViewport.new()
+	vp4.size = Vector2i(2, 2)
+	s4.viewport = vp4
+	var src := _make_image(2, 2, Image.FORMAT_RGB8, Color(0, 1, 0))
+	s4.set_image_for_test(src)
+	var got: Image = s4.get_image()
+	h.assert_true(got != null, "get_image returns the injected image")
+	h.assert_eq(got.get_width(), 2, "get_image width")
+	h.assert_eq(got.get_height(), 2, "get_image height")
+	s4.free()
+	vp4.free()
+
+	# Missing viewport and no capture fn -> null (no crash).
+	var s5 = CameraSensor.new()
+	h.assert_true(s5.get_image() == null, "get_image with no viewport/capture -> null")
+	s5.free()
+
 	h.finish(self)
