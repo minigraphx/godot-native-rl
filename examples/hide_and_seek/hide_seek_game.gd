@@ -95,6 +95,10 @@ func reset_positions() -> void:
 				if _seeker_body.position.distance_to(_hider_body.position) >= min_separation:
 					break
 				_hider_body.position = _random_free_position()
+	# Drop carried-over velocities so a fresh episode doesn't nudge the new spawns with the
+	# previous episode's last action before the agents set new velocities.
+	_seeker_vel = Vector2.ZERO
+	_hider_vel = Vector2.ZERO
 	_step = 0
 	_has_los = false
 	_caught = false

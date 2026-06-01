@@ -73,6 +73,10 @@ func _physics_process(delta: float) -> void:
 	else:
 		_game.set_hider_velocity(vel)
 	# Inline role-signed reward read from the game's shared, single-source cached state.
+	# Note: like the other examples, reward accumulates across the whole action_repeat window. If a
+	# terminal (catch) lands mid-window the game resets next frame and a few new-episode step rewards
+	# join this bucket — bounded (<=1 terminal/window via min_separation; small vs catch_bonus) and
+	# harmless to PPO, matching how chase/rover treat the action_repeat window.
 	reward += HideSeekMath.step_reward(is_seeker, _game.has_los(), _game.was_caught(), catch_bonus)
 	# Both agents read the same terminal flag in the same frame -> they end together. The game
 	# resets positions itself (next frame); agents only reset their own controller state. Do NOT
