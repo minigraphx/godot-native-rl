@@ -1,0 +1,17 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://addons/godot_native_rl/training/parallel_arena_2d.gd" id="1"]
+[ext_resource type="PackedScene" path="res://examples/hide_and_seek/hide_seek_world.tscn" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="3"]
+
+[node name="HideSeekTrainParallel" type="Node2D"]
+
+[node name="ParallelArena2D" type="Node2D" parent="."]
+script = ExtResource("1")
+world_scene = ExtResource("2")
+count = 8
+spacing = 1400.0
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("3")
+control_mode = 1

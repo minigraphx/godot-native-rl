@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://examples/hide_and_seek/hide_seek_world.tscn" id="1"]
+[ext_resource type="Script" path="res://examples/hide_and_seek/hide_seek_demo_driver.gd" id="2"]
+
+[node name="HideAndSeek" type="Node2D"]
+
+[node name="HideSeekWorld" parent="." instance=ExtResource("1")]
+
+[node name="DemoDriver" type="Node" parent="."]
+script = ExtResource("2")

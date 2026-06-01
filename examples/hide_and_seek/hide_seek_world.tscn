@@ -1,0 +1,27 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://examples/hide_and_seek/hide_seek_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/hide_and_seek/hide_seek_agent.gd" id="2"]
+
+[node name="HideSeekGame" type="Node2D"]
+script = ExtResource("1")
+seeker_body_path = NodePath("SeekerBody")
+hider_body_path = NodePath("HiderBody")
+
+[node name="SeekerBody" type="Node2D" parent="."]
+position = Vector2(100, 300)
+
+[node name="HiderBody" type="Node2D" parent="."]
+position = Vector2(900, 300)
+
+[node name="Seeker" type="Node2D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+is_seeker = true
+control_mode = 2
+
+[node name="Hider" type="Node2D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+is_seeker = false
+control_mode = 2
