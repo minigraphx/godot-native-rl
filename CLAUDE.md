@@ -19,7 +19,8 @@ complement to godot_rl, grow toward full replacement.
   `NcnnAIController3D`), `reward/` (`RewardBuilder`/`RewardAdapter`/terms), `sensors/`
   (`RaycastSensor2D`/`RaycastSensor3D` + `RelativePositionSensor2D`/`RelativePositionSensor3D` +
   pure `raycast_math`/`relative_position_math`), `training/` (`ParallelArena` — tiles N
-  agent worlds in one process for ~Nx-faster training), `plugin.cfg`. The C++ GDExtension
+  agent worlds in one process for ~Nx-faster training), `net/` (pure `socket_timeout` deadline
+  helpers for the bridge's connect/read timeouts), `plugin.cfg`. The C++ GDExtension
   stays at the repo root: `src/ncnn_runner.{h,cpp}` (`NcnnRunner`), `ncnn_runner.gdextension`, `bin/`.
 - Examples: `examples/chase_the_target/` (2D, ships a pre-trained ncnn model) and
   `examples/rover_3d/` (3D tank-steered raycast obstacle-avoidance rover; ships a trained ncnn model +

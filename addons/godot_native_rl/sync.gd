@@ -159,6 +159,8 @@ func _set_heuristic(h, agents: Array) -> void:
 
 func _handshake() -> void:
 	var json_dict = _get_dict_json_message()
+	if json_dict == null:  # read timeout / disconnect during startup — quit already queued
+		return
 	assert(json_dict["type"] == "handshake")
 	if json_dict.get("major_version") != MAJOR_VERSION:
 		push_warning("NcnnSync: major version mismatch (got %s, expected %s)" % [json_dict.get("major_version"), MAJOR_VERSION])
@@ -167,11 +169,14 @@ func _handshake() -> void:
 
 func _send_env_info() -> void:
 	var json_dict = _get_dict_json_message()
+	if json_dict == null:  # read timeout / disconnect during startup — quit already queued
+		return
 	assert(json_dict["type"] == "env_info")
 	_send_dict_as_json_message(build_env_info_message())
 
 func _get_dict_json_message():
-	var deadline := SocketTimeout.deadline_after(Time.get_ticks_msec(), _get_read_timeout_ms())
+	var timeout_ms := _get_read_timeout_ms()
+	var deadline := SocketTimeout.deadline_after(Time.get_ticks_msec(), timeout_ms)
 	while stream.get_available_bytes() == 0:
 		stream.poll()
 		if stream.get_status() != StreamPeerTCP.STATUS_CONNECTED:
@@ -179,7 +184,7 @@ func _get_dict_json_message():
 			get_tree().quit()
 			return null
 		if SocketTimeout.is_expired(deadline, Time.get_ticks_msec()):
-			push_error("NcnnSync: read timed out after %.1fs (no data from trainer); closing cleanly." % (_get_read_timeout_ms() / 1000.0))
+			push_error("NcnnSync: read timed out after %.1fs (no data from trainer); closing cleanly." % (timeout_ms / 1000.0))
 			get_tree().quit()
 			return null
 		OS.delay_usec(10)
@@ -197,11 +202,12 @@ func connect_to_server() -> bool:
 		return false
 	stream.set_no_delay(true)
 	stream.poll()
-	var deadline := SocketTimeout.deadline_after(Time.get_ticks_msec(), _get_connect_timeout_ms())
+	var timeout_ms := _get_connect_timeout_ms()
+	var deadline := SocketTimeout.deadline_after(Time.get_ticks_msec(), timeout_ms)
 	while stream.get_status() < StreamPeerTCP.STATUS_CONNECTED:
 		stream.poll()
 		if SocketTimeout.is_expired(deadline, Time.get_ticks_msec()):
-			push_warning("NcnnSync: connect timed out after %.1fs on port %d; falling back to human controls." % [_get_connect_timeout_ms() / 1000.0, _get_port()])
+			push_warning("NcnnSync: connect timed out after %.1fs on port %d; falling back to human controls." % [timeout_ms / 1000.0, _get_port()])
 			stream.disconnect_from_host()
 			return false
 		OS.delay_msec(1)
