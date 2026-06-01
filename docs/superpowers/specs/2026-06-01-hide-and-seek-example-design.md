@@ -72,31 +72,43 @@ approach as `RoverGame`'s analytic raycast-vs-AABB, so the whole obs path is tes
 - `assemble_obs(...) -> Array` — concatenates the full vector in a fixed, documented order.
 
 ### `hide_seek_game.gd` — the world
-Arena bounds, the fixed wall `Rect2` set, seeker & hider positions, discrete movement, and
-**episode ownership**: a step counter and `caught` state. Pure-helper-first like
-`ChaseGame`/`RoverGame`. Emits an `episode_ended` signal (and a `caught` signal) so **both** agents
-reset together on one shared episode. Exposes the wall list (in a tile-offset-safe local frame, for
-`ParallelArena` — store wall/agent geometry in game-local coordinates, cf. `RoverGame.read_obstacles`).
+Arena bounds, the fixed wall `Rect2` set, seeker & hider bodies, and **episode ownership**: a step
+counter plus cached `has_los` / `caught` / `terminal` state. To avoid agent tree-order races, the
+game **centralizes all world mutation** in a single `_physics_process` (with `process_physics_priority`
+set so it runs before the agents): it applies each agent's last-set velocity, advances the step
+counter, recomputes the cached LOS/catch/terminal state once per frame, and lazily resets positions
+on the frame after a terminal (so both agents read a consistent world and the same terminal flag).
+Agents only *set* their velocity and *read* the cached state — they never mutate shared world state
+directly. All geometry is in game-local coordinates, so tiling via `ParallelArena2D` is offset-safe
+(cf. `RoverGame.read_obstacles`).
 
 ### `hide_seek_agent.gd` — controller
 `NcnnAIController2D` subclass via **path-based `extends`** (headless `class_name` gotcha).
 `@export var is_seeker: bool`. Builds its observation from `hide_seek_math` against the game's wall
-list; 5 discrete moves (stay/up/down/left/right). Reward assembled with `RewardBuilder` +
-`RewardAdapter`:
+list; 5 discrete moves (stay/up/down/left/right). Each frame it reads the game's shared, single-source
+LOS/catch state and adds an **inline pure-helper reward** `step_reward(is_seeker, has_los, caught, catch_bonus)`:
 
 - **Per-step LOS term** (role-signed): `+1` seeker / `−1` hider when the seeker has LOS to the hider;
-  reversed when blocked. (Both agents read the same shared LOS state from the game.)
-- **Terminal catch bonus** (role-signed) via `RewardAdapter` on the game's `caught` signal.
+  reversed when blocked.
+- **Terminal catch bonus** (role-signed): added in the **same frame** the catch is detected, so it
+  lands in the reward the bridge reads alongside `done = true` (correct credit assignment).
 
-(Whether the per-step term is a new `RewardBuilder` term or computed inline against the Reward event
-bus is an implementation detail for the plan; the responsibility is fixed here.)
+**Why inline, not `RewardBuilder`/`RewardAdapter`:** the catch *ends the episode*, but the reward
+event bus delivers a signal-queued bonus on the *next* `accumulate_reward()` — one frame later, after
+the episode has already reset, so the bonus would be lost (or mis-credited to the next episode). The
+reward here is a simple per-step function of `(role, has_los, caught)` with no progress-shaping, so a
+pure, unit-tested `step_reward` helper is both simpler and *correct*. (`RewardBuilder`/`RewardAdapter`
+remain the right tool for the chase/rover envs, where a catch relocates the target and the episode
+continues — see those examples.)
 
 ### Scenes
 - `hide_seek_world.tscn` — reusable world: walls + 1 seeker + 1 hider + `HideSeekGame`.
 - `hide_and_seek_train.tscn` — single world + `NcnnSync` (TRAINING). Used by the smoke test and
   basic training.
-- `hide_and_seek_train_parallel.tscn` — `ParallelArena` tiling N worlds → 2N agents, one shared
-  policy (fast self-play; reuses item 30).
+- `hide_and_seek_train_parallel.tscn` — `ParallelArena2D` tiling N worlds → 2N agents, one shared
+  policy (fast self-play). The existing `ParallelArena` (item 30) is `Node3D`-only, so this adds a
+  small `Node2D` sibling `addons/godot_native_rl/training/parallel_arena_2d.gd` (mirrors it; pure
+  `tile_offset_2d`, unit-tested) — a clean generalization of the moat to 2D multi-agent.
 - `hide_and_seek.tscn` — play/inference scene (human-controllable seeker or hider for manual
   inspection).
 
@@ -137,9 +149,11 @@ role flag differ.
 
 ## Episode sync & known caveat
 
-`HideSeekGame` owns the single shared episode. On catch-or-timeout it signals **both** agents to set
-`done` and reset together, so one agent never resets mid-episode while the other continues. The
-bridge's existing `done`-at-reset convention applies per agent.
+`HideSeekGame` owns the single shared episode and exposes one `is_terminal()` flag (set on
+catch-or-timeout) that **both** agents read in the same frame, so they set `done` together and never
+desync. World position reset is performed once, by the game, on the frame after terminal; agents only
+reset their own controller state. The bridge clears `done` (and zeroes `reward`) after reading each
+step message, so the terminal reward + `done` ride the same message (correct credit assignment).
 
 **Caveat (documented in README + CLAUDE notes):** both roles co-adapt inside one policy →
 non-stationarity. This is acceptable for a simple symmetric demo and is the explicit trade-off of
