@@ -201,17 +201,27 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     of prebuilt per-platform binaries into `addons/godot_native_rl/`, repoint the manifest's library
     paths + the `SConstruct` output target, build macOS/Windows/Linux (+ web/mobile) binaries, fill
     `plugin.cfg` metadata, and submit. *(surfaced by item 5; the addon layout is already in place)*
-36. ⬜ **Deploy-side image inference (CameraSensor)** — wire `NcnnRunner.run_inference_image` into the
-    controller's `infer_and_act` image path (today it asserts an `"obs"` float key and is argmax-only),
-    tested against a small committed synthetic CNN `.param`/`.bin` golden. Closes the train→deploy loop
-    for image policies. *(deferred from item 8)*
+36. ✅ **Deploy-side image inference (CameraSensor)** — feed a live `SubViewport` frame to native
+    ncnn and act on the argmax; closes the camera train→deploy loop for discrete RGB policies.
+    **Done 2026-06-01** — spec `docs/superpowers/specs/2026-06-01-deploy-side-image-inference-design.md`,
+    plan `docs/superpowers/plans/2026-06-01-deploy-side-image-inference.md`. Added pure
+    `controllers/inference_math.gd` (`argmax`), `CameraSensor.get_image()`, a `get_inference_image()`
+    controller hook, and DRY'd the duplicated `infer_and_act` into
+    `NcnnControllerCore.choose_and_apply_action(agent, runner)` (image branch via `run_inference_image`
+    + argmax, float branch unchanged) — **no C++ change/rebuild**. Shipped a seeded synthetic-CNN
+    generator (`scripts/make_synthetic_cnn.py`) + committed `models/synthetic_cnn.ncnn.*` +
+    `synthetic_cnn_golden.json`, and `test/unit/test_image_inference_golden.gd` — the **first
+    end-to-end test of `run_inference_image`** (ncnn vs onnxruntime, max abs diff 0.0003, atol 1e-2).
+    Full suite green from a clean cache. *(deferred from item 8)*
 37. ⬜ **Trained CNN visual example** — a visual example scene + CNN PPO run + shipped trained ncnn model
     + behavioral regression, the image analogue of the chase/rover examples. Heavy (CNN training ≫ the
     rover MLP run). *(deferred from item 8)*
-38. ⬜ **CameraSensor real-render verification** — an in-editor (non-`--headless`) check that
-    `viewport.get_texture().get_image()` produces the expected obs, since headless can't render
-    viewports. Optional `render_size`/downscale override if an env needs display-size ≠ obs-size.
-    *(deferred from item 8)*
+38. ⬜ **CameraSensor real-render + grayscale deploy** — (a) an in-editor (non-`--headless`) check
+    that `viewport.get_texture().get_image()` produces the expected obs, since headless can't render
+    viewports; (b) grayscale (1-channel) image **deploy**: `run_inference_image` currently forces
+    `FORMAT_RGB8`/`PIXEL_RGB`, so deploying a grayscale-trained policy needs a C++ `PIXEL_GRAY` path;
+    (c) optional `render_size`/downscale override if an env needs display-size ≠ obs-size.
+    *(deferred from items 8 + 36)*
 
 ## Training throughput
 

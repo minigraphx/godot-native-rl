@@ -15,8 +15,10 @@ complement to godot_rl, grow toward full replacement.
 
 - Full **train → convert → deploy loop** works end-to-end and is in CI-style headless tests.
 - The reusable library lives under **`addons/godot_native_rl/`** (item 5): `sync.gd` (`NcnnSync`,
-  the bridge), `controllers/` (`NcnnControllerCore` RefCounted core + thin `NcnnAIController2D`/
-  `NcnnAIController3D`), `reward/` (`RewardBuilder`/`RewardAdapter`/terms), `sensors/`
+  the bridge), `controllers/` (`NcnnControllerCore` RefCounted core with shared
+  `choose_and_apply_action` for float + **image** (`run_inference_image`) deploy + `InferenceMath.argmax`;
+  thin `NcnnAIController2D`/`NcnnAIController3D` with a `get_inference_image()` hook),
+  `reward/` (`RewardBuilder`/`RewardAdapter`/terms), `sensors/`
   (`RaycastSensor2D`/`RaycastSensor3D` + `RelativePositionSensor2D`/`RelativePositionSensor3D` +
   `CameraSensor` (SubViewport → hex image obs, godot_rl-compatible) + pure
   `raycast_math`/`relative_position_math`/`camera_obs_math`), `training/` (`ParallelArena` — tiles N
