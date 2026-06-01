@@ -5,6 +5,8 @@ extends RefCounted
 # Holds no Node references; reset_after is passed into step() by the wrapper so the
 # wrapper stays the single source of truth for that exported value.
 
+const InferenceMath = preload("res://addons/godot_native_rl/controllers/inference_math.gd")
+
 var done: bool = false
 var reward: float = 0.0
 var n_steps: int = 0
@@ -45,6 +47,29 @@ func accumulate(adapters: Array, ctx) -> void:
 		reward += reward_source.evaluate(ctx)
 	for adapter in adapters:
 		reward += adapter.drain()
+
+# Pick a discrete action via native ncnn inference and apply it to the agent. Uses the
+# image path when the agent supplies a live frame (get_inference_image()), else the
+# float-vector path. Single discrete action: the first (and only) action key. No-op when
+# the runner is missing/unloaded. The agent Node is passed in, never stored (core stays
+# node-agnostic).
+func choose_and_apply_action(agent, runner) -> void:
+	if runner == null or not runner.is_model_loaded():
+		return
+	var action_index: int
+	var img: Image = agent.get_inference_image()
+	if img != null:
+		var logits: PackedFloat32Array = runner.run_inference_image(img, true)
+		action_index = InferenceMath.argmax(logits)
+	else:
+		var obs_dict: Dictionary = agent.get_obs()
+		assert("obs" in obs_dict, "get_obs() must return a dictionary with an 'obs' key")
+		action_index = runner.run_discrete_action(PackedFloat32Array(obs_dict["obs"]))
+	if action_index < 0:
+		push_error("NcnnControllerCore.choose_and_apply_action: inference returned error sentinel; skipping action.")
+		return
+	var action_key: String = agent.get_action_space().keys()[0]
+	agent.set_action({action_key: action_index})
 
 # Build the godot_rl observation_space from a sample get_obs() dict. Numeric-vector values
 # become {"size": [len], "space": "box"}. String values are image (hex) obs whose shape can't
