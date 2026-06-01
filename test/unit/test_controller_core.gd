@@ -77,8 +77,16 @@ func _initialize() -> void:
 	c.accumulate([StubAdapter.new(0.5)], ctx)
 	h.assert_true(absf(c.reward - 0.5) < 1e-6, "accumulate works with null reward_source")
 
-	# obs_space_from_obs() static
+	# obs_space_from_obs() static — single numeric key (backward compatible)
 	var space := NcnnControllerCore.obs_space_from_obs({"obs": [0.0, 0.0, 0.0]})
-	h.assert_eq(space, {"obs": {"size": [3], "space": "box"}}, "obs_space_from_obs shape")
+	h.assert_eq(space, {"obs": {"size": [3], "space": "box"}}, "obs_space_from_obs single key")
+
+	# multiple numeric keys are all described
+	var multi := NcnnControllerCore.obs_space_from_obs({"obs": [0.0, 0.0], "extra": [1.0]})
+	h.assert_eq(multi, {"obs": {"size": [2], "space": "box"}, "extra": {"size": [1], "space": "box"}}, "obs_space_from_obs multi key")
+
+	# String (image hex) values are skipped — shape comes from the sensor, not the value
+	var with_img := NcnnControllerCore.obs_space_from_obs({"obs": [0.0], "camera_2d": "ff00"})
+	h.assert_eq(with_img, {"obs": {"size": [1], "space": "box"}}, "obs_space_from_obs skips String image value")
 
 	h.finish(self)
