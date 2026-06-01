@@ -547,6 +547,10 @@ To reuse it for your own env: make a world sub-scene containing exactly one `AGE
 node, set `world_scene` to it, and pick `count` / `spacing` (spacing must exceed your arena extent
 + ray length).
 
+### Hide & Seek (2D, parameter-sharing self-play)
+
+- **Hide & Seek** (`examples/hide_and_seek/`) — 2D 1v1 self-play (parameter sharing): a seeker vs a hider trained by one shared PPO policy, with line-of-sight-gated vision and occluding walls. See `examples/hide_and_seek/README.md`.
+
 ## Notes
 
 - If `input_shape` is empty, `run_inference` maps input to a 1D `ncnn::Mat`.

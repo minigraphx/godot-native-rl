@@ -27,7 +27,8 @@ complement to godot_rl, grow toward full replacement.
   stays at the repo root: `src/ncnn_runner.{h,cpp}` (`NcnnRunner`), `ncnn_runner.gdextension`, `bin/`.
 - Examples: `examples/chase_the_target/` (2D, ships a pre-trained ncnn model) and
   `examples/rover_3d/` (3D tank-steered raycast obstacle-avoidance rover; ships a trained ncnn model +
-  golden regression; `rover_world.tscn` sub-scene + `rover_3d_train_parallel.tscn` for parallel training).
+  golden regression; `rover_world.tscn` sub-scene + `rover_3d_train_parallel.tscn` for parallel training) and
+  `examples/hide_and_seek/` (2D 1v1 parameter-sharing self-play: seeker vs hider, LOS-gated vision + occluding walls, one shared PPO policy; scaffold + self-play smoke test, trained model deferred).
 - Wire protocol is **fully godot_rl v0.8.2-compatible** (proven by real SB3 PPO training).
 
 ## Key commands
@@ -45,6 +46,9 @@ complement to godot_rl, grow toward full replacement.
 - **Train (rover, parallel — fast):** `SCENE=res://examples/rover_3d/rover_3d_train_parallel.tscn
   ./scripts/train_rover.sh` — tiles 8 rover worlds in one process (`ParallelArena`), so godot-rl
   vectorizes over 8 agents (~Nx samples/sec). Trainer code is unchanged.
+- **Train (hide & seek self-play):** `./scripts/train_hide_seek.sh` (one shared PPO policy over a
+  seeker+hider AGENT group; `SCENE=res://examples/hide_and_seek/hide_and_seek_train_parallel.tscn`
+  for 8 tiled worlds via `ParallelArena2D`).
 - **Throughput check:** `./scripts/throughput_compare.sh` — short fresh runs of the parallel vs
   single-agent scene into temp dirs (never touches `models/`); prints samples/sec + speedup.
 - **Export a checkpoint (no full run):** `.venv-train/bin/python scripts/export_checkpoint.py`
@@ -134,7 +138,8 @@ complement to godot_rl, grow toward full replacement.
     4 (ncnn_vs_onnx guide), 5 (addon structure + controller refactor), 6 (3D rover + trained model +
     golden regression), 7 (RelativePositionSensor2D/3D), 8 (CameraSensor — hex image obs protocol),
     36 (deploy-side image inference — `run_inference_image` glue + synthetic-CNN golden),
-    30 (ParallelArena — parallel multi-agent training, ~6.2× speedup measured). 9 partial (socket
+    30 (ParallelArena — parallel multi-agent training, ~6.2× speedup measured),
+    12 (Hide & Seek example — 2D 1v1 parameter-sharing self-play, scaffold + smoke test). 9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 21–24 (deploy-side inference gaps: continuous/multi-key
     actions, recurrent/LSTM, batched multi-agent, VecNormalize parity) and 25 (Asset Library release —
