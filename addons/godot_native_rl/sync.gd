@@ -2,6 +2,7 @@ class_name NcnnSync
 extends Node
 
 enum ControlModes { HUMAN, TRAINING, NCNN_INFERENCE }
+const SocketTimeout = preload("res://addons/godot_native_rl/net/socket_timeout.gd")
 
 var agents_training: Array[Node] = []
 var _action_space: Dictionary = {}
@@ -43,6 +44,10 @@ func extract_action_dict(action_array: Array, action_space: Dictionary) -> Dicti
 @export var control_mode: ControlModes = ControlModes.TRAINING
 @export_range(1, 10, 1, "or_greater") var action_repeat := 8
 @export_range(0, 10, 0.1, "or_greater") var speed_up := 1.0
+# Socket timeouts (seconds). <= 0 disables the timeout (waits forever).
+# read_timeout default 60s matches godot_rl's DEFAULT_TIMEOUT.
+@export var connect_timeout_sec := 10.0
+@export var read_timeout_sec := 60.0
 
 const MAJOR_VERSION := "0"
 const MINOR_VERSION := "7"
@@ -276,3 +281,9 @@ func _set_seed() -> void:
 
 func _set_action_repeat() -> void:
 	action_repeat = args.get("action_repeat", str(action_repeat)).to_int()
+
+func _get_connect_timeout_ms() -> int:
+	return int(args.get("connect_timeout", str(connect_timeout_sec)).to_float() * 1000.0)
+
+func _get_read_timeout_ms() -> int:
+	return int(args.get("read_timeout", str(read_timeout_sec)).to_float() * 1000.0)
