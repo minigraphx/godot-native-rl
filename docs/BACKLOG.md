@@ -123,8 +123,20 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
    **Deferred:** multi-target / tag selection + extra target properties (velocity) — issue #177
    extensions; sensor auto-discovery `collect_sensors()` (shared item-5 follow-up); example using
    the sensor (item 32).
-8. ⬜ **CameraSensor** (godot_rl issue #78) — SubViewport → `run_inference_image`. **Do together with
-   item 9** (camera obs encoding is a protocol change). *(spike godot_rl's impl first)*
+8. ✅ **CameraSensor** (godot_rl issue #78) — image observations from a `SubViewport`, hex-encoded
+   onto the godot_rl wire (the camera-obs protocol piece of item 9).
+   **Done 2026-06-01** — spec `docs/superpowers/specs/2026-06-01-camera-sensor-design.md`,
+   plan `docs/superpowers/plans/2026-06-01-camera-sensor.md`. Shipped pure
+   `addons/godot_native_rl/sensors/camera_obs_math.gd` (shape + hex, unit-tested) + dimension-agnostic
+   `camera_sensor.gd` (SubViewport capture isolated behind a `set_image_for_test` seam since
+   `--headless` can't render viewports; RGB or `grayscale`; `observation_key` must contain `"2d"`).
+   Generalized `obs_space_from_obs` to multi-key + image-safe (skips `String` hex values); no
+   `NcnnSync` change needed (a `{"obs":[...], "camera_2d":"<hex>"}` dict already serializes). Verified
+   headlessly with real `Image.create` data: GDScript unit tests, a numpy-free Python hex round-trip
+   (`test/python/test_camera_obs_decode.py`), and an over-the-wire protocol assertion (`run_protocol_test.py`:
+   env_info box space + step hex decodes to exact bytes). Full suite green from a clean cache.
+   **Deferred (new items 36–38 below):** deploy-side image inference glue, trained CNN example,
+   in-editor real-render verification.
 9. 🔄 **Protocol v0.8 upgrades** — `terminated`/`truncated` split (CORRECTNESS), per-agent `info`
    field, hex camera-obs encoding, socket connect/read timeout. *(novel-addons spec §2)*
    - **Done 2026-06-01 (socket timeout #4 + info field #2):** spec
@@ -138,8 +150,8 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
      asserted over the wire in `run_protocol_test.py`. Both wired into `run_tests.sh`.
    - **Still deferred:** `terminated`/`truncated` split (#1) is **blocked upstream** — installed
      godot_rl v0.8.2 uses `done` for both and never reads `truncated` (`godot_env.py` TODO); changing
-     `done` semantics would break `ep_rew_mean`. Camera obs hex encoding (#3) ships with item 8
-     (CameraSensor).
+     `done` semantics would break `ep_rew_mean`. Camera obs hex encoding (#3) **shipped with item 8**
+     (CameraSensor, done 2026-06-01).
    - **Socket timeout (robustness, ✅):** `NcnnSync.connect_to_server()` and `_get_dict_json_message()`
      previously polled in unbounded `while` loops with no timeout, so a silent/dead socket blocked
      **forever**. Two symptoms fixed: (a) launching a *training* scene headless without a running
@@ -189,6 +201,17 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     of prebuilt per-platform binaries into `addons/godot_native_rl/`, repoint the manifest's library
     paths + the `SConstruct` output target, build macOS/Windows/Linux (+ web/mobile) binaries, fill
     `plugin.cfg` metadata, and submit. *(surfaced by item 5; the addon layout is already in place)*
+36. ⬜ **Deploy-side image inference (CameraSensor)** — wire `NcnnRunner.run_inference_image` into the
+    controller's `infer_and_act` image path (today it asserts an `"obs"` float key and is argmax-only),
+    tested against a small committed synthetic CNN `.param`/`.bin` golden. Closes the train→deploy loop
+    for image policies. *(deferred from item 8)*
+37. ⬜ **Trained CNN visual example** — a visual example scene + CNN PPO run + shipped trained ncnn model
+    + behavioral regression, the image analogue of the chase/rover examples. Heavy (CNN training ≫ the
+    rover MLP run). *(deferred from item 8)*
+38. ⬜ **CameraSensor real-render verification** — an in-editor (non-`--headless`) check that
+    `viewport.get_texture().get_image()` produces the expected obs, since headless can't render
+    viewports. Optional `render_size`/downscale override if an env needs display-size ≠ obs-size.
+    *(deferred from item 8)*
 
 ## Training throughput
 
