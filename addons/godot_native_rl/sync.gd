@@ -191,8 +191,14 @@ func connect_to_server() -> bool:
 		return false
 	stream.set_no_delay(true)
 	stream.poll()
+	var deadline := SocketTimeout.deadline_after(Time.get_ticks_msec(), _get_connect_timeout_ms())
 	while stream.get_status() < StreamPeerTCP.STATUS_CONNECTED:
 		stream.poll()
+		if SocketTimeout.is_expired(deadline, Time.get_ticks_msec()):
+			push_warning("NcnnSync: connect timed out after %.1fs on port %d; falling back to human controls." % [_get_connect_timeout_ms() / 1000.0, _get_port()])
+			stream.disconnect_from_host()
+			return false
+		OS.delay_msec(1)
 	return stream.get_status() == StreamPeerTCP.STATUS_CONNECTED
 
 func handle_message() -> bool:
