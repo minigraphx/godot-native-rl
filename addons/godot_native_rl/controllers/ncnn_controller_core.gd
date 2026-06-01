@@ -46,5 +46,14 @@ func accumulate(adapters: Array, ctx) -> void:
 	for adapter in adapters:
 		reward += adapter.drain()
 
+# Build the godot_rl observation_space from a sample get_obs() dict. Numeric-vector values
+# become {"size": [len], "space": "box"}. String values are image (hex) obs whose shape can't
+# be inferred from the value — the agent merges those from the sensor's get_obs_space_entry().
 static func obs_space_from_obs(obs: Dictionary) -> Dictionary:
-	return {"obs": {"size": [obs["obs"].size()], "space": "box"}}
+	var space := {}
+	for key in obs.keys():
+		var value = obs[key]
+		if value is String:
+			continue
+		space[key] = {"size": [value.size()], "space": "box"}
+	return space

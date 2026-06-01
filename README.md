@@ -449,9 +449,22 @@ agent's `get_obs()` and concatenate with your other features.
 - **`RelativePositionSensor3D`** (`sensors/relative_position_sensor_3d.gd`) — the 3D form:
   `[dir_x, dir_y, dir_z, dist_norm]` (4 floats), direction in the sensor's local frame
   (forward = −Z), same `max_distance` clipping.
+- **`CameraSensor`** (`sensors/camera_sensor.gd`) — image observations from a `SubViewport`
+  (`godot_rl` issue #78). Dimension-agnostic: point it at a `SubViewport` holding a `Camera2D` or
+  `Camera3D`. Unlike the float sensors above, it returns a **hex-encoded `String`** of raw `uint8`
+  pixels (HWC, `[H, W, 3]` RGB or `[H, W, 1]` with `grayscale = true`), and contributes a
+  `{"space": "box", "size": [...]}` obs-space entry rather than a flat size. Compose it manually:
+  `obs[sensor.get_observation_key()] = sensor.get_observation()` and merge
+  `sensor.get_obs_space_entry()` into your `get_obs_space()`. The `observation_key` **must contain
+  `"2d"`** even for a `Camera3D` view (name it e.g. `"camera_3d_2d"`) — `godot_rl` routes image obs
+  on that substring, decoding to `Box(0, 255, uint8)` for
+  SB3's `MultiInputPolicy`/`NatureCNN` (which does its own `/255`). Size the obs by sizing the
+  `SubViewport`. *Native ncnn **deploy** of image policies is pending (backlog item 36); the
+  `NcnnRunner.run_inference_image` primitive already exists, the controller glue does not.*
 
 Pure ray geometry lives in `sensors/raycast_math.gd`; the relative-position frame/clip math
-lives in `sensors/relative_position_math.gd` (both headless-unit-tested).
+lives in `sensors/relative_position_math.gd`; the camera shape + hex encoding lives in
+`sensors/camera_obs_math.gd` (all headless-unit-tested).
 This encoding matches `godot_rl`'s raycast convention, so ported environments behave the same —
 and the observations feed `NcnnRunner` for zero-runtime deployment on mobile/web/console.
 

@@ -60,6 +60,12 @@ def main():
             failures.append("missing action_space")
         if info.get("n_agents") != 1:
             failures.append("n_agents != 1 (got %r)" % info.get("n_agents"))
+        obs_space = info.get("observation_space")
+        # observation_space may be a dict (single agent) or list of dicts.
+        agent_space = obs_space[0] if isinstance(obs_space, list) else obs_space
+        cam = (agent_space or {}).get("camera_2d")
+        if cam != {"space": "box", "size": [2, 2, 3]}:
+            failures.append("camera_2d obs_space wrong (got %r)" % cam)
 
         # Reset -> expect reset reply with obs.
         send(conn, {"type": "reset"})
@@ -71,6 +77,11 @@ def main():
             failures.append("reset missing obs")
         elif len(obs[0]["obs"]) != 5:
             failures.append("obs size != 5 (got %d)" % len(obs[0]["obs"]))
+        # reset obs carries the camera_2d image too (same _get_obs_from_agents path as step).
+        if obs:
+            reset_cam = obs[0].get("camera_2d")
+            if not isinstance(reset_cam, str) or len(bytes.fromhex(reset_cam)) != 2 * 2 * 3:
+                failures.append("reset missing valid camera_2d hex (got %r)" % reset_cam)
 
         # Action -> expect step reply.
         send(conn, {"type": "action", "action": [{"move": 2}]})
@@ -93,6 +104,15 @@ def main():
             failures.append("step obs count != 1")
         elif len(step["obs"][0].get("obs") or []) != 5:
             failures.append("step obs size != 5")
+        cam_hex = (step["obs"][0] if step.get("obs") else {}).get("camera_2d")
+        if not isinstance(cam_hex, str):
+            failures.append("step missing camera_2d hex (got %r)" % cam_hex)
+        else:
+            cam_bytes = bytes.fromhex(cam_hex)
+            if len(cam_bytes) != 2 * 2 * 3:
+                failures.append("camera_2d byte count != 12 (got %d)" % len(cam_bytes))
+            elif any(cam_bytes[i] != (255 if i % 3 == 0 else 0) for i in range(len(cam_bytes))):
+                failures.append("camera_2d bytes not all-red")
 
         send(conn, {"type": "close"})
     finally:
