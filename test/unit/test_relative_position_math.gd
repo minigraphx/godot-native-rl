@@ -33,4 +33,22 @@ func _initialize() -> void:
 	var out: Array = RelativePositionMath.encode_2d(Vector2(3, 4), 0.0, 100.0)
 	h.assert_true(absf(Vector2(out[0], out[1]).length() - 1.0) < 1e-5, "2d direction is unit length")
 
+	# 3D: target along -Z (forward) of an unrotated sensor -> dir (0,0,-1), dist 10/100
+	_approx(h, RelativePositionMath.encode_3d(Vector3(0, 0, -10), Basis.IDENTITY, 100.0), [0.0, 0.0, -1.0, 0.1], "3d forward, no rotation")
+
+	# Sensor yawed +90deg about Y: a world-forward (-Z) target reads as local +X
+	var yaw := Basis(Vector3(0, 1, 0), PI / 2.0)
+	_approx(h, RelativePositionMath.encode_3d(Vector3(0, 0, -10), yaw, 100.0), [1.0, 0.0, 0.0, 0.1], "3d yaw rotates direction")
+
+	# Distance clips and is rotation-invariant
+	_approx(h, RelativePositionMath.encode_3d(Vector3(0, 0, -200), Basis.IDENTITY, 100.0), [0.0, 0.0, -1.0, 1.0], "3d distance clips to 1")
+
+	# Zero offset -> zeros; max_distance <= 0 -> dist guarded
+	_approx(h, RelativePositionMath.encode_3d(Vector3.ZERO, Basis.IDENTITY, 100.0), [0.0, 0.0, 0.0, 0.0], "3d zero offset")
+	_approx(h, RelativePositionMath.encode_3d(Vector3(0, 0, -10), Basis.IDENTITY, 0.0), [0.0, 0.0, -1.0, 0.0], "3d max_distance 0 guard")
+
+	# Direction unit length for an arbitrary offset
+	var out3: Array = RelativePositionMath.encode_3d(Vector3(1, 2, 2), Basis.IDENTITY, 100.0)
+	h.assert_true(absf(Vector3(out3[0], out3[1], out3[2]).length() - 1.0) < 1e-5, "3d direction is unit length")
+
 	h.finish(self)

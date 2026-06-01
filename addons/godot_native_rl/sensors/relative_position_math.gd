@@ -20,3 +20,11 @@ static func encode_2d(world_offset: Vector2, sensor_rotation: float, max_distanc
 	var local := world_offset.rotated(-sensor_rotation)
 	var dir := local.normalized()  # Vector2.ZERO when local is zero-length
 	return [dir.x, dir.y, _dist_norm(world_offset.length(), max_distance)]
+
+# world_offset: target_pos - sensor_pos, in world space.
+# sensor_basis: the sensor node's world-transform basis.
+# Returns [dir_x, dir_y, dir_z, dist_norm].
+static func encode_3d(world_offset: Vector3, sensor_basis: Basis, max_distance: float) -> Array:
+	var local := sensor_basis.inverse() * world_offset
+	var dir := local.normalized()  # Vector3.ZERO when local is zero-length
+	return [dir.x, dir.y, dir.z, _dist_norm(world_offset.length(), max_distance)]
