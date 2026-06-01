@@ -19,7 +19,8 @@ complement to godot_rl, grow toward full replacement.
   `NcnnAIController3D`), `reward/` (`RewardBuilder`/`RewardAdapter`/terms), `sensors/`
   (`RaycastSensor2D`/`RaycastSensor3D` + `RelativePositionSensor2D`/`RelativePositionSensor3D` +
   pure `raycast_math`/`relative_position_math`), `training/` (`ParallelArena` — tiles N
-  agent worlds in one process for ~Nx-faster training), `plugin.cfg`. The C++ GDExtension
+  agent worlds in one process for ~Nx-faster training), `net/` (pure `socket_timeout` deadline
+  helpers for the bridge's connect/read timeouts), `plugin.cfg`. The C++ GDExtension
   stays at the repo root: `src/ncnn_runner.{h,cpp}` (`NcnnRunner`), `ncnn_runner.gdextension`, `bin/`.
 - Examples: `examples/chase_the_target/` (2D, ships a pre-trained ncnn model) and
   `examples/rover_3d/` (3D tank-steered raycast obstacle-avoidance rover; ships a trained ncnn model +
@@ -76,7 +77,8 @@ complement to godot_rl, grow toward full replacement.
   root duplicates before committing.
 - **macOS/Apple Silicon: never let the machine sleep during training.** Sleep suspends the headless
   Godot client → the SB3 trainer blocks forever on the dead socket (`total_timesteps` freezes, process
-  ~0% CPU, no `godot` process). Kill and re-run (resumes from checkpoint). Prevent with
+  ~0% CPU, no `godot` process). The Godot client now self-terminates on `read_timeout_sec` (default
+  60s), but the **trainer** side still blocks — kill and re-run (resumes from checkpoint). Prevent with
   `caffeinate -is ./scripts/train_rover.sh`. The local trainer+Godot can't survive the host sleeping —
   for unattended runs use an always-on machine/CI.
 - **Capture golden-inference values with blob names set** (`runner.input_blob_name = "in0"`,
@@ -88,11 +90,13 @@ complement to godot_rl, grow toward full replacement.
   conversion that doesn't need the tree use `parent.transform * child.position` (equals
   `to_local(child.global_position)` when `parent` is a direct child, and is offset-invariant — this is
   how `RoverGame.read_obstacles` stays tile-offset-safe for `ParallelArena`).
-- **Don't launch a *training* scene headless without a trainer** — `NcnnSync.connect_to_server()`
-  blocks forever waiting on port 11008 (no socket timeout yet — backlog item 9). To exercise a scene's
-  spawning/obs without training, use a smoke scene with **no `Sync` node** (e.g.
-  `parallel_arena_smoke_scene.tscn`), or just `load()` the `.tscn` as a `PackedScene` without
-  instancing it into a running tree.
+- **Launching a *training* scene headless without a trainer now times out instead of hanging** —
+  `NcnnSync.connect_to_server()` gives up after `connect_timeout_sec` (default 10s, falls back to human
+  controls) and `_get_dict_json_message()` quits cleanly after `read_timeout_sec` (default 60s, matches
+  godot_rl) if the trainer goes silent. Override per-run with `connect_timeout=` / `read_timeout=`
+  cmdline args (seconds; `<= 0` disables). To exercise a scene's spawning/obs without training, still
+  prefer a smoke scene with **no `Sync` node** (e.g. `parallel_arena_smoke_scene.tscn`), or just
+  `load()` the `.tscn` as a `PackedScene` without instancing it into a running tree.
 
 ## Conventions
 

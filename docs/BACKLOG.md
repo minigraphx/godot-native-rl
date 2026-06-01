@@ -125,13 +125,26 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
    the sensor (item 32).
 8. ⬜ **CameraSensor** (godot_rl issue #78) — SubViewport → `run_inference_image`. **Do together with
    item 9** (camera obs encoding is a protocol change). *(spike godot_rl's impl first)*
-9. ⬜ **Protocol v0.8 upgrades** — `terminated`/`truncated` split (CORRECTNESS), per-agent `info`
+9. 🔄 **Protocol v0.8 upgrades** — `terminated`/`truncated` split (CORRECTNESS), per-agent `info`
    field, hex camera-obs encoding, socket connect/read timeout. *(novel-addons spec §2)*
-   - **Socket timeout (robustness):** `NcnnSync.connect_to_server()` and `_get_dict_json_message()`
-     poll in unbounded `while` loops with no timeout, so a silent/dead socket blocks **forever**. Two
-     symptoms seen: (a) launching a *training* scene headless without a running trainer hangs on port
-     11008; (b) the macOS-sleep hang (trainer blocks on the dead socket — see the gotcha in CLAUDE.md).
-     A connect + read timeout that quits with a clear error fixes both.
+   - **Done 2026-06-01 (socket timeout #4 + info field #2):** spec
+     `docs/superpowers/specs/2026-06-01-socket-timeout-and-info-field-design.md`, plan
+     `docs/superpowers/plans/2026-06-01-socket-timeout-and-info-field.md`. Added a pure
+     `addons/godot_native_rl/net/socket_timeout.gd` deadline helper (unit-tested) and bounded both
+     `NcnnSync` poll loops: connect falls back to human controls after `connect_timeout_sec`
+     (default 10s), read quits cleanly (exit 0) after `read_timeout_sec` (default 60s = godot_rl
+     `DEFAULT_TIMEOUT`); `<= 0` opts out. Added per-agent `get_info()` (default `{}`) → step message
+     `info` field (godot_rl consumes it). End-to-end `run_timeout_test.py` proves clean exit; `info`
+     asserted over the wire in `run_protocol_test.py`. Both wired into `run_tests.sh`.
+   - **Still deferred:** `terminated`/`truncated` split (#1) is **blocked upstream** — installed
+     godot_rl v0.8.2 uses `done` for both and never reads `truncated` (`godot_env.py` TODO); changing
+     `done` semantics would break `ep_rew_mean`. Camera obs hex encoding (#3) ships with item 8
+     (CameraSensor).
+   - **Socket timeout (robustness, ✅):** `NcnnSync.connect_to_server()` and `_get_dict_json_message()`
+     previously polled in unbounded `while` loops with no timeout, so a silent/dead socket blocked
+     **forever**. Two symptoms fixed: (a) launching a *training* scene headless without a running
+     trainer hung on port 11008; (b) the macOS-sleep hang (trainer blocks on the dead socket — see the
+     gotcha in CLAUDE.md; the Godot client now self-terminates).
 10. ⬜ **Expert-demo recording (imitation learning)** — godot_rl `RECORD_EXPERT_DEMOS` parity; save
     demos in godot_rl format for BC/GAIL.
 11. ⬜ **GridSensor2D + GridSensor3D** — cell-based spatial detection. *(roadmap spec Track A.3)*

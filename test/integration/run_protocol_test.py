@@ -84,6 +84,11 @@ def main():
             failures.append("reward len != 1")
         if len(step.get("done", [])) != 1:
             failures.append("done len != 1")
+        info = step.get("info")
+        if not isinstance(info, list) or len(info) != 1:
+            failures.append("info not a 1-element list (got %r)" % info)
+        elif info[0].get("is_success") is not True:
+            failures.append("info[0] missing is_success=true (got %r)" % info[0])
         if len(step.get("obs") or []) != 1:
             failures.append("step obs count != 1")
         elif len(step["obs"][0].get("obs") or []) != 5:

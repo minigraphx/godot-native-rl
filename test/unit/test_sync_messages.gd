@@ -7,10 +7,11 @@ func _initialize() -> void:
 	var h := Harness.new()
 	var s := SyncScript.new()
 
-	var step = s.build_step_message([[0.1]], [1.0], [false])
+	var step = s.build_step_message([[0.1]], [1.0], [false], [{"is_success": true}])
 	h.assert_eq(step["type"], "step", "step type")
 	h.assert_eq(step["reward"], [1.0], "step reward")
 	h.assert_eq(step["done"], [false], "step done")
+	h.assert_eq(step["info"], [{"is_success": true}], "step info")
 
 	var reset = s.build_reset_message([[0.2]])
 	h.assert_eq(reset["type"], "reset", "reset type")

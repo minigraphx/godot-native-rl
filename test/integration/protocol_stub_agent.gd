@@ -7,6 +7,9 @@ func get_obs() -> Dictionary:
 func get_reward() -> float:
 	return reward
 
+func get_info() -> Dictionary:
+	return {"is_success": true}
+
 func get_action_space() -> Dictionary:
 	return {"move": {"size": 5, "action_type": "discrete"}}
 

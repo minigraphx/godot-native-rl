@@ -102,6 +102,11 @@ func get_action_space() -> Dictionary:
 func set_action(_action) -> void:
 	assert(false, "set_action must be implemented by the agent extending NcnnAIController2D")
 
+# Optional per-agent info (godot_rl reads response.get("info", ...)); default empty.
+# Agents may override to return e.g. {"is_success": true}.
+func get_info() -> Dictionary:
+	return {}
+
 # --- Concrete contract methods used by NcnnSync (delegate to the shared core) ---
 func get_obs_space() -> Dictionary:
 	return NcnnControllerCore.obs_space_from_obs(get_obs())

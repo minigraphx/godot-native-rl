@@ -388,6 +388,7 @@ Agents extend `NcnnAIController2D` (auto-added to group `"AGENT"`) and implement
 - `set_action(action)` to apply one action
 
 `get_obs_space`, `get_done`, `reset`, and the other contract methods are provided by the base class.
+You may optionally override `get_info() -> Dictionary` (default `{}`) — see **Per-agent `info`** below.
 
 ### Wire-Up In Scene
 
@@ -400,7 +401,7 @@ Agents extend `NcnnAIController2D` (auto-added to group `"AGENT"`) and implement
 Messages are length-prefixed (4-byte little-endian) JSON via `StreamPeerTCP.put_string` / `get_string`, matching godot_rl. Per step Godot sends:
 
 ```json
-{"type":"step","obs":[{"obs":[0.1,0.2]}],"reward":[0.0],"done":[false]}
+{"type":"step","obs":[{"obs":[0.1,0.2]}],"reward":[0.0],"done":[false],"info":[{}]}
 ```
 
 and the trainer replies:
@@ -408,6 +409,24 @@ and the trainer replies:
 ```json
 {"type":"action","action":[{"move":2}]}
 ```
+
+### Socket timeouts
+
+`NcnnSync` bounds both its connect and read loops so a missing or silent trainer can't hang a
+headless run:
+
+- `connect_timeout_sec` (default `10.0`) — give up connecting and fall back to human controls.
+- `read_timeout_sec` (default `60.0`, matching godot_rl's `DEFAULT_TIMEOUT`) — if the trainer
+  sends nothing, quit cleanly (exit code 0) instead of blocking forever.
+
+Override per run via cmdline: `... res://scene.tscn read_timeout=120 connect_timeout=5`. A value
+`<= 0` disables the timeout (waits forever).
+
+### Per-agent `info`
+
+Agents may override `get_info() -> Dictionary` (default `{}`) to attach per-step metadata sent to
+the trainer in the step message's `info` field (godot_rl reads `info`, e.g. `{"is_success": true}`
+for success-rate metrics). Backward-compatible: older trainers ignore it.
 
 ## Sensors
 
@@ -478,7 +497,8 @@ re-run, so an interrupted run continues instead of restarting. `FRESH=1` starts 
   by default) and writes the ONNX (then `scripts/export_to_ncnn.py` converts it) — non-destructive, so
   the checkpoints remain for further refinement.
 - **⚠️ Apple Silicon / macOS — do not let the machine sleep while training.** Sleep suspends the
-  headless Godot client; the trainer then blocks forever on a dead socket and the run stalls (you'll
+  headless Godot client; the Godot side now self-terminates on `read_timeout_sec` (default 60s), but
+  the trainer still blocks on the dead socket and the run stalls (you'll
   see `total_timesteps` stop advancing at 0% CPU). Keep it awake for the whole run, e.g.
   `caffeinate -is ./scripts/train_rover.sh` (`-i` prevents idle sleep, `-s` prevents sleep on AC). If
   a run does stall, kill it and just re-run — it resumes from the last checkpoint (≤25k steps lost).

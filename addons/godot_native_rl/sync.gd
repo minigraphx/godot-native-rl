@@ -2,6 +2,7 @@ class_name NcnnSync
 extends Node
 
 enum ControlModes { HUMAN, TRAINING, NCNN_INFERENCE }
+const SocketTimeout = preload("res://addons/godot_native_rl/net/socket_timeout.gd")
 
 var agents_training: Array[Node] = []
 var _action_space: Dictionary = {}
@@ -17,8 +18,8 @@ func build_env_info_message() -> Dictionary:
 		"n_agents": agents_training.size(),
 	}
 
-func build_step_message(obs: Array, reward: Array, done: Array) -> Dictionary:
-	return {"type": "step", "obs": obs, "reward": reward, "done": done}
+func build_step_message(obs: Array, reward: Array, done: Array, info: Array) -> Dictionary:
+	return {"type": "step", "obs": obs, "reward": reward, "done": done, "info": info}
 
 func build_reset_message(obs: Array) -> Dictionary:
 	return {"type": "reset", "obs": obs}
@@ -43,6 +44,10 @@ func extract_action_dict(action_array: Array, action_space: Dictionary) -> Dicti
 @export var control_mode: ControlModes = ControlModes.TRAINING
 @export_range(1, 10, 1, "or_greater") var action_repeat := 8
 @export_range(0, 10, 0.1, "or_greater") var speed_up := 1.0
+# Socket timeouts (seconds). <= 0 disables the timeout (waits forever).
+# read_timeout default 60s matches godot_rl's DEFAULT_TIMEOUT.
+@export var connect_timeout_sec := 10.0
+@export var read_timeout_sec := 60.0
 
 const MAJOR_VERSION := "0"
 const MINOR_VERSION := "7"
@@ -117,7 +122,8 @@ func _training_process() -> void:
 		var reward_arr := _get_reward_from_agents()
 		var done_arr := _get_done_from_agents()
 		var obs := _get_obs_from_agents(agents_training)
-		_send_dict_as_json_message(build_step_message(obs, reward_arr, done_arr))
+		var info_arr := _get_info_from_agents()
+		_send_dict_as_json_message(build_step_message(obs, reward_arr, done_arr, info_arr))
 	handle_message()
 
 func _heuristic_process() -> void:
@@ -153,6 +159,8 @@ func _set_heuristic(h, agents: Array) -> void:
 
 func _handshake() -> void:
 	var json_dict = _get_dict_json_message()
+	if json_dict == null:  # read timeout / disconnect during startup — quit already queued
+		return
 	assert(json_dict["type"] == "handshake")
 	if json_dict.get("major_version") != MAJOR_VERSION:
 		push_warning("NcnnSync: major version mismatch (got %s, expected %s)" % [json_dict.get("major_version"), MAJOR_VERSION])
@@ -161,14 +169,22 @@ func _handshake() -> void:
 
 func _send_env_info() -> void:
 	var json_dict = _get_dict_json_message()
+	if json_dict == null:  # read timeout / disconnect during startup — quit already queued
+		return
 	assert(json_dict["type"] == "env_info")
 	_send_dict_as_json_message(build_env_info_message())
 
 func _get_dict_json_message():
+	var timeout_ms := _get_read_timeout_ms()
+	var deadline := SocketTimeout.deadline_after(Time.get_ticks_msec(), timeout_ms)
 	while stream.get_available_bytes() == 0:
 		stream.poll()
 		if stream.get_status() != StreamPeerTCP.STATUS_CONNECTED:
 			print("NcnnSync: server disconnected, closing")
+			get_tree().quit()
+			return null
+		if SocketTimeout.is_expired(deadline, Time.get_ticks_msec()):
+			push_error("NcnnSync: read timed out after %.1fs (no data from trainer); closing cleanly." % (timeout_ms / 1000.0))
 			get_tree().quit()
 			return null
 		OS.delay_usec(10)
@@ -186,8 +202,15 @@ func connect_to_server() -> bool:
 		return false
 	stream.set_no_delay(true)
 	stream.poll()
+	var timeout_ms := _get_connect_timeout_ms()
+	var deadline := SocketTimeout.deadline_after(Time.get_ticks_msec(), timeout_ms)
 	while stream.get_status() < StreamPeerTCP.STATUS_CONNECTED:
 		stream.poll()
+		if SocketTimeout.is_expired(deadline, Time.get_ticks_msec()):
+			push_warning("NcnnSync: connect timed out after %.1fs on port %d; falling back to human controls." % [timeout_ms / 1000.0, _get_port()])
+			stream.disconnect_from_host()
+			return false
+		OS.delay_msec(1)
 	return stream.get_status() == StreamPeerTCP.STATUS_CONNECTED
 
 func handle_message() -> bool:
@@ -253,6 +276,12 @@ func _get_done_from_agents() -> Array:
 		dones.append(d)
 	return dones
 
+func _get_info_from_agents() -> Array:
+	var infos := []
+	for agent in agents_training:
+		infos.append(agent.get_info())
+	return infos
+
 func _set_agent_actions(actions, agents: Array) -> void:
 	for i in range(actions.size()):
 		agents[i].set_action(actions[i])
@@ -276,3 +305,9 @@ func _set_seed() -> void:
 
 func _set_action_repeat() -> void:
 	action_repeat = args.get("action_repeat", str(action_repeat)).to_int()
+
+func _get_connect_timeout_ms() -> int:
+	return int(args.get("connect_timeout", str(connect_timeout_sec)).to_float() * 1000.0)
+
+func _get_read_timeout_ms() -> int:
+	return int(args.get("read_timeout", str(read_timeout_sec)).to_float() * 1000.0)
