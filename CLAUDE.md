@@ -17,7 +17,8 @@ complement to godot_rl, grow toward full replacement.
 - The reusable library lives under **`addons/godot_native_rl/`** (item 5): `sync.gd` (`NcnnSync`,
   the bridge), `controllers/` (`NcnnControllerCore` RefCounted core + thin `NcnnAIController2D`/
   `NcnnAIController3D`), `reward/` (`RewardBuilder`/`RewardAdapter`/terms), `sensors/`
-  (`RaycastSensor2D`/`RaycastSensor3D` + pure `raycast_math`), `training/` (`ParallelArena` — tiles N
+  (`RaycastSensor2D`/`RaycastSensor3D` + `RelativePositionSensor2D`/`RelativePositionSensor3D` +
+  pure `raycast_math`/`relative_position_math`), `training/` (`ParallelArena` — tiles N
   agent worlds in one process for ~Nx-faster training), `plugin.cfg`. The C++ GDExtension
   stays at the repo root: `src/ncnn_runner.{h,cpp}` (`NcnnRunner`), `ncnn_runner.gdextension`, `bin/`.
 - Examples: `examples/chase_the_target/` (2D, ships a pre-trained ncnn model) and
