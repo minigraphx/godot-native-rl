@@ -95,6 +95,8 @@ complement to godot_rl, grow toward full replacement.
 
 ## Conventions
 
+- **Deeper dev reference** (architecture, data flow, the long-form "why") lives in
+  `docs/DEVELOPMENT.md`. Keep CLAUDE.md terse (it's always-loaded); put new deep-dives there.
 - GDScript uses **TAB** indentation. Dependency-free headless test harness at `test/harness.gd`
   (tests `extends SceneTree`, run via `godot --headless --path . --script res://test/...`).
 - The reusable library lives under `addons/godot_native_rl/`; reference moved scripts by their
