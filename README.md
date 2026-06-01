@@ -485,6 +485,9 @@ agent's raycasts only see its own obstacles. `NcnnSync` already batches every ag
 group, and godot-rl auto-detects `n_agents` from the handshake, so this is a scene-only change —
 **the Python trainer is unchanged**.
 
+> Run training scenes via `./scripts/train_rover.sh` (it starts the Python trainer first). Launching
+> a training scene headless on its own will hang — the `Sync` node waits for a trainer on port 11008.
+
 Run the parallel rover training scene (8 agents) instead of the single-agent one:
 
 ```bash

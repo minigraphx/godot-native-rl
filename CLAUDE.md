@@ -81,6 +81,17 @@ complement to godot_rl, grow toward full replacement.
 - **Capture golden-inference values with blob names set** (`runner.input_blob_name = "in0"`,
   `output_blob_name = "out0"`) — a bare `NcnnRunner` binds the wrong blob and returns the `-1` error
   sentinel for every input.
+- **`global_position`/`to_local()` are unreliable headless** — nodes added via `add_child` in a
+  `--script` test's `_initialize()` aren't `is_inside_tree()`, so `global_position` errors
+  (`Condition "!is_inside_tree()" is true`) and `to_local()` returns identity. For a child→parent-local
+  conversion that doesn't need the tree use `parent.transform * child.position` (equals
+  `to_local(child.global_position)` when `parent` is a direct child, and is offset-invariant — this is
+  how `RoverGame.read_obstacles` stays tile-offset-safe for `ParallelArena`).
+- **Don't launch a *training* scene headless without a trainer** — `NcnnSync.connect_to_server()`
+  blocks forever waiting on port 11008 (no socket timeout yet — backlog item 9). To exercise a scene's
+  spawning/obs without training, use a smoke scene with **no `Sync` node** (e.g.
+  `parallel_arena_smoke_scene.tscn`), or just `load()` the `.tscn` as a `PackedScene` without
+  instancing it into a running tree.
 
 ## Conventions
 
@@ -90,6 +101,8 @@ complement to godot_rl, grow toward full replacement.
   full `res://addons/godot_native_rl/...` path and prefer **path-based `extends`** over bare
   `class_name` (see the headless gotcha above). Favor pure helpers + thin node wrappers and small,
   focused files.
+- **Godot 4.6 `:=` can't infer from an untyped value** — `var xs := some_untyped_var.get_children()`
+  fails to parse (`Cannot infer the type`). Annotate explicitly: `var xs: Array = ...`.
 - Python: 4-space indentation; tests are stdlib `unittest` under `test/python/` (auto-discovered by
   `run_tests.sh`); keep heavy imports (torch/SB3) lazy inside `main()` so pure helpers stay testable.
 - Use the **superpowers workflow**: brainstorm → spec (`docs/superpowers/specs/`) → plan

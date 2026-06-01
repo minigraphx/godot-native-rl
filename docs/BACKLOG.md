@@ -114,7 +114,12 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
 8. ⬜ **CameraSensor** (godot_rl issue #78) — SubViewport → `run_inference_image`. **Do together with
    item 9** (camera obs encoding is a protocol change). *(spike godot_rl's impl first)*
 9. ⬜ **Protocol v0.8 upgrades** — `terminated`/`truncated` split (CORRECTNESS), per-agent `info`
-   field, hex camera-obs encoding, socket read timeout. *(novel-addons spec §2)*
+   field, hex camera-obs encoding, socket connect/read timeout. *(novel-addons spec §2)*
+   - **Socket timeout (robustness):** `NcnnSync.connect_to_server()` and `_get_dict_json_message()`
+     poll in unbounded `while` loops with no timeout, so a silent/dead socket blocks **forever**. Two
+     symptoms seen: (a) launching a *training* scene headless without a running trainer hangs on port
+     11008; (b) the macOS-sleep hang (trainer blocks on the dead socket — see the gotcha in CLAUDE.md).
+     A connect + read timeout that quits with a clear error fixes both.
 10. ⬜ **Expert-demo recording (imitation learning)** — godot_rl `RECORD_EXPERT_DEMOS` parity; save
     demos in godot_rl format for BC/GAIL.
 11. ⬜ **GridSensor2D + GridSensor3D** — cell-based spatial detection. *(roadmap spec Track A.3)*
