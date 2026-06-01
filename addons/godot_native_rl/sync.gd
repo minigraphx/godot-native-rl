@@ -170,10 +170,15 @@ func _send_env_info() -> void:
 	_send_dict_as_json_message(build_env_info_message())
 
 func _get_dict_json_message():
+	var deadline := SocketTimeout.deadline_after(Time.get_ticks_msec(), _get_read_timeout_ms())
 	while stream.get_available_bytes() == 0:
 		stream.poll()
 		if stream.get_status() != StreamPeerTCP.STATUS_CONNECTED:
 			print("NcnnSync: server disconnected, closing")
+			get_tree().quit()
+			return null
+		if SocketTimeout.is_expired(deadline, Time.get_ticks_msec()):
+			push_error("NcnnSync: read timed out after %.1fs (no data from trainer); closing cleanly." % (_get_read_timeout_ms() / 1000.0))
 			get_tree().quit()
 			return null
 		OS.delay_usec(10)
