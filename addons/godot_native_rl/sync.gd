@@ -18,8 +18,8 @@ func build_env_info_message() -> Dictionary:
 		"n_agents": agents_training.size(),
 	}
 
-func build_step_message(obs: Array, reward: Array, done: Array) -> Dictionary:
-	return {"type": "step", "obs": obs, "reward": reward, "done": done}
+func build_step_message(obs: Array, reward: Array, done: Array, info: Array) -> Dictionary:
+	return {"type": "step", "obs": obs, "reward": reward, "done": done, "info": info}
 
 func build_reset_message(obs: Array) -> Dictionary:
 	return {"type": "reset", "obs": obs}
@@ -122,7 +122,8 @@ func _training_process() -> void:
 		var reward_arr := _get_reward_from_agents()
 		var done_arr := _get_done_from_agents()
 		var obs := _get_obs_from_agents(agents_training)
-		_send_dict_as_json_message(build_step_message(obs, reward_arr, done_arr))
+		var info_arr := _get_info_from_agents()
+		_send_dict_as_json_message(build_step_message(obs, reward_arr, done_arr, info_arr))
 	handle_message()
 
 func _heuristic_process() -> void:
@@ -268,6 +269,12 @@ func _get_done_from_agents() -> Array:
 			agent.set_done_false()
 		dones.append(d)
 	return dones
+
+func _get_info_from_agents() -> Array:
+	var infos := []
+	for agent in agents_training:
+		infos.append(agent.get_info())
+	return infos
 
 func _set_agent_actions(actions, agents: Array) -> void:
 	for i in range(actions.size()):
