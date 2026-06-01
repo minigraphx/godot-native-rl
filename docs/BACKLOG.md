@@ -110,7 +110,19 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
    checkpoint/resume-capable** (`train_rover.py` auto-resumes from `models/rover_checkpoints/`;
    `FRESH=1` to restart) — spec `docs/superpowers/specs/2026-05-31-rover-trainer-checkpoint-resume-design.md`,
    so a shutdown-interrupted run continues on re-run instead of starting over.
-7. ⬜ **RelativePositionSensor** (godot_rl issue #177) — normalized direction + clipped distance.
+7. ✅ **RelativePositionSensor2D + RelativePositionSensor3D** (godot_rl issue #177) — egocentric
+   unit direction + clipped normalized distance to a `target_path` node.
+   **Done 2026-06-01** — spec `docs/superpowers/specs/2026-06-01-relative-position-sensor-design.md`,
+   plan `docs/superpowers/plans/2026-06-01-relative-position-sensor.md`. Shipped
+   `addons/godot_native_rl/sensors/relative_position_math.gd` (pure `encode_2d`/`encode_3d`,
+   headless-unit-tested) + `relative_position_sensor_2d.gd`/`_3d.gd` (thin node wrappers with a
+   `set_target_for_test` seam). Output: 2D `[dir_x, dir_y, dist_norm]` (3 floats), 3D
+   `[dir_x, dir_y, dir_z, dist_norm]` (4 floats); direction egocentric (sensor-local frame),
+   `dist_norm = clamp(distance / max_distance, 0, 1)`. Manual composition (no controller change);
+   missing target → stable zero-filled obs. Full suite green from a clean cache.
+   **Deferred:** multi-target / tag selection + extra target properties (velocity) — issue #177
+   extensions; sensor auto-discovery `collect_sensors()` (shared item-5 follow-up); example using
+   the sensor (item 32).
 8. ⬜ **CameraSensor** (godot_rl issue #78) — SubViewport → `run_inference_image`. **Do together with
    item 9** (camera obs encoding is a protocol change). *(spike godot_rl's impl first)*
 9. ⬜ **Protocol v0.8 upgrades** — `terminated`/`truncated` split (CORRECTNESS), per-agent `info`
@@ -187,6 +199,10 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     env to train at 100–1000× the speed, then deploy the policy back in Godot via ncnn. Only viable for
     simple envs and reintroduces a sim-to-deploy gap to validate (run the trained policy in the Godot
     smoke scene). *Later.* *(brainstormed alongside item 30)*
+
+32. ⬜ **Example using `RelativePositionSensor`** — a small 2D seek/navigate-to-target demo (or
+    migrate the rover's inline goal obs onto `RelativePositionSensor3D` with a retrain), to show
+    the sensor end-to-end and provide a trained regression. *(follow-up from item 7)*
 
 ## Later (in catalog spec, not yet detailed)
 

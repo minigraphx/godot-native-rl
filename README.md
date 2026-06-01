@@ -422,8 +422,17 @@ agent's `get_obs()` and concatenate with your other features.
 - **`RaycastSensor3D`** (`sensors/raycast_sensor_3d.gd`) — an `n_rays_width × n_rays_height`
   grid of 3D rays across `horizontal_fov × vertical_fov`, centered on forward (−Z). Same
   closeness encoding and physics options.
+- **`RelativePositionSensor2D`** (`sensors/relative_position_sensor_2d.gd`) — the egocentric
+  position of a `target_path` node: a unit direction in the sensor's local frame plus a
+  clipped, normalized distance, `[dir_x, dir_y, dist_norm]` (3 floats). `dist_norm =
+  clamp(distance / max_distance, 0, 1)`. Answers "where is my target relative to me?"
+  (`godot_rl` issue #177).
+- **`RelativePositionSensor3D`** (`sensors/relative_position_sensor_3d.gd`) — the 3D form:
+  `[dir_x, dir_y, dir_z, dist_norm]` (4 floats), direction in the sensor's local frame
+  (forward = −Z), same `max_distance` clipping.
 
-Pure ray geometry and normalization live in `sensors/raycast_math.gd` (headless-unit-tested).
+Pure ray geometry lives in `sensors/raycast_math.gd`; the relative-position frame/clip math
+lives in `sensors/relative_position_math.gd` (both headless-unit-tested).
 This encoding matches `godot_rl`'s raycast convention, so ported environments behave the same —
 and the observations feed `NcnnRunner` for zero-runtime deployment on mobile/web/console.
 
