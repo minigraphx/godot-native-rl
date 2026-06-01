@@ -108,8 +108,8 @@ complement to godot_rl, grow toward full replacement.
 - **Actionable backlog (pick up by number):** `docs/BACKLOG.md` — any session (incl. mobile) can
   start an item without clicking. Say "do backlog item N".
   - **Done:** 1 (Signal→Reward + RewardBuilder), 2 (export_to_ncnn helper), 3 (RaycastSensor2D/3D),
-    4 (ncnn_vs_onnx guide), 5 (addon structure + controller refactor). **In progress:** 6 (3D rover —
-    scaffold + resumable training done; trained model + golden regression pending).
+    4 (ncnn_vs_onnx guide), 5 (addon structure + controller refactor), 6 (3D rover + trained model +
+    golden regression), 30 (ParallelArena — parallel multi-agent training, ~6.2× speedup measured).
   - **Newer items surfaced this work:** 21–24 (deploy-side inference gaps: continuous/multi-key
     actions, recurrent/LSTM, batched multi-agent, VecNormalize parity) and 25 (Asset Library release —
     move the GDExtension + prebuilt binaries into the addon and submit).
