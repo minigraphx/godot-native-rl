@@ -28,5 +28,9 @@ func _initialize() -> void:
 	h.assert_true(HideSeekMath.ray_rect_distance(Vector2(0, 50), Vector2(-1, 0), 100.0, wall) < 0.0, "ray away misses (-1)")
 	# Wall beyond max_dist -> miss.
 	h.assert_true(HideSeekMath.ray_rect_distance(Vector2(0, 50), Vector2(1, 0), 30.0, wall) < 0.0, "wall beyond max_dist misses")
+	# Ray origin inside the rect -> distance 0 (documented contract).
+	h.assert_eq(HideSeekMath.ray_rect_distance(Vector2(50, 50), Vector2(1, 0), 100.0, wall), 0.0, "ray origin inside rect -> 0")
+	# Diagonal ray exercises both slab axes: from (0,0) heading +45deg hits the wall's near corner region.
+	h.assert_true(HideSeekMath.ray_rect_distance(Vector2(0, 0), Vector2(1, 1).normalized(), 200.0, wall) > 0.0, "diagonal ray hits the wall")
 
 	h.finish(self)
