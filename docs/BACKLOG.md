@@ -187,6 +187,21 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     env to train at 100–1000× the speed, then deploy the policy back in Godot via ncnn. Only viable for
     simple envs and reintroduces a sim-to-deploy gap to validate (run the trained policy in the Godot
     smoke scene). *Later.* *(brainstormed alongside item 30)*
+32. ⬜ **TorchScript → ncnn direct export (skip ONNX)** — extend `export_to_ncnn.py` to accept a
+    `.pt` TorchScript file as input (`torch.jit.trace/script` → pnnx → ncnn), bypassing the ONNX
+    export step entirely. pnnx is designed around TorchScript as its native format, so this path
+    produces better numerical parity and one fewer conversion step. `--via torchscript` (default for
+    `.pt` inputs); `--via onnx` remains as a fallback for architectures with unsupported ops.
+
+## Visualization
+
+33. ⬜ **Episode replay** — save episode trajectories (obs, actions, rewards per step) during
+    training or inference and replay them deterministically in Godot. Enables post-hoc inspection of
+    specific turns/steps without re-running training. Compatible with gym-trained models deployed
+    via ncnn (item 31).
+34. ⬜ **Record to video** — render a Godot replay to a video file using Godot 4's `MovieWriter`
+    API. Pairs with item 33: train in Python, pick a replay, export a clip. Useful for sharing
+    results and debugging policy behaviour visually.
 
 ## Later (in catalog spec, not yet detailed)
 
