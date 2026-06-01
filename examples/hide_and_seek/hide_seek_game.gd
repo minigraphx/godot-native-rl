@@ -15,6 +15,7 @@ const HideSeekMath = preload("res://examples/hide_and_seek/hide_seek_math.gd")
 @export var max_steps := 300            ## episode timeout (frames)
 @export var opp_max_dist := 1200.0      ## normalizer for the opponent-distance obs
 @export var walls: Array[Rect2] = []    ## occluders; empty -> default_walls()
+@export var min_separation := 200.0   ## min seeker<->hider spawn distance (avoids instant catch)
 @export var seeker_body_path: NodePath
 @export var hider_body_path: NodePath
 
@@ -88,7 +89,15 @@ func reset_positions() -> void:
 		_seeker_body.position = _random_free_position()
 	if _hider_body != null:
 		_hider_body.position = _random_free_position()
+		# Avoid spawning the hider on top of the seeker (instant catch). Resample a few times.
+		if _seeker_body != null:
+			for _i in range(32):
+				if _seeker_body.position.distance_to(_hider_body.position) >= min_separation:
+					break
+				_hider_body.position = _random_free_position()
 	_step = 0
+	_has_los = false
+	_caught = false
 	_terminal = false
 	_pending_reset = false
 

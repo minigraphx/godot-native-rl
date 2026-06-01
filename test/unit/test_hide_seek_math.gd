@@ -87,6 +87,20 @@ func _initialize() -> void:
 	h.assert_true(game.default_walls().size() >= 1, "default_walls non-empty")
 	game.free()
 
+	# --- HideSeekGame.reset_positions: bodies spawn separated (no instant catch) ---
+	var g2 = HideSeekGame.new()
+	g2.arena_size = Vector2(1000, 600)
+	g2.min_separation = 200.0
+	g2._seeker_body = Node2D.new()
+	g2._hider_body = Node2D.new()
+	g2.seed_rng(123)
+	g2.reset_positions()
+	h.assert_true(g2.distance() >= 200.0, "reset spawns seeker/hider >= min_separation apart")
+	h.assert_true(not g2.was_caught(), "reset clears caught flag")
+	g2._seeker_body.free()
+	g2._hider_body.free()
+	g2.free()
+
 	h.finish(self)
 
 func _v2a(v: Vector2) -> Array:
