@@ -101,6 +101,16 @@ func _initialize() -> void:
 	g2._hider_body.free()
 	g2.free()
 
+	# --- HideSeekAgent.action_to_velocity (pure) ---
+	var HideSeekAgent = preload("res://examples/hide_and_seek/hide_seek_agent.gd")
+	var agent = HideSeekAgent.new()
+	_approx(h, _v2a(agent.action_to_velocity(0, 300.0)), [0.0, 0.0], "action 0 -> stay")
+	_approx(h, _v2a(agent.action_to_velocity(1, 300.0)), [0.0, -300.0], "action 1 -> up")
+	_approx(h, _v2a(agent.action_to_velocity(2, 300.0)), [0.0, 300.0], "action 2 -> down")
+	_approx(h, _v2a(agent.action_to_velocity(3, 300.0)), [-300.0, 0.0], "action 3 -> left")
+	_approx(h, _v2a(agent.action_to_velocity(4, 300.0)), [300.0, 0.0], "action 4 -> right")
+	agent.free()
+
 	h.finish(self)
 
 func _v2a(v: Vector2) -> Array:
