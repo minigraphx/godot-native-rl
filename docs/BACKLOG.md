@@ -160,8 +160,14 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
 10. ⬜ **Expert-demo recording (imitation learning)** — godot_rl `RECORD_EXPERT_DEMOS` parity; save
     demos in godot_rl format for BC/GAIL.
 11. ⬜ **GridSensor2D + GridSensor3D** — cell-based spatial detection. *(roadmap spec Track A.3)*
-12. ⬜ **SAC training script** — SB3 already has SAC; one `train_chase_sac.py`. Quick win for
-    heavier envs. *(roadmap spec Track C.1)*
+12. ✅ **Hide & Seek example (2D parameter-sharing self-play)** — *reframed from "SAC training
+    script"* (SAC needs a continuous action space neither example has, and continuous native deploy
+    is blocked on item 21). Shipped a 2D 1v1 hide & seek: one shared PPO policy over a seeker+hider
+    AGENT group (parameter sharing), LOS-gated vision + occluding walls, role flag + sign-flipped
+    reward, `ParallelArena2D` for fast self-play, and a headless self-play smoke test.
+    **Done 2026-06-01** — spec `docs/superpowers/specs/2026-06-01-hide-and-seek-example-design.md`,
+    plan `docs/superpowers/plans/2026-06-01-hide-and-seek-example.md`. Scaffold scope: trained ncnn
+    model + behavioral regression deferred (follow-up); SAC revisits when item 21 lands.
 
 ## Novel addons (neither godot_rl nor Unity — the moat)
 
