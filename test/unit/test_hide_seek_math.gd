@@ -76,4 +76,18 @@ func _initialize() -> void:
 	h.assert_eq(obs.size(), 9, "assembled obs length = 2+2+4+1")
 	h.assert_eq(float(obs[8]), 1.0, "role flag is last")
 
+	# --- HideSeekGame pure helpers ---
+	var HideSeekGame = preload("res://examples/hide_and_seek/hide_seek_game.gd")
+	var game = HideSeekGame.new()
+	game.arena_size = Vector2(1000, 600)
+	# clamp_to_bounds keeps positions inside the arena.
+	_approx(h, _v2a(game.clamp_to_bounds(Vector2(-10, 700))), [0.0, 600.0], "clamp keeps in bounds")
+	_approx(h, _v2a(game.clamp_to_bounds(Vector2(500, 300))), [500.0, 300.0], "clamp leaves interior untouched")
+	# default_walls returns a non-empty fixed Rect2 layout.
+	h.assert_true(game.default_walls().size() >= 1, "default_walls non-empty")
+	game.free()
+
 	h.finish(self)
+
+func _v2a(v: Vector2) -> Array:
+	return [v.x, v.y]
