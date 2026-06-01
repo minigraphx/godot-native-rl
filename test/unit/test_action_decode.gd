@@ -47,8 +47,16 @@ func _initialize() -> void:
 		{}, "output too short -> {}")
 
 	# Shape mismatch (output too long) -> {} sentinel.
+	# This case has fewer values than the single key needs, so it trips the per-key
+	# "too short" guard rather than the trailing over-length check.
 	h.assert_eq(ActionDecode.decode_actions(PackedFloat32Array([0.1, 0.9, 0.5]), disc),
 		{}, "output too long -> {}")
+
+	# Genuine over-length: every key segment fits, but there are trailing extra values,
+	# so the post-loop `index != output.size()` branch fires (not the per-key guard).
+	var small := {"move": {"size": 2, "action_type": "discrete"}}
+	h.assert_eq(ActionDecode.decode_actions(PackedFloat32Array([0.1, 0.9, 0.5]), small),
+		{}, "trailing extra values -> {} (over-length branch)")
 
 	# Unknown action_type -> {} sentinel.
 	h.assert_eq(ActionDecode.decode_actions(PackedFloat32Array([0.1, 0.2]),
