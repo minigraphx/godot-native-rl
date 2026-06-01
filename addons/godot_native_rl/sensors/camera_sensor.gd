@@ -19,12 +19,10 @@ const CameraObsMath = preload("res://addons/godot_native_rl/sensors/camera_obs_m
 # viewport texture is read (only works with a rendering context, i.e. in-editor).
 var _capture_fn = null
 var _warned_no_viewport := false
-var _validated_key := false
 
 func _ready() -> void:
 	if not is_key_valid(observation_key):
 		push_error("CameraSensor: observation_key %r must contain \"2d\" (godot_rl routes image obs on that substring)." % observation_key)
-	_validated_key = true
 
 func set_capture_fn_for_test(fn: Callable) -> void:
 	_capture_fn = fn

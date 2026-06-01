@@ -27,12 +27,14 @@ func _initialize() -> void:
 	h.assert_eq(s.get_obs_space_entry(), {"space": "box", "size": [2, 2, 3]}, "RGB obs_space entry")
 	h.assert_eq(s.get_observation_key(), "camera_2d", "default observation_key")
 
-	# --- Grayscale path: same image, grayscale=true -> L8, 1 channel ---
+	# --- Grayscale path: white image -> L8, 1 channel, deterministic luminance ---
+	# Pure white converts to L8 255 regardless of the luminance weights, so the exact
+	# hex is stable: 4 pixels * 1 channel * 0xFF = "ffffffff".
 	s.grayscale = true
+	s.set_image_for_test(_make_image(2, 2, Image.FORMAT_RGB8, Color(1, 1, 1)))
 	var gray_obs: String = s.get_observation()
 	h.assert_eq(s.get_obs_shape(), [2, 2, 1], "grayscale obs_shape [H,W,1]")
-	# 4 pixels * 1 channel = 4 bytes = 8 hex chars.
-	h.assert_eq(gray_obs.length(), 8, "grayscale obs hex length == 4 bytes")
+	h.assert_eq(gray_obs, "ffffffff", "grayscale white obs == L8 255 x4")
 
 	s.free()
 	vp.free()

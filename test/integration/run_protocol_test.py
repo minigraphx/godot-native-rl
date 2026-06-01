@@ -77,6 +77,11 @@ def main():
             failures.append("reset missing obs")
         elif len(obs[0]["obs"]) != 5:
             failures.append("obs size != 5 (got %d)" % len(obs[0]["obs"]))
+        # reset obs carries the camera_2d image too (same _get_obs_from_agents path as step).
+        if obs:
+            reset_cam = obs[0].get("camera_2d")
+            if not isinstance(reset_cam, str) or len(bytes.fromhex(reset_cam)) != 2 * 2 * 3:
+                failures.append("reset missing valid camera_2d hex (got %r)" % reset_cam)
 
         # Action -> expect step reply.
         send(conn, {"type": "action", "action": [{"move": 2}]})

@@ -29,7 +29,8 @@ class CameraObsDecodeTest(unittest.TestCase):
                 self.assertEqual(at(flat, shape, r, c, 2), 0, "blue channel")
 
     def test_byte_order_is_row_major_hwc(self):
-        # Distinct per-pixel values to prove ordering: pixel (r,c) channel 0 = r*10 + c.
+        # Pins the at() row-major HWC indexing helper used by the round-trip test above,
+        # with distinct per-pixel values so a transposed index would be caught.
         # 2x2, 1 channel (grayscale-like). Bytes: p(0,0),p(0,1),p(1,0),p(1,1) = 0,1,10,11.
         flat = bytes([0, 1, 10, 11])
         shape = (2, 2, 1)

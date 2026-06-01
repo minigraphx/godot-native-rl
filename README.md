@@ -456,7 +456,8 @@ agent's `get_obs()` and concatenate with your other features.
   `{"space": "box", "size": [...]}` obs-space entry rather than a flat size. Compose it manually:
   `obs[sensor.get_observation_key()] = sensor.get_observation()` and merge
   `sensor.get_obs_space_entry()` into your `get_obs_space()`. The `observation_key` **must contain
-  `"2d"`** — `godot_rl` routes image obs on that substring, decoding to `Box(0, 255, uint8)` for
+  `"2d"`** even for a `Camera3D` view (name it e.g. `"camera_3d_2d"`) — `godot_rl` routes image obs
+  on that substring, decoding to `Box(0, 255, uint8)` for
   SB3's `MultiInputPolicy`/`NatureCNN` (which does its own `/255`). Size the obs by sizing the
   `SubViewport`. *Native ncnn **deploy** of image policies is pending (backlog item 36); the
   `NcnnRunner.run_inference_image` primitive already exists, the controller glue does not.*
