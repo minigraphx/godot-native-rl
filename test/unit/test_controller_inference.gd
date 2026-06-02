@@ -9,9 +9,11 @@ const ContinuousStub = preload("res://test/unit/continuous_stub_agent.gd")
 class FakeRunner:
 	var loaded := true
 	var output := PackedFloat32Array([0.0, 0.0, 0.0, 0.9, 0.0])  # argmax == 3 over size-5
+	var last_input := PackedFloat32Array()
 	func is_model_loaded() -> bool:
 		return loaded
-	func run_inference(_input) -> PackedFloat32Array:
+	func run_inference(input) -> PackedFloat32Array:
+		last_input = input
 		return output
 
 # Fake that mimics NcnnRunner.run_inference_image (image path) -> raw logits.
@@ -65,5 +67,49 @@ func _initialize() -> void:
 	b.infer_and_act()
 	h.assert_eq(b.last_action, null, "no runner leaves last_action null")
 	b.free()
+
+	# Obs normalization: identity stats (mean 0, var 1) -> runner sees raw obs unchanged.
+	var na = Stub.new()
+	var nr := FakeRunner.new()
+	na.set_ncnn_runner_for_test(nr)
+	na.set_obs_norm_stats_for_test({
+		"mean": PackedFloat32Array([0.0, 0.0, 0.0, 0.0, 0.0]),
+		"var": PackedFloat32Array([1.0, 1.0, 1.0, 1.0, 1.0]),
+		"epsilon": 0.0, "clip_obs": 10.0})
+	na.infer_and_act()
+	h.assert_true(absf(nr.last_input[2] - 1.0) < 1e-6 and absf(nr.last_input[4] - 0.5) < 1e-6,
+		"identity stats feed obs unchanged to runner")
+	na.free()
+
+	# Non-identity stats actually transform: obs[2]=1, mean=1, var=4 -> (1-1)/sqrt(4)=0.
+	var na2 = Stub.new()
+	var nr2 := FakeRunner.new()
+	na2.set_ncnn_runner_for_test(nr2)
+	na2.set_obs_norm_stats_for_test({
+		"mean": PackedFloat32Array([0.0, 0.0, 1.0, 0.0, 0.0]),
+		"var": PackedFloat32Array([1.0, 1.0, 4.0, 1.0, 1.0]),
+		"epsilon": 0.0, "clip_obs": 10.0})
+	na2.infer_and_act()
+	h.assert_true(absf(nr2.last_input[2]) < 1e-6, "non-identity stats transform obs[2] -> 0")
+	na2.free()
+
+	# Empty stats (default) -> raw obs (backward compatible).
+	var nb = Stub.new()
+	var nbr := FakeRunner.new()
+	nb.set_ncnn_runner_for_test(nbr)
+	nb.infer_and_act()
+	h.assert_true(absf(nbr.last_input[2] - 1.0) < 1e-6, "empty stats feeds raw obs (backward compatible)")
+	nb.free()
+
+	# Size-mismatch stats -> normalize returns empty -> action skipped (no set_action).
+	var nc = Stub.new()
+	var ncr := FakeRunner.new()
+	nc.set_ncnn_runner_for_test(ncr)
+	nc.set_obs_norm_stats_for_test({
+		"mean": PackedFloat32Array([0.0]), "var": PackedFloat32Array([1.0]),
+		"epsilon": 0.0, "clip_obs": 10.0})
+	nc.infer_and_act()
+	h.assert_eq(nc.last_action, null, "size-mismatch stats skips action")
+	nc.free()
 
 	h.finish(self)
