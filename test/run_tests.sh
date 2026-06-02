@@ -41,6 +41,16 @@ PY="${PY:-.venv/bin/python}"
 echo "== Trained rover check (headless) =="
 "$GODOT" --headless --path . res://test/integration/trained_rover_scene.tscn
 
+echo "== INT8 quantize tools (build if missing) =="
+./scripts/build_ncnn_tools.sh
+
+echo "== INT8 export + parity (synthetic CNN, to temp dir) =="
+PY_TRAIN="${PY_TRAIN:-.venv-train/bin/python}"
+INT8_TMP="$(mktemp -d)"
+"$PY_TRAIN" scripts/export_int8.py models/synthetic_cnn.ncnn.param models/synthetic_cnn.ncnn.bin \
+	--width 8 --height 8 --channels 3 --samples 256 --n-verify 100 --outdir "$INT8_TMP"
+rm -rf "$INT8_TMP"
+
 echo "== Python helper tests =="
 PY_TRAIN="${PY_TRAIN:-.venv-train/bin/python}"
 "$PY_TRAIN" -m unittest discover -s test/python -p 'test_*.py'
