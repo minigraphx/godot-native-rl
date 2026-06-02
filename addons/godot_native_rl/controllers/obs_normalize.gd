@@ -36,6 +36,16 @@ static func validate(stats: Dictionary) -> bool:
 		return false
 	if mean.size() == 0 or mean.size() != var_.size():
 		return false
+	var epsilon = stats["epsilon"]
+	var clip_obs = stats["clip_obs"]
+	if not (epsilon is float or epsilon is int):
+		return false
+	if not (clip_obs is float or clip_obs is int):
+		return false
+	if stats.has("obs_size"):
+		var obs_size = stats["obs_size"]
+		if not (obs_size is int or obs_size is float) or int(obs_size) != mean.size():
+			return false
 	return true
 
 # Coerce a validated JSON stats dict into typed PackedFloat32Arrays + floats once, so the per-frame

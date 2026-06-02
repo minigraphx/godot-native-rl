@@ -43,6 +43,14 @@ func _initialize() -> void:
 		"validate rejects empty")
 	h.assert_true(not ObsNormalize.validate({"var": [1.0], "epsilon": 1e-8, "clip_obs": 10.0}),
 		"validate rejects missing key")
+	h.assert_true(not ObsNormalize.validate({"mean": [0.0], "var": [1.0], "epsilon": "x", "clip_obs": 10.0}),
+		"validate rejects non-numeric epsilon")
+	h.assert_true(not ObsNormalize.validate({"mean": [0.0], "var": [1.0], "epsilon": 1e-8, "clip_obs": "x"}),
+		"validate rejects non-numeric clip_obs")
+	h.assert_true(not ObsNormalize.validate({"obs_size": 2, "mean": [0.0], "var": [1.0], "epsilon": 1e-8, "clip_obs": 10.0}),
+		"validate rejects obs_size mismatch")
+	h.assert_true(ObsNormalize.validate({"obs_size": 1, "mean": [0.0], "var": [1.0], "epsilon": 1e-8, "clip_obs": 10.0}),
+		"validate accepts matching obs_size")
 
 	# to_typed coerces JSON arrays into PackedFloat32Array + floats.
 	var typed := ObsNormalize.to_typed({"mean": [0.5], "var": [2.0], "epsilon": 1e-8, "clip_obs": 5.0})
