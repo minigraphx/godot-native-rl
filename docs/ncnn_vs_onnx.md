@@ -203,7 +203,10 @@ list both honestly so you can plan around them.
   `get_obs()` and run that **same code** during training and inference (the chase example does this; its
   trainer uses `VecMonitor` but **not** `VecNormalize`). If you instead train with SB3 `VecNormalize`
   (or any running mean/std), you have to export those statistics and replay them yourself game-side —
-  the converted network does not carry them.
+  the converted network does not carry them. **This project now ships that path (item 24):** export the
+  frozen stats with `scripts/export_vecnormalize_stats.py` and replay them in `get_obs()` via
+  `addons/godot_native_rl/obs/obs_normalizer.gd` (`ObsNormalizer`), whose arithmetic is pinned to SB3's
+  `normalize_obs` by a shared parity fixture — see the README "Observation Normalization" section.
 - **Deploy is deterministic; training was stochastic.** PPO explores by *sampling* its action
   distribution. This project deploys via **argmax** (`run_discrete_action`), i.e. the greedy mode.
   That's usually what you want at runtime, but it is a behavior change — researchers comparing
@@ -226,8 +229,9 @@ list both honestly so you can plan around them.
 - **All godot_rl action types deploy (as of item 21).** The controller decodes discrete, **continuous**
   (PPO-continuous / SAC mean, optional per-key tanh squash), **multi-discrete**, and multiple simultaneous
   action keys via pure `action_decode.gd` (`run_inference` + segment decode). Continuous parity is checked
-  by numerical closeness (`atol≈1e-2`), not argmax. Remaining deploy-side gaps: recurrent/LSTM state
-  (item 22), batched multi-agent inference (item 23), and observation-normalization parity (item 24).
+  by numerical closeness (`atol≈1e-2`), not argmax. Observation-normalization parity now has a shipped
+  mitigation (item 24 — `ObsNormalizer` + `export_vecnormalize_stats.py`). Remaining deploy-side gaps:
+  recurrent/LSTM state (item 22) and batched multi-agent inference (item 23).
 - **No recurrent / LSTM state handling.** The controller is feed-forward and stateless per call. A
   recurrent policy would need you to carry hidden state across frames yourself. (ncnn itself supports
   LSTM/GRU layers — the gap is in this project's controller, not the runtime.)

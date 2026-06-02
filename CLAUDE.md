@@ -24,7 +24,8 @@ complement to godot_rl, grow toward full replacement.
   `CameraSensor` (SubViewport → hex image obs, godot_rl-compatible) + pure
   `raycast_math`/`relative_position_math`/`camera_obs_math`), `training/` (`ParallelArena` — tiles N
   agent worlds in one process for ~Nx-faster training), `net/` (pure `socket_timeout` deadline
-  helpers for the bridge's connect/read timeouts), `plugin.cfg`. The C++ GDExtension
+  helpers for the bridge's connect/read timeouts), `obs/` (`ObsNormalizer` JSON-stats loader + pure
+  `obs_normalize` — frozen SB3 `VecNormalize` observation-parity replay), `plugin.cfg`. The C++ GDExtension
   stays at the repo root: `src/ncnn_runner.{h,cpp}` (`NcnnRunner`), `ncnn_runner.gdextension`, `bin/`.
 - Examples: `examples/chase_the_target/` (2D, ships a pre-trained ncnn model) and
   `examples/rover_3d/` (3D tank-steered raycast obstacle-avoidance rover; ships a trained ncnn model +
@@ -37,7 +38,11 @@ complement to godot_rl, grow toward full replacement.
 - **Build the extension:** `scons platform=macos arch=arm64 target=template_debug` (see README for other platforms). `godot` binary: `/opt/homebrew/bin/godot` (4.6.2).
 - **Run all tests:** `./test/run_tests.sh` — headless GDScript unit tests + Python protocol test +
   inference smoke + trained-chase + golden regression + rover-3D smoke + Python helper tests. Must be
-  green before merge. (The full suite should pass from a **clean cache** — `rm .godot/global_script_class_cache.cfg` first to be sure.)
+  green before merge. (To test from a **clean cache**, don't just `rm .godot/global_script_class_cache.cfg`
+  — a *truly empty* cache makes headless `--script` tests fail to resolve `class_name` bases like
+  `NcnnAIController2D`, and the parse error fires inside `_initialize` **before** the harness can
+  `quit()`, so Godot **hangs forever** at ~0% CPU. After removing the cache, regenerate it with an
+  import pass — `godot --headless --editor --quit` — then run the suite. See the `class_name` gotcha below.)
 - **Train (chase):** `TIMESTEPS=120000 ./scripts/train_chase.sh` (starts SB3 trainer, launches headless
   Godot training scene which connects on port 11008). ~34 min at 120k steps.
 - **Train (rover, resumable):** `./scripts/train_rover.sh` — checkpoints to `models/rover_checkpoints/`
@@ -50,14 +55,25 @@ complement to godot_rl, grow toward full replacement.
 - **Train (hide & seek self-play):** `./scripts/train_hide_seek.sh` (one shared PPO policy over a
   seeker+hider AGENT group; `SCENE=res://examples/hide_and_seek/hide_and_seek_train_parallel.tscn`
   for 8 tiled worlds via `ParallelArena2D`).
+- **Train (chase, CleanRL backend):** `./scripts/train_cleanrl.sh` — single-file CleanRL-style PPO over
+  godot_rl's `CleanRLGodotEnv` (same chase scene + port 11008; `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`
+  overrides). Exports ONNX (`models/chase_cleanrl_policy.onnx`) consumable unchanged by `export_to_ncnn.py`.
 - **Throughput check:** `./scripts/throughput_compare.sh` — short fresh runs of the parallel vs
   single-agent scene into temp dirs (never touches `models/`); prints samples/sec + speedup.
 - **Export a checkpoint (no full run):** `.venv-train/bin/python scripts/export_checkpoint.py`
   (latest checkpoint → `models/rover_policy.onnx`, non-destructive) then `scripts/export_to_ncnn.py`.
 - **Convert + verify (one command):** `.venv-train/bin/python scripts/export_to_ncnn.py models/model.onnx`
   (auto-derives inputshape, runs pnnx, verifies parity, cleans intermediates). Flags: `--skip-verify`,
-  `--keep-intermediates`, `--inputshape`, `--outdir`. Underlying manual steps: `../.venv/bin/pnnx model.onnx
-  'inputshape=[1,5],[1]'` then `scripts/verify_ncnn_parity.py <onnx> <param> <bin> in0 out0`.
+  `--keep-intermediates`, `--inputshape`, `--outdir`, `--via {onnx,torchscript,auto}`. Underlying manual
+  steps: `../.venv/bin/pnnx model.onnx 'inputshape=[1,5],[1]'` then `scripts/verify_ncnn_parity.py <onnx>
+  <param> <bin> in0 out0`.
+- **Convert TorchScript → ncnn (skip ONNX):** `.venv-train/bin/python scripts/export_to_ncnn.py
+  models/policy.pt --inputshape '[1,5]'` — runs pnnx on a `.pt`/`.ptl` directly (one fewer hop, pnnx's
+  native format). `--via` defaults to `auto` (routes by extension); `--inputshape` is **required** for
+  `.pt` (no readable shape metadata). Parity = `torch.jit` vs ncnn at atol=1e-2.
+- **Export SB3 `VecNormalize` stats for game-side replay:** `.venv-train/bin/python
+  scripts/export_vecnormalize_stats.py --vecnormalize <pkl> --out models/obs_stats.json` → JSON
+  (`{mean,var,epsilon,clip_obs}`) consumed by `addons/godot_native_rl/obs/obs_normalizer.gd`.
 
 ## Operational gotchas (learned the hard way)
 
@@ -86,6 +102,14 @@ complement to godot_rl, grow toward full replacement.
   fails (`Could not find base class`) on a fresh clone or after moving a `class_name` file. **Use
   path-based `extends "res://addons/godot_native_rl/.../foo.gd"`** for in-repo subclasses (the reward
   terms + example agents do this); reference scripts via `preload` consts, not bare `class_name`.
+  **Fresh-clone trap:** with an empty/missing `.godot/` (or right after `rm
+  global_script_class_cache.cfg`), the FIRST `./test/run_tests.sh` can **hang forever** — a `class_name`
+  base still can't resolve, and the parse error fires inside a test's `_initialize()` *before* the
+  harness reaches `quit()`, so headless Godot never exits (sits at ~0% CPU; looks like a slow test).
+  **Fix once before running the suite:** regenerate the cache with an import pass —
+  `godot --headless --editor --quit` (or just open the project in the editor once). That pass also
+  **scatters `*.gd.uid` files** repo-wide — clean them afterward (see the next bullet). This is the same
+  failure mode whether you're a new user on a fresh clone or an agent that wiped the cache.
 - **Don't commit Godot-generated `*.gd.uid` files** — an editor/import pass scatters them (and can
   re-materialize moved scripts at their old paths); `git clean -f -- '*.gd.uid'` and delete stray
   root duplicates before committing.
@@ -147,7 +171,9 @@ complement to godot_rl, grow toward full replacement.
     36 (deploy-side image inference — `run_inference_image` glue + synthetic-CNN golden),
     30 (ParallelArena — parallel multi-agent training, ~6.2× speedup measured),
     12 (Hide & Seek example — 2D 1v1 parameter-sharing self-play, scaffold + smoke test),
-    21 (continuous + multi-key action deploy). 9 partial (socket
+    21 (continuous + multi-key action deploy), 17 (CleanRL backend — single-file PPO over
+    `CleanRLGodotEnv`), 24 (obs-normalization parity — frozen `VecNormalize` replay via `obs/`),
+    33 (TorchScript → ncnn direct export, `--via {onnx,torchscript,auto}`). 9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 21–24 (deploy-side inference gaps: continuous/multi-key
     actions, recurrent/LSTM, batched multi-agent, VecNormalize parity) and 25 (Asset Library release —

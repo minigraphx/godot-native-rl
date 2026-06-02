@@ -159,8 +159,22 @@ argmax/logit parity, and cleans up pnnx intermediates:
 
     .venv-train/bin/python scripts/export_to_ncnn.py models/your_model.onnx
 
-Useful flags: `--skip-verify`, `--keep-intermediates`, `--inputshape '[1,N],[1]'`, `--outdir DIR`.
+Useful flags: `--skip-verify`, `--keep-intermediates`, `--inputshape '[1,N],[1]'`, `--outdir DIR`,
+`--via {onnx,torchscript,auto}`.
 The manual `pnnx` + `verify_ncnn_parity.py` steps below are the underlying operations it wraps.
+
+#### From TorchScript (skip ONNX)
+
+If you already have a TorchScript policy (`.pt`/`.ptl`), convert it **directly** — one fewer hop, and
+often better numerical parity since pnnx's native format *is* TorchScript. `--inputshape` is required
+(a `.pt` carries no readable shape metadata, so the tool fails fast without it):
+
+    .venv-train/bin/python scripts/export_to_ncnn.py models/policy.pt --inputshape '[1,5]'
+
+`--via` defaults to `auto` (routes by extension: `.onnx` → onnx, `.pt`/`.ptl` → torchscript); pass it
+explicitly to force a path. Parity is checked by running the `.pt` through `torch.jit` and diffing
+against ncnn at `atol=1e-2`. Use the ONNX path as a fallback for architectures with ops pnnx can't take
+straight from TorchScript.
 
 Use `pnnx` (recommended) to convert ONNX models to ncnn files.
 
@@ -470,6 +484,41 @@ lives in `sensors/relative_position_math.gd`; the camera shape + hex encoding li
 This encoding matches `godot_rl`'s raycast convention, so ported environments behave the same —
 and the observations feed `NcnnRunner` for zero-runtime deployment on mobile/web/console.
 
+## Observation Normalization (VecNormalize parity)
+
+If you trained with SB3's `VecNormalize`, your policy expects **normalized** observations. At deploy you
+must reproduce the *frozen* training-time statistics exactly, or the agent silently misbehaves. Two
+pieces make that safe:
+
+1. **Export the frozen stats** from a saved `VecNormalize` pickle to JSON:
+
+   ```bash
+   .venv-train/bin/python scripts/export_vecnormalize_stats.py \
+     --vecnormalize path/to/vecnormalize.pkl --out models/obs_stats.json
+   ```
+
+   This dumps `{mean, var, epsilon, clip_obs}` (SB3 defaults `epsilon=1e-8`, `clip_obs=10.0`).
+
+2. **Replay them game-side** with `ObsNormalizer` (`addons/godot_native_rl/obs/obs_normalizer.gd`): load
+   the JSON once, then normalize inside `get_obs()` *before* inference — the same manual-composition
+   pattern as the sensors (no controller change):
+
+   ```gdscript
+   const ObsNormalizer = preload("res://addons/godot_native_rl/obs/obs_normalizer.gd")
+   var _norm := ObsNormalizer.new()
+
+   func _ready() -> void:
+       _norm.load_stats("res://models/obs_stats.json")
+
+   func get_obs() -> Dictionary:
+       var raw := _raw_features()                # your unnormalized obs
+       return {"obs": _norm.normalize(raw)}      # clip((obs-mean)/sqrt(var+eps), -clip, clip)
+   ```
+
+The pure math (`addons/godot_native_rl/obs/obs_normalize.gd`) is headless-unit-tested, and the export +
+GDScript sides are pinned to identical arithmetic by a shared parity fixture so train and deploy can't
+drift.
+
 ## Examples
 
 ### Chase The Target (2D)
@@ -480,12 +529,31 @@ with a pre-trained model so it runs out of the box.
 
 - Scene: `examples/chase_the_target/chase_the_target.tscn`
 - From-scratch tutorial: [docs/examples/chase_the_target_tutorial.md](docs/examples/chase_the_target_tutorial.md)
+- Train it two ways: `./scripts/train_chase.sh` (Stable-Baselines3 PPO) or `./scripts/train_cleanrl.sh`
+  (single-file CleanRL PPO over godot_rl's `CleanRLGodotEnv`). Both speak the same bridge, train the same
+  scene, and export ONNX that `scripts/export_to_ncnn.py` converts to native ncnn unchanged.
 
 Run the headless checks (unit tests + protocol + inference smoke + trained-chase):
 
 ```bash
 ./test/run_tests.sh
 ```
+
+> **Fresh clone? Generate the script-class cache once first.** Godot's global `class_name` registry
+> lives in `.godot/global_script_class_cache.cfg`, which is gitignored and is **only** written by an
+> editor/import pass — a plain `--headless`/`--script` run does not create it. On a brand-new checkout
+> (empty `.godot/`) the first `./test/run_tests.sh` can therefore **appear to hang**: a test fails to
+> resolve a `class_name` base, and because the error happens before the test harness calls `quit()`,
+> headless Godot never exits (it sits at ~0% CPU rather than erroring out). Do this once before running
+> the suite:
+>
+> ```bash
+> godot --headless --editor --quit      # imports the project and writes the class cache
+> git clean -f -- '*.gd.uid'            # that pass scatters *.gd.uid files — don't commit them
+> ```
+>
+> Opening the project in the Godot editor once has the same effect. After that, `./test/run_tests.sh`
+> runs headless normally.
 
 ### 3D Raycast Rover
 
