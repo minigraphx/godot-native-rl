@@ -37,13 +37,15 @@ func _initialize() -> void:
 	h.assert_true((off3[0] - Vector2(-10.0, -10.0)).length() < 1e-5, "cell 0,0 at (-10,-10)")
 	# center cell (i1,j1) at index 1*3+1 = 4 sits on origin
 	h.assert_true(off3[4].length() < 1e-5, "center cell at origin")
-	# even grid offset by half-cell: 2/2==1 -> shift -(1)*10 = -10
+	# even grid puts a cell boundary on origin: 2/2==1 -> shift -(1)*10 = -10 (whole cell)
 	var off2: Array = GridSensorMath.cell_offsets(2, 2, 10.0, 10.0)
 	h.assert_eq(off2.size(), 4, "2x2 -> 4 offsets")
 	h.assert_true((off2[0] - Vector2(-10.0, -10.0)).length() < 1e-5, "even cell 0,0 at (-10,-10)")
-	# asymmetric steps
+	# asymmetric steps: step_a != step_b; shift_a = -(1/2)*5 = 0, shift_b = -(2/2)*7 = -7
 	var offab: Array = GridSensorMath.cell_offsets(1, 2, 5.0, 7.0)
 	h.assert_eq(offab.size(), 2, "1x2 -> 2 offsets")
+	h.assert_true((offab[0] - Vector2(0.0, -7.0)).length() < 1e-5, "1x2 cell 0,0 at (0,-7)")
+	h.assert_true((offab[1] - Vector2(0.0, 0.0)).length() < 1e-5, "1x2 cell 0,1 at (0,0)")
 
 	# build_obs: empty cells -> all zeros
 	var empty_cells: Array = [[], [], [], [], [], [], [], [], []]

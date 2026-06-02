@@ -27,8 +27,9 @@ static func obs_index(cell_i: int, cell_j: int, layer_slot: int, grid_b: int, la
 	return (cell_i * grid_b * layers) + (cell_j * layers) + layer_slot
 
 # Local cell-center offsets (Vector2) relative to the sensor origin. Integer-division
-# shift matches godot_rl: odd grids are symmetric about origin, even grids offset by
-# half a cell. Order is i outer / j inner -> element index = i*grid_b + j.
+# shift matches godot_rl: odd grids are symmetric about origin; even grids place a cell
+# boundary on the origin (shift = -(grid/2)*step, a whole cell for grid==2). Order is
+# i outer / j inner -> element index = i*grid_b + j.
 static func cell_offsets(grid_a: int, grid_b: int, step_a: float, step_b: float) -> Array:
 	var offsets: Array = []
 	if grid_a < 1 or grid_b < 1:
