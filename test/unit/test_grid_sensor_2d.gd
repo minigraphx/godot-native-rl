@@ -51,6 +51,23 @@ func _initialize() -> void:
 			found_translated = true
 	h.assert_true(found_translated, "center cell shifted to node position")
 
+	# Multi-layer mask through the wrapper: 2 layers -> obs_size doubles, an object on
+	# both mapped layers increments both slots of its cell (integration of n_layers > 1).
+	s.position = Vector2.ZERO
+	s.detection_mask = 0b101
+	h.assert_eq(s.obs_size(), 18, "2 layers -> obs_size 3*3*2")
+	var multi_fn := func(c: Vector2, _sz: Vector2) -> Array:
+		if c.length() < 1e-5:
+			return [0b101]
+		return []
+	s.set_overlap_fn_for_test(multi_fn)
+	var obs_multi: Array = s.get_observation()
+	h.assert_eq(obs_multi.size(), 18, "multi-layer obs length == obs_size")
+	# center cell (i1,j1) base index = (1*3+1)*2 = 8; both layer slots set
+	h.assert_eq(obs_multi[8], 1.0, "center cell layer slot 0 -> 1")
+	h.assert_eq(obs_multi[9], 1.0, "center cell layer slot 1 -> 1")
+	s.detection_mask = 1
+
 	# Degenerate grid -> empty obs + obs_size 0
 	s.grid_size_x = 0
 	h.assert_eq(s.get_observation().size(), 0, "grid 0 -> empty obs")
