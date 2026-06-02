@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(gh search *)",
-      "Bash(gh label list *)"
+      "Bash(gh label list *)",
+      "Bash(godot *)",
+      "Bash(./test/run_tests.sh*)",
+      "Bash(.venv-train/bin/python *)",
+      "Bash(.venv/bin/pnnx *)",
+      "Bash(.venv/bin/python scripts/verify_ncnn_parity.py *)"
     ]
+  },
+  "enabledPlugins": {
+    "superpowers@superpowers-marketplace": true
   }
 }
