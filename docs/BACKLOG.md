@@ -197,7 +197,18 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
 
 ## Training backends
 
-17. ⬜ **CleanRL backend** — single-file PPO; godot_rl wrapper already exists. Small.
+17. ✅ **CleanRL backend** — single-file PPO over godot_rl's `CleanRLGodotEnv`.
+    **Done 2026-06-02** — spec `docs/superpowers/specs/2026-06-02-cleanrl-backend-design.md`, plan
+    `docs/superpowers/plans/2026-06-02-cleanrl-backend.md`. Shipped `scripts/train_cleanrl.py` (single-file
+    CleanRL-style PPO; pure unit-tested helpers — GAE, action-dim/`num_updates` math, immutable `PPOConfig`,
+    `layer_init` — with all heavy imports lazy inside `main()`) + `scripts/train_cleanrl.sh` (orchestrator
+    mirroring `train_chase.sh`; reuses `chase_the_target_train.tscn` on port 11008). Trains chase and
+    exports ONNX (`obs`/`state_ins`→`output` naming) consumable **unchanged** by `export_to_ncnn.py` →
+    native ncnn. 17 stdlib-`unittest` tests (`test/python/test_train_cleanrl.py`). Wrapper API:
+    `from godot_rl.wrappers.clean_rl_wrapper import CleanRLGodotEnv` (seed only via constructor; obs comes
+    back as a plain stacked ndarray; `convert_action_space=True` makes chase's `Discrete(5)` →
+    `MultiDiscrete([5])`). **Deferred:** ship a trained CleanRL chase model + golden ncnn regression
+    (needs a real run); continuous / `n_parallel>1` variants.
 18. ⬜ **SampleFactory backend** — async high-throughput training. *v-next, after CameraSensor.*
 19. ⬜ **SKRL backend** — multi-agent + JAX. *v-next, when multi-agent/JAX becomes priority.*
 
@@ -290,11 +301,20 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
 32. ⬜ **Example using `RelativePositionSensor`** — a small 2D seek/navigate-to-target demo (or
     migrate the rover's inline goal obs onto `RelativePositionSensor3D` with a retrain), to show
     the sensor end-to-end and provide a trained regression. *(follow-up from item 7)*
-33. ⬜ **TorchScript → ncnn direct export (skip ONNX)** — extend `export_to_ncnn.py` to accept a
-    `.pt` TorchScript file as input (`torch.jit.trace/script` → pnnx → ncnn), bypassing the ONNX
-    export step entirely. pnnx is designed around TorchScript as its native format, so this path
-    produces better numerical parity and one fewer conversion step. `--via torchscript` (default for
-    `.pt` inputs); `--via onnx` remains as a fallback for architectures with unsupported ops.
+33. ✅ **TorchScript → ncnn direct export (skip ONNX)** — `export_to_ncnn.py` now accepts a `.pt`/`.ptl`
+    TorchScript file and runs pnnx on it directly (no ONNX hop; pnnx's native format → better parity,
+    one fewer step). **Done 2026-06-02** — spec
+    `docs/superpowers/specs/2026-06-02-torchscript-to-ncnn-export-design.md`, plan
+    `docs/superpowers/plans/2026-06-02-torchscript-to-ncnn-export.md`. Added `--via {onnx,torchscript,auto}`
+    (default `auto`: routes by extension), a shared format-agnostic `_convert_with_pnnx` core (temp-dir
+    isolation + output move + intermediate cleanup, never branches on format), and
+    `scripts/verify_torchscript_parity.py` (`torch.jit.load` the `.pt`, run random obs, diff vs ncnn at
+    atol=1e-2; obs dim parsed from `inputshape` via pure `obs_dim_from_inputshape`). `--inputshape` is
+    **required** on the torchscript path (a `.pt` carries no readable shape metadata — fails fast). ONNX
+    path + its tests unchanged. Unit tests (`test/python/test_export_torchscript.py`) + a gated real
+    trace→pnnx→parity integration test (verified `PARITY OK: 50/50` on a tiny `nn.Linear`).
+    **Deferred:** single-obs-input / single-logit-output assumption (recurrent/multi-input out of scope —
+    item 22).
 
 ## Visualization
 
