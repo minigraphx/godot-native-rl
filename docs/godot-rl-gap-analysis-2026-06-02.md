@@ -37,10 +37,10 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `AIController2D` / `AIController3D` base | ✅ | ✅ (`NcnnAIController2D/3D`) | — |
 | `HUMAN` / `TRAINING` modes | ✅ | ✅ | — |
 | `ONNX_INFERENCE` (requires C#/.NET) | ✅ | ❌ → replaced by `NCNN_INFERENCE` | By design |
-| `INHERIT_FROM_SYNC` mode | ✅ per-agent can override scene-level default | ❌ | **Gap** (item 44) |
+| `INHERIT_FROM_SYNC` mode | ✅ per-agent can override scene-level default | ⚠️ enum value declared in controllers but not wired in `NcnnSync` | **Partial** (item 44) |
 | `RECORD_EXPERT_DEMOS` mode | ✅ | ❌ | **Gap** (item 10) |
 | `policy_name` export | ✅ default `"shared_policy"` | ❌ | **Gap** (item 20) |
-| `get_obs_space()` method | ✅ required on every agent | ❌ inferred from `get_obs()` | **Gap** (item 39) |
+| `get_obs_space()` method | ✅ required on every agent | ✅ implemented — delegates to `obs_space_from_obs()` | — (item 39 ✅) |
 | `get_action()` for demo recording | ✅ required when recording | ❌ | **Gap** (item 10) |
 | `expert_demo_save_path` export | ✅ | ❌ | **Gap** (item 10) |
 | `remove_last_episode_key` binding | ✅ undo bad demonstration | ❌ | **Gap** (item 10) |
@@ -118,12 +118,12 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 |---|---|---|
 | 🔴 High | `GridSensor2D/3D` — last major sensor type | 11 |
 | 🔴 High | `policy_name` + `agent_policy_names` — blocks RLlib & PettingZoo | 20 |
-| 🟡 Medium | `get_obs_space()` on agents — upstream plugin portability | 39 |
+| ✅ Done | `get_obs_space()` on agents — already implemented | 39 |
 | 🟡 Medium | `ISensor2D/3D` interface + `collect_sensors()` | 40 |
 | 🟡 Medium | `RaycastSensor3D` multi-class detection mode | 41 |
 | 🟡 Medium | `RelativePositionSensor` multi-target | 42 |
 | 🟡 Medium | Stochastic action sampling (`deterministic_inference`) | 43 |
-| 🟡 Medium | `INHERIT_FROM_SYNC` per-agent control mode | 44 |
+| 🟡 Medium | `INHERIT_FROM_SYNC` — enum exists, not wired in NcnnSync | 44 |
 | 🟡 Medium | `RECORD_EXPERT_DEMOS` + demo infra | 10 |
 | 🟡 Medium | CameraSensor: configurable render res + downscale + RGBA | 38 |
 | 🟠 Lower | RLlib training script (after `policy_name` lands) | 20 |

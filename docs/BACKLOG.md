@@ -169,15 +169,10 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
     plan `docs/superpowers/plans/2026-06-01-hide-and-seek-example.md`. Scaffold scope: trained ncnn
     model + behavioral regression deferred (follow-up); SAC revisits when item 21 lands.
 
-39. ⬜ **`get_obs_space()` on agents — upstream plugin portability** — the upstream
-    `godot_rl_agents_plugin` requires every agent to implement a `get_obs_space() -> Dictionary`
-    method (same format as `get_action_space()`; e.g. `{"obs": {"size": [N], "space": "box"}}`).
-    This repo infers obs space dynamically from a live `get_obs()` call (`NcnnControllerCore.
-    obs_space_from_obs()`), so the method is absent on all current agents. Consequence: agents
-    written for this repo cannot be dropped into the upstream plugin without adding the method, and
-    vice versa. Fix: add a default `get_obs_space()` implementation to `NcnnAIController2D/3D`
-    that calls `obs_space_from_obs(get_obs())` and returns the inferred dict — zero breaking change,
-    full upstream compatibility. Do alongside item 20's `policy_name`/`agent_policy_names` work.
+39. ✅ **`get_obs_space()` on agents — upstream plugin portability** — both
+    `NcnnAIController2D` and `NcnnAIController3D` already implement `get_obs_space() ->
+    Dictionary` (line 126-127 in each), delegating to `NcnnControllerCore.obs_space_from_obs(get_obs())`.
+    Agents written for this repo are already compatible with the upstream plugin's interface.
 40. ⬜ **`ISensor2D` / `ISensor3D` interface** — upstream plugin defines `ISensor2D.gd` /
     `ISensor3D.gd` as shared GDScript interfaces that all sensors implement. This repo has no sensor
     interface: `RaycastSensor`, `RelativePositionSensor`, and `CameraSensor` each stand alone with
@@ -203,12 +198,13 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
     `NcnnAIController2D/3D` and to `NcnnControllerCore.choose_and_apply_action`; when `false`,
     pass logits through a weighted-random draw before applying. Continuous actions are unaffected
     (the deterministic mean output is the standard deploy path).
-44. ⬜ **`INHERIT_FROM_SYNC` per-agent control mode** — upstream's `AIController2D/3D` has an
-    `INHERIT_FROM_SYNC` control mode: each agent's `control_mode` defaults to inheriting the
-    scene-level Sync mode, but can be individually overridden (e.g. one agent in TRAINING while
-    another is in ONNX_INFERENCE in the same scene). This repo has only scene-level mode; all
-    agents always use the same mode. Add `INHERIT_FROM_SYNC` as a value in the controller's
-    mode enum and have `NcnnSync` check each agent's own mode before applying the default.
+44. ⬜ **`INHERIT_FROM_SYNC` per-agent control mode — wire up the existing enum value** —
+    `INHERIT_FROM_SYNC` is already declared in both controllers' `ControlModes` enum, but
+    `NcnnSync`'s own `ControlModes` enum omits it and the sync loop never checks per-agent mode.
+    Complete the implementation: add handling in `NcnnSync` so that when an agent's `control_mode
+    == INHERIT_FROM_SYNC` it defers to the sync node's mode, and when it's any other value it
+    overrides independently. This allows mixed-mode scenes (e.g. one agent in TRAINING while
+    another is in NCNN_INFERENCE).
 
 ## Novel addons (neither godot_rl nor Unity — the moat)
 
