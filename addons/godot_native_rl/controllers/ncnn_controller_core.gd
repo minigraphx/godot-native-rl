@@ -6,6 +6,7 @@ extends RefCounted
 # wrapper stays the single source of truth for that exported value.
 
 const InferenceMath = preload("res://addons/godot_native_rl/controllers/inference_math.gd")
+const ActionDecode = preload("res://addons/godot_native_rl/controllers/action_decode.gd")
 
 var done: bool = false
 var reward: float = 0.0
@@ -48,28 +49,27 @@ func accumulate(adapters: Array, ctx) -> void:
 	for adapter in adapters:
 		reward += adapter.drain()
 
-# Pick a discrete action via native ncnn inference and apply it to the agent. Uses the
-# image path when the agent supplies a live frame (get_inference_image()), else the
-# float-vector path. Single discrete action: the first (and only) action key. No-op when
-# the runner is missing/unloaded. The agent Node is passed in, never stored (core stays
-# node-agnostic).
+# Run native ncnn inference and apply the decoded action(s) to the agent. Uses the image path
+# when the agent supplies a live frame (get_inference_image()), else the float-vector path.
+# The raw output is decoded against agent.get_action_space() via ActionDecode, so discrete,
+# continuous, multi-discrete, and multiple simultaneous action keys all deploy. No-op when the
+# runner is missing/unloaded. The agent Node is passed in, never stored (core stays node-agnostic).
 func choose_and_apply_action(agent, runner) -> void:
 	if runner == null or not runner.is_model_loaded():
 		return
-	var action_index: int
+	var output: PackedFloat32Array
 	var img: Image = agent.get_inference_image()
 	if img != null:
-		var logits: PackedFloat32Array = runner.run_inference_image(img, true)
-		action_index = InferenceMath.argmax(logits)
+		output = runner.run_inference_image(img, true)
 	else:
 		var obs_dict: Dictionary = agent.get_obs()
 		assert("obs" in obs_dict, "get_obs() must return a dictionary with an 'obs' key")
-		action_index = runner.run_discrete_action(PackedFloat32Array(obs_dict["obs"]))
-	if action_index < 0:
-		push_error("NcnnControllerCore.choose_and_apply_action: inference returned error sentinel; skipping action.")
+		output = runner.run_inference(PackedFloat32Array(obs_dict["obs"]))
+	var action: Dictionary = ActionDecode.decode_actions(output, agent.get_action_space())
+	if action.is_empty():
+		push_error("NcnnControllerCore.choose_and_apply_action: action decode failed (empty/mismatched output); skipping action.")
 		return
-	var action_key: String = agent.get_action_space().keys()[0]
-	agent.set_action({action_key: action_index})
+	agent.set_action(action)
 
 # Build the godot_rl observation_space from a sample get_obs() dict. Numeric-vector values
 # become {"size": [len], "space": "box"}. String values are image (hex) obs whose shape can't
