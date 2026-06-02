@@ -133,17 +133,18 @@ int NcnnRunner::run_discrete_action(const PackedFloat32Array &p_input) {
         return -1;
     }
 
-    const size_t output_count = output_mat.total();
-    if (output_count == 0) {
+    // Argmax over the logical outputs (w*h*d per channel). Avoid Mat::total() here: it counts the
+    // SIMD-aligned cstep padding, so a w=3 head reports 4 and the padding slot could win the argmax.
+    const PackedFloat32Array values = output_mat_to_packed_float_array(output_mat);
+    if (values.is_empty()) {
         UtilityFunctions::push_error("NcnnRunner.run_discrete_action: output tensor is empty.");
         return -1;
     }
 
-    const float *values = reinterpret_cast<const float *>(output_mat.data);
-    size_t best_index = 0;
+    int best_index = 0;
     float best_value = -std::numeric_limits<float>::infinity();
 
-    for (size_t i = 0; i < output_count; ++i) {
+    for (int i = 0; i < values.size(); ++i) {
         const float current = values[i];
         if (current > best_value) {
             best_value = current;
@@ -151,7 +152,7 @@ int NcnnRunner::run_discrete_action(const PackedFloat32Array &p_input) {
         }
     }
 
-    return static_cast<int>(best_index);
+    return best_index;
 }
 
 bool NcnnRunner::is_model_loaded() const {
@@ -232,11 +233,22 @@ bool NcnnRunner::run_inference_internal(const ncnn::Mat &p_input, ncnn::Mat &r_o
 }
 
 PackedFloat32Array NcnnRunner::output_mat_to_packed_float_array(const ncnn::Mat &p_output) {
+    // Use the logical element count (w*h*d per channel), NOT Mat::total(): ncnn aligns each
+    // channel's cstep up to a SIMD boundary, so total() (== cstep*c) over-counts and would copy
+    // garbage padding (e.g. a w=3, c=1 output reports total()==4). Copy channel-by-channel so the
+    // packed array is exactly the real outputs, contiguous, regardless of internal stride.
     PackedFloat32Array output;
-    const size_t output_count = p_output.total();
-    output.resize(static_cast<int>(output_count));
-    if (output_count > 0) {
-        std::memcpy(output.ptrw(), p_output.data, output_count * sizeof(float));
+    const int per_channel = p_output.w * (p_output.h > 0 ? p_output.h : 1) * (p_output.d > 0 ? p_output.d : 1);
+    const int channels = p_output.c > 0 ? p_output.c : 1;
+    const int element_count = per_channel * channels;
+    output.resize(element_count);
+    if (element_count <= 0) {
+        return output;
+    }
+    float *dst = output.ptrw();
+    for (int q = 0; q < channels; ++q) {
+        const float *src = p_output.channel(q);
+        std::memcpy(dst + static_cast<size_t>(q) * per_channel, src, static_cast<size_t>(per_channel) * sizeof(float));
     }
     return output;
 }

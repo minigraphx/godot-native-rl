@@ -16,7 +16,8 @@ complement to godot_rl, grow toward full replacement.
 - Full **train → convert → deploy loop** works end-to-end and is in CI-style headless tests.
 - The reusable library lives under **`addons/godot_native_rl/`** (item 5): `sync.gd` (`NcnnSync`,
   the bridge), `controllers/` (`NcnnControllerCore` RefCounted core with shared
-  `choose_and_apply_action` for float + **image** (`run_inference_image`) deploy + `InferenceMath.argmax`;
+  `choose_and_apply_action` decoding **all godot_rl action types** (discrete, continuous, multi-discrete,
+  multi-key) via pure `action_decode.gd` for float + **image** (`run_inference_image`) deploy;
   thin `NcnnAIController2D`/`NcnnAIController3D` with a `get_inference_image()` hook),
   `reward/` (`RewardBuilder`/`RewardAdapter`/terms), `sensors/`
   (`RaycastSensor2D`/`RaycastSensor3D` + `RelativePositionSensor2D`/`RelativePositionSensor3D` +
@@ -71,6 +72,12 @@ complement to godot_rl, grow toward full replacement.
   second `[1]` is godot-rl's vestigial `state_ins` input — pnnx prunes it → clean `in0`/`out0`.
 - **Parity tolerance is `atol=1e-2`** — torch dynamo exporter vs ncnn InnerProduct differ by
   ~1e-3 to 5e-3 in float32; argmax is stable.
+- **`ncnn::Mat::total()` over-counts (SIMD padding).** `total()` is `cstep * c`, and `cstep` is aligned up
+  to a 16-byte boundary, so a `w=3` output reports 4 — copying `total()` floats yields a garbage trailing
+  value (and can skew argmax). `NcnnRunner` copies the logical `w*h*d` elements per channel via
+  `channel(q)` instead. This was fixed for item 21 (continuous deploy made it visible); **rebuild the
+  extension** (`scons ... target=template_debug` and `template_release`) on a fresh clone — `bin/` is
+  gitignored.
 - **The bridge sets `done` at `reset_after`** (godot_rl convention) so episodes terminate and
   `ep_rew_mean` appears. (A future chip splits this into `terminated`/`truncated`.)
 - **`class_name` is unreliable headless:** the global class registry comes from
@@ -139,7 +146,8 @@ complement to godot_rl, grow toward full replacement.
     golden regression), 7 (RelativePositionSensor2D/3D), 8 (CameraSensor — hex image obs protocol),
     36 (deploy-side image inference — `run_inference_image` glue + synthetic-CNN golden),
     30 (ParallelArena — parallel multi-agent training, ~6.2× speedup measured),
-    12 (Hide & Seek example — 2D 1v1 parameter-sharing self-play, scaffold + smoke test). 9 partial (socket
+    12 (Hide & Seek example — 2D 1v1 parameter-sharing self-play, scaffold + smoke test),
+    21 (continuous + multi-key action deploy). 9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 21–24 (deploy-side inference gaps: continuous/multi-key
     actions, recurrent/LSTM, batched multi-agent, VecNormalize parity) and 25 (Asset Library release —

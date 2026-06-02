@@ -191,10 +191,22 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
 These are current limitations of the **inference helper** (`NcnnRunner` + controller), not of ncnn or
 of godot_rl training — godot_rl can train these; we just can't yet *deploy* them natively.
 
-21. ⬜ **Continuous + multi-key action deployment** — `run_discrete_action` is argmax-only on the first
-    action key. Add continuous (PPO-continuous / SAC: mean output, optional tanh squash), multi-discrete,
-    and multiple simultaneous action keys to the runner + controller. *(verification for continuous must
-    check numerical closeness, not argmax — see `ncnn_vs_onnx.md`)*
+21. ✅ **Continuous + multi-key action deployment** — `run_discrete_action` was argmax-only on the first
+    action key. Added pure `addons/godot_native_rl/controllers/action_decode.gd` (`decode_actions` walks
+    the action_space keys, argmax per discrete segment, optional per-key tanh squash per continuous
+    segment) and routed `NcnnControllerCore.choose_and_apply_action` through `run_inference`/
+    `run_inference_image` + decode — so continuous (PPO-continuous / SAC), multi-discrete, and multiple
+    simultaneous action keys all deploy.
+    **Done 2026-06-02** — spec `docs/superpowers/specs/2026-06-01-continuous-multikey-action-deployment-design.md`,
+    plan `docs/superpowers/plans/2026-06-01-continuous-multikey-action-deployment.md`. Verified by
+    GDScript unit tests (`test_action_decode.gd`, updated `test_controller_inference.gd`) + a committed
+    seeded synthetic-MLP golden (`scripts/make_synthetic_continuous.py` →
+    `models/synthetic_continuous.ncnn.*` + golden JSON) asserting `run_inference` parity at **atol=1e-2**
+    (numerical closeness, not argmax) and the continuous decode (raw + tanh). **Required a C++ fix** (not
+    just GDScript as first scoped): the end-to-end golden exposed `NcnnRunner` copying `ncnn::Mat::total()`
+    elements, which counts SIMD cstep padding (a `w=3` output over-reports as 4) — fixed to copy the
+    logical `w*h*d` per channel; **rebuild the extension on a fresh clone** (`bin/` gitignored). Full suite
+    green from a clean cache. **Unblocks SAC for the hide & seek example (item 12).**
 22. ⬜ **Recurrent / LSTM policy support** — controller is feed-forward and stateless per call. Carry
     hidden state across frames so recurrent policies deploy. (ncnn already has LSTM/GRU layers.)
 23. ⬜ **Batched multi-agent inference** — each agent currently runs its own forward pass (linear cost).

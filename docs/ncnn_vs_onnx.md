@@ -223,10 +223,11 @@ list both honestly so you can plan around them.
 
 ### Current limitations of this project (truth in advertising)
 
-- **Discrete, single action-key only.** `run_discrete_action` returns one argmax index for the first
-  action key. **Continuous** action spaces (PPO-continuous, SAC), **multi-discrete**, and multiple
-  simultaneous action keys are not yet handled by the inference helper — you'd extend `NcnnRunner` /
-  the controller. (godot_rl *training* supports more; this is a deploy-side gap, not an ncnn limit.)
+- **All godot_rl action types deploy (as of item 21).** The controller decodes discrete, **continuous**
+  (PPO-continuous / SAC mean, optional per-key tanh squash), **multi-discrete**, and multiple simultaneous
+  action keys via pure `action_decode.gd` (`run_inference` + segment decode). Continuous parity is checked
+  by numerical closeness (`atol≈1e-2`), not argmax. Remaining deploy-side gaps: recurrent/LSTM state
+  (item 22), batched multi-agent inference (item 23), and observation-normalization parity (item 24).
 - **No recurrent / LSTM state handling.** The controller is feed-forward and stateless per call. A
   recurrent policy would need you to carry hidden state across frames yourself. (ncnn itself supports
   LSTM/GRU layers — the gap is in this project's controller, not the runtime.)
