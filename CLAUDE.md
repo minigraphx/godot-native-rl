@@ -17,7 +17,9 @@ complement to godot_rl, grow toward full replacement.
 - The reusable library lives under **`addons/godot_native_rl/`** (item 5): `sync.gd` (`NcnnSync`,
   the bridge), `controllers/` (`NcnnControllerCore` RefCounted core with shared
   `choose_and_apply_action` decoding **all godot_rl action types** (discrete, continuous, multi-discrete,
-  multi-key) via pure `action_decode.gd` for float + **image** (`run_inference_image`) deploy;
+  multi-key) via pure `action_decode.gd` for float + **image** (`run_inference_image`) deploy, plus pure
+  `obs_normalize.gd` (`ObsNormalize`) replaying SB3 `VecNormalize` obs stats game-side **before**
+  inference (the pre-inference mirror of post-inference `action_decode.gd`);
   thin `NcnnAIController2D`/`NcnnAIController3D` with a `get_inference_image()` hook),
   `reward/` (`RewardBuilder`/`RewardAdapter`/terms), `sensors/`
   (`RaycastSensor2D`/`RaycastSensor3D` + `RelativePositionSensor2D`/`RelativePositionSensor3D` +
@@ -58,6 +60,9 @@ complement to godot_rl, grow toward full replacement.
   (auto-derives inputshape, runs pnnx, verifies parity, cleans intermediates). Flags: `--skip-verify`,
   `--keep-intermediates`, `--inputshape`, `--outdir`. Underlying manual steps: `../.venv/bin/pnnx model.onnx
   'inputshape=[1,5],[1]'` then `scripts/verify_ncnn_parity.py <onnx> <param> <bin> in0 out0`.
+- **Export VecNormalize stats (deploy):** `.venv-train/bin/python scripts/export_vecnormalize.py
+  vec_normalize.pkl` → JSON; set the controller's `obs_norm_stats_path` so `ObsNormalize` replays
+  the obs mean/std game-side before inference (policies trained with SB3 `VecNormalize`).
 
 ## Operational gotchas (learned the hard way)
 
@@ -147,7 +152,8 @@ complement to godot_rl, grow toward full replacement.
     36 (deploy-side image inference — `run_inference_image` glue + synthetic-CNN golden),
     30 (ParallelArena — parallel multi-agent training, ~6.2× speedup measured),
     12 (Hide & Seek example — 2D 1v1 parameter-sharing self-play, scaffold + smoke test),
-    21 (continuous + multi-key action deploy). 9 partial (socket
+    21 (continuous + multi-key action deploy),
+    24 (obs-normalization VecNormalize parity). 9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 21–24 (deploy-side inference gaps: continuous/multi-key
     actions, recurrent/LSTM, batched multi-agent, VecNormalize parity) and 25 (Asset Library release —

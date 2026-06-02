@@ -204,6 +204,11 @@ Then set:
 - `model_param_path = "res://models/your_model.ncnn.param"`
 - `model_bin_path = "res://models/your_model.ncnn.bin"`
 
+**VecNormalize policies:** if you trained with SB3 `VecNormalize`, export its stats with
+`.venv-train/bin/python scripts/export_vecnormalize.py path/to/vec_normalize.pkl` and set the
+controller's `obs_norm_stats_path` to the generated JSON. The addon replays the running mean/std
+game-side before inference (the network itself does not carry them).
+
 ### 4) Verify the conversion (recommended)
 
 `pnnx` is reliable for the simple MLP policies typical of RL agents, but a conversion can

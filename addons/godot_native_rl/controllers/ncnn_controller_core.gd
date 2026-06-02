@@ -6,6 +6,7 @@ extends RefCounted
 # wrapper stays the single source of truth for that exported value.
 
 const ActionDecode = preload("res://addons/godot_native_rl/controllers/action_decode.gd")
+const ObsNormalize = preload("res://addons/godot_native_rl/controllers/obs_normalize.gd")
 
 var done: bool = false
 var reward: float = 0.0
@@ -13,6 +14,7 @@ var n_steps: int = 0
 var needs_reset: bool = false
 var heuristic: String = "human"
 var reward_source = null
+var obs_norm_stats: Dictionary = {}
 
 func step(reset_after: int) -> void:
 	n_steps += 1
@@ -63,7 +65,14 @@ func choose_and_apply_action(agent, runner) -> void:
 	else:
 		var obs_dict: Dictionary = agent.get_obs()
 		assert("obs" in obs_dict, "get_obs() must return a dictionary with an 'obs' key")
-		output = runner.run_inference(PackedFloat32Array(obs_dict["obs"]))
+		var obs_vec := PackedFloat32Array(obs_dict["obs"])
+		if not obs_norm_stats.is_empty():
+			obs_vec = ObsNormalize.normalize(obs_vec, obs_norm_stats["mean"], obs_norm_stats["var"],
+				obs_norm_stats["epsilon"], obs_norm_stats["clip_obs"])
+			if obs_vec.is_empty():
+				push_error("NcnnControllerCore.choose_and_apply_action: obs normalization failed (size mismatch); skipping action.")
+				return
+		output = runner.run_inference(obs_vec)
 	var action: Dictionary = ActionDecode.decode_actions(output, agent.get_action_space())
 	if action.is_empty():
 		push_error("NcnnControllerCore.choose_and_apply_action: action decode failed (empty/mismatched output); skipping action.")

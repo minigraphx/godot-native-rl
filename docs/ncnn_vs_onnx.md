@@ -201,9 +201,11 @@ list both honestly so you can plan around them.
   exact same transform (same operations, same order) at deploy, or the policy silently receives garbage
   and acts nonsensically — with **no error**. This project's safe pattern: normalize *inside*
   `get_obs()` and run that **same code** during training and inference (the chase example does this; its
-  trainer uses `VecMonitor` but **not** `VecNormalize`). If you instead train with SB3 `VecNormalize`
-  (or any running mean/std), you have to export those statistics and replay them yourself game-side —
-  the converted network does not carry them.
+  trainer uses `VecMonitor` but **not** `VecNormalize`).
+  If you instead train with SB3 `VecNormalize` (running mean/std), export those statistics with
+  `scripts/export_vecnormalize.py vec_normalize.pkl` and point the controller at the resulting JSON via
+  its `obs_norm_stats_path` — the addon replays the exact `clip((obs-mean)/sqrt(var+eps), ±clip_obs)`
+  transform game-side before inference (pure `ObsNormalize`, verified against SB3 at `atol 1e-6`).
 - **Deploy is deterministic; training was stochastic.** PPO explores by *sampling* its action
   distribution. This project deploys via **argmax** (`run_discrete_action`), i.e. the greedy mode.
   That's usually what you want at runtime, but it is a behavior change — researchers comparing
@@ -227,7 +229,7 @@ list both honestly so you can plan around them.
   (PPO-continuous / SAC mean, optional per-key tanh squash), **multi-discrete**, and multiple simultaneous
   action keys via pure `action_decode.gd` (`run_inference` + segment decode). Continuous parity is checked
   by numerical closeness (`atol≈1e-2`), not argmax. Remaining deploy-side gaps: recurrent/LSTM state
-  (item 22), batched multi-agent inference (item 23), and observation-normalization parity (item 24).
+  (item 22) and batched multi-agent inference (item 23).
 - **No recurrent / LSTM state handling.** The controller is feed-forward and stateless per call. A
   recurrent policy would need you to carry hidden state across frames yourself. (ncnn itself supports
   LSTM/GRU layers — the gap is in this project's controller, not the runtime.)

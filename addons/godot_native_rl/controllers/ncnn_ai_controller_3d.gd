@@ -3,6 +3,7 @@ extends Node3D
 
 const RewardAdapterScript = preload("res://addons/godot_native_rl/reward/reward_adapter.gd")
 const NcnnControllerCore = preload("res://addons/godot_native_rl/controllers/ncnn_controller_core.gd")
+const ObsNormalize = preload("res://addons/godot_native_rl/controllers/obs_normalize.gd")
 
 enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
 @export var control_mode: ControlModes = ControlModes.INHERIT_FROM_SYNC  # read/written by NcnnSync
@@ -11,6 +12,7 @@ enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
 @export_file("*.bin") var model_bin_path: String = ""
 @export var input_blob_name: String = "in0"
 @export var output_blob_name: String = "out0"
+@export_file("*.json") var obs_norm_stats_path: String = ""
 
 var _core := NcnnControllerCore.new()
 var _ncnn_runner = null
@@ -53,6 +55,7 @@ func _ready() -> void:
 	collect_reward_adapters()
 	if control_mode == ControlModes.NCNN_INFERENCE:
 		_setup_ncnn_runner()
+		_load_obs_norm_stats()
 
 func _setup_ncnn_runner() -> void:
 	if model_param_path.is_empty() or model_bin_path.is_empty():
@@ -71,6 +74,24 @@ func _setup_ncnn_runner() -> void:
 
 func set_ncnn_runner_for_test(runner) -> void:
 	_ncnn_runner = runner
+
+func _load_obs_norm_stats() -> void:
+	if obs_norm_stats_path.is_empty():
+		return
+	var f := FileAccess.open(obs_norm_stats_path, FileAccess.READ)
+	if f == null:
+		push_error("NcnnAIController3D: cannot open obs_norm_stats_path '%s'." % obs_norm_stats_path)
+		return
+	var text := f.get_as_text()
+	f.close()
+	var parsed = JSON.parse_string(text)
+	if not (parsed is Dictionary) or not ObsNormalize.validate(parsed):
+		push_error("NcnnAIController3D: invalid obs-norm stats JSON at '%s'." % obs_norm_stats_path)
+		return
+	_core.obs_norm_stats = ObsNormalize.to_typed(parsed)
+
+func set_obs_norm_stats_for_test(stats: Dictionary) -> void:
+	_core.obs_norm_stats = stats
 
 func infer_and_act() -> void:
 	_core.choose_and_apply_action(self, _ncnn_runner)
