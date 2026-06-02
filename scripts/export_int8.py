@@ -92,7 +92,7 @@ def run_export_int8(
     """
     import int8_calibration as cal
 
-    param_path, bin_path = Path(param), Path(binf)
+    param_path, bin_path = Path(param).resolve(), Path(binf).resolve()
     if not param_path.is_file() or not bin_path.is_file():
         print(f"ERROR: fp32 model not found: {param}, {binf}", file=sys.stderr)
         return 1
