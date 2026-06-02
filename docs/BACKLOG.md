@@ -169,7 +169,7 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
     plan `docs/superpowers/plans/2026-06-01-hide-and-seek-example.md`. Scaffold scope: trained ncnn
     model + behavioral regression deferred (follow-up); SAC revisits when item 21 lands.
 
-36. ⬜ **`get_obs_space()` on agents — upstream plugin portability** — the upstream
+39. ⬜ **`get_obs_space()` on agents — upstream plugin portability** — the upstream
     `godot_rl_agents_plugin` requires every agent to implement a `get_obs_space() -> Dictionary`
     method (same format as `get_action_space()`; e.g. `{"obs": {"size": [N], "space": "box"}}`).
     This repo infers obs space dynamically from a live `get_obs()` call (`NcnnControllerCore.
@@ -178,6 +178,37 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
     vice versa. Fix: add a default `get_obs_space()` implementation to `NcnnAIController2D/3D`
     that calls `obs_space_from_obs(get_obs())` and returns the inferred dict — zero breaking change,
     full upstream compatibility. Do alongside item 20's `policy_name`/`agent_policy_names` work.
+40. ⬜ **`ISensor2D` / `ISensor3D` interface** — upstream plugin defines `ISensor2D.gd` /
+    `ISensor3D.gd` as shared GDScript interfaces that all sensors implement. This repo has no sensor
+    interface: `RaycastSensor`, `RelativePositionSensor`, and `CameraSensor` each stand alone with
+    no common base. Add `ISensor2D` / `ISensor3D` interface scripts with `get_observation() ->
+    Array` and `obs_size() -> int` stubs, have all existing sensors extend them, and implement
+    `collect_sensors()` on `NcnnControllerCore` (deferred from items 3 and 5) — enables
+    auto-discovery of child sensors without manual obs composition. Low effort; enables item 41–42.
+41. ⬜ **`RaycastSensor3D` multi-class detection mode** — upstream's `RaycastSensor3D` has a
+    `class_sensor: bool` export + `boolean_class_mask` that encodes multiple object types per ray
+    (one boolean slot per detected class, in addition to or instead of normalized distance).
+    This repo's `RaycastSensor3D` is distance-only. Add `class_sensor` + `detection_classes`
+    (Array[int] of collision layers to distinguish) and extend `raycast_math` to emit per-class
+    one-hot segments, keeping the distance encoding as an optional additional slot.
+42. ⬜ **`RelativePositionSensor` multi-target support** — upstream's `PositionSensor2D/3D` takes
+    an `Array[Node2D/Node3D]` of targets and encodes each independently (concatenated). This repo's
+    `RelativePositionSensor2D/3D` takes a single `target_path`. Extend to accept an
+    `Array[NodePath]` of targets; encode each as `[dir_x, dir_y, (dir_z,) dist_norm]` and
+    concatenate. Update `obs_size()` accordingly. Missing targets remain zero-filled.
+43. ⬜ **Stochastic action sampling (`deterministic_inference` flag)** — upstream `Sync` and
+    `AIController` expose a `deterministic_inference` export (default `true`); when `false`,
+    discrete actions are sampled from `softmax(logits)` rather than `argmax`. This allows
+    exploration during eval or human-in-the-loop play without retraining. Add the flag to
+    `NcnnAIController2D/3D` and to `NcnnControllerCore.choose_and_apply_action`; when `false`,
+    pass logits through a weighted-random draw before applying. Continuous actions are unaffected
+    (the deterministic mean output is the standard deploy path).
+44. ⬜ **`INHERIT_FROM_SYNC` per-agent control mode** — upstream's `AIController2D/3D` has an
+    `INHERIT_FROM_SYNC` control mode: each agent's `control_mode` defaults to inheriting the
+    scene-level Sync mode, but can be individually overridden (e.g. one agent in TRAINING while
+    another is in ONNX_INFERENCE in the same scene). This repo has only scene-level mode; all
+    agents always use the same mode. Add `INHERIT_FROM_SYNC` as a value in the controller's
+    mode enum and have `NcnnSync` check each agent's own mode before applying the default.
 
 ## Novel addons (neither godot_rl nor Unity — the moat)
 
@@ -338,4 +369,4 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     defaults gracefully for single-policy SB3 — so today's training is unaffected. Multi-policy
     RLlib/PettingZoo routing will break without this field. Fix: add a `policy_name` export to
     `NcnnAIController2D/3D` (default `"shared_policy"`) and collect it into `agent_policy_names`
-    in the env_info message alongside item 36's `get_obs_space()` work.
+    in the env_info message alongside item 39's `get_obs_space()` work.
