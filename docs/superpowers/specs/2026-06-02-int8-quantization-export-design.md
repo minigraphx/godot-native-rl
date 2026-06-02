@@ -64,8 +64,16 @@ Idempotent cmake build of **only** `ncnn2table`, `ncnn2int8`, `ncnnoptimize` fro
 A pure helper that produces a set of representative input tensors as `.npy` files plus a newline list
 file pointing at them.
 
-- For the synthetic CNN: sample N (default ~16) image tensors matching the CNN's input
-  shape/normalization (the same layout `run_inference_image` feeds — RGB, normalized to [0,1]).
+- For the synthetic CNN: sample N image tensors matching the CNN's input shape/normalization
+  (the same layout `run_inference_image` feeds — RGB, normalized to [0,1]).
+- **Default N = 256.** Rationale: ncnn2table's KL calibration bins each quantizable layer's input
+  activations into a fixed **2048-bin histogram**. The synthetic CNN is `8×8×3`, so its two
+  quantizable blobs see only 192 (conv `in0`) and 256 (FC input) values per sample. At 16 samples
+  that is ~1.5–2 values per histogram bin — the KL threshold would be noise-dominated and the golden
+  flaky around the 0.9 bar. 256 samples gives ~24–32 values/bin, a populated, stable histogram, at
+  negligible cost (each sample is 192 bytes and microseconds of conv). The count is a parameter;
+  during implementation, **empirically sweep 64/128/256/512** and lock the smallest count that clears
+  the threshold with healthy margin rather than trusting the arithmetic alone.
 - The fixture set is deterministic (seeded) for a reproducible golden.
 - Documented explicitly: **real policies should calibrate on captured game frames**; the sampled set
   is a regression fixture, not a substitute for representative data.
