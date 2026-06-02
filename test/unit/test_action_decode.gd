@@ -63,4 +63,9 @@ func _initialize() -> void:
 		{"x": {"size": 2, "action_type": "bogus"}}),
 		{}, "unknown action_type -> {}")
 
+	# Non-positive size -> {} sentinel (degenerate action space; fail fast, don't leak -1).
+	h.assert_eq(ActionDecode.decode_actions(PackedFloat32Array([0.1, 0.2]),
+		{"x": {"size": 0, "action_type": "discrete"}}),
+		{}, "size 0 -> {}")
+
 	h.finish(self)

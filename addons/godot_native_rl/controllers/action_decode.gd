@@ -20,6 +20,9 @@ static func decode_actions(output: PackedFloat32Array, action_space: Dictionary)
 		var entry: Dictionary = action_space[key]
 		var size: int = entry["size"]
 		var action_type: String = entry["action_type"]
+		if size <= 0:
+			push_error("ActionDecode.decode_actions: action key '%s' has non-positive size %d." % [key, size])
+			return {}
 		if index + size > output.size():
 			push_error("ActionDecode.decode_actions: output too short for key '%s' (need %d at offset %d, have %d)." % [key, size, index, output.size()])
 			return {}
