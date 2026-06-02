@@ -3,6 +3,25 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 GODOT="${GODOT:-godot}"
 
+# Self-heal the script-class cache. Godot's global `class_name` registry lives in
+# .godot/global_script_class_cache.cfg, which is gitignored and is ONLY written by an editor/import
+# pass — not by --headless/--script. Without it, a test that resolves a `class_name` base errors inside
+# _initialize() *before* the harness reaches quit(), so headless Godot HANGS FOREVER (~0% CPU) instead
+# of failing. On a fresh clone (or right after `rm`-ing the cache), regenerate it once with an import
+# pass, then continue. See CLAUDE.md ("Fresh-clone trap").
+if [ ! -f .godot/global_script_class_cache.cfg ]; then
+	echo "== Script-class cache missing — generating it once (headless --script can't write it) =="
+	"$GODOT" --headless --editor --quit >/dev/null 2>&1 || true
+	git clean -fq -- '*.gd.uid' 2>/dev/null || true
+fi
+if [ ! -f .godot/global_script_class_cache.cfg ]; then
+	echo "ERROR: could not generate .godot/global_script_class_cache.cfg (script-class registry)." >&2
+	echo "       Generate it manually before running the suite, then re-run:" >&2
+	echo "         $GODOT --headless --editor --quit   # imports the project, writes the cache" >&2
+	echo "         git clean -f -- '*.gd.uid'          # that pass scatters *.gd.uid — don't commit them" >&2
+	exit 1
+fi
+
 echo "== Unit tests (headless GDScript) =="
 shopt -s nullglob
 for t in test/unit/test_*.gd; do

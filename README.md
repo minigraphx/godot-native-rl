@@ -159,8 +159,22 @@ argmax/logit parity, and cleans up pnnx intermediates:
 
     .venv-train/bin/python scripts/export_to_ncnn.py models/your_model.onnx
 
-Useful flags: `--skip-verify`, `--keep-intermediates`, `--inputshape '[1,N],[1]'`, `--outdir DIR`.
+Useful flags: `--skip-verify`, `--keep-intermediates`, `--inputshape '[1,N],[1]'`, `--outdir DIR`,
+`--via {onnx,torchscript,auto}`.
 The manual `pnnx` + `verify_ncnn_parity.py` steps below are the underlying operations it wraps.
+
+#### From TorchScript (skip ONNX)
+
+If you already have a TorchScript policy (`.pt`/`.ptl`), convert it **directly** — one fewer hop, and
+often better numerical parity since pnnx's native format *is* TorchScript. `--inputshape` is required
+(a `.pt` carries no readable shape metadata, so the tool fails fast without it):
+
+    .venv-train/bin/python scripts/export_to_ncnn.py models/policy.pt --inputshape '[1,5]'
+
+`--via` defaults to `auto` (routes by extension: `.onnx` → onnx, `.pt`/`.ptl` → torchscript); pass it
+explicitly to force a path. Parity is checked by running the `.pt` through `torch.jit` and diffing
+against ncnn at `atol=1e-2`. Use the ONNX path as a fallback for architectures with ops pnnx can't take
+straight from TorchScript.
 
 Use `pnnx` (recommended) to convert ONNX models to ncnn files.
 
@@ -531,6 +545,9 @@ with a pre-trained model so it runs out of the box.
 
 - Scene: `examples/chase_the_target/chase_the_target.tscn`
 - From-scratch tutorial: [docs/examples/chase_the_target_tutorial.md](docs/examples/chase_the_target_tutorial.md)
+- Train it two ways: `./scripts/train_chase.sh` (Stable-Baselines3 PPO) or `./scripts/train_cleanrl.sh`
+  (single-file CleanRL PPO over godot_rl's `CleanRLGodotEnv`). Both speak the same bridge, train the same
+  scene, and export ONNX that `scripts/export_to_ncnn.py` converts to native ncnn unchanged.
 
 Run the headless checks (unit tests + protocol + inference smoke + trained-chase):
 
