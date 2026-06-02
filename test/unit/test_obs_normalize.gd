@@ -49,4 +49,30 @@ func _initialize() -> void:
 	h.assert_true(typed["mean"] is PackedFloat32Array and absf(typed["clip_obs"] - 5.0) < 1e-6,
 		"to_typed coerces types")
 
+	# --- Golden parity: GDScript helper must reproduce SB3 vn.normalize_obs (atol 1e-6) ---
+	var stats := _load_json("res://models/synthetic_vecnormalize.json")
+	var golden := _load_json("res://models/synthetic_vecnormalize_golden.json")
+	h.assert_true(ObsNormalize.validate(stats), "committed stats fixture validates")
+	var typed_stats := ObsNormalize.to_typed(stats)
+	for gcase in golden["cases"]:
+		var raw := PackedFloat32Array(gcase["raw"])
+		var expected: Array = gcase["normalized"]
+		var got := ObsNormalize.normalize(raw, typed_stats["mean"], typed_stats["var"],
+			typed_stats["epsilon"], typed_stats["clip_obs"])
+		h.assert_eq(got.size(), expected.size(), "golden case length matches")
+		var max_diff := 0.0
+		for i in got.size():
+			max_diff = maxf(max_diff, absf(got[i] - float(expected[i])))
+		h.assert_true(max_diff < 1e-6, "golden case parity (max diff %f < 1e-6)" % max_diff)
+
 	h.finish(self)
+
+
+func _load_json(path: String) -> Dictionary:
+	var f := FileAccess.open(path, FileAccess.READ)
+	assert(f != null, "cannot open %s" % path)
+	var text := f.get_as_text()
+	f.close()
+	var parsed = JSON.parse_string(text)
+	assert(parsed is Dictionary, "cannot parse %s" % path)
+	return parsed
