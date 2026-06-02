@@ -159,7 +159,14 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
      gotcha in CLAUDE.md; the Godot client now self-terminates).
 10. ⬜ **Expert-demo recording (imitation learning)** — godot_rl `RECORD_EXPERT_DEMOS` parity; save
     demos in godot_rl format for BC/GAIL.
-11. ⬜ **GridSensor2D + GridSensor3D** — cell-based spatial detection. *(roadmap spec Track A.3)*
+11. ✅ **GridSensor2D + GridSensor3D** — cell-based spatial detection. *(roadmap spec Track A.3)*
+    **Done 2026-06-03** — spec `docs/superpowers/specs/2026-06-03-grid-sensor-design.md`, plan
+    `docs/superpowers/plans/2026-06-03-grid-sensor.md`. Query-based (fresh each call, immutable),
+    per-layer count encoding (godot_rl-parity index layout), shared pure `grid_sensor_math.gd`
+    (`collision_mapping`/`cell_offsets`/`build_obs`) + thin `grid_sensor_2d.gd`/`grid_sensor_3d.gd`
+    wrappers (Node2D X/Y, Node3D X/Z plane) with an injectable overlap seam for headless tests.
+    GridSensor3D `collide_with_bodies` defaults false (godot_rl StaticBody3D quirk). Headless unit
+    tests for the math helper + both wrappers; full suite green from a clean cache.
 12. ✅ **Hide & Seek example (2D parameter-sharing self-play)** — *reframed from "SAC training
     script"* (SAC needs a continuous action space neither example has, and continuous native deploy
     is blocked on item 21). Shipped a 2D 1v1 hide & seek: one shared PPO policy over a seeker+hider
