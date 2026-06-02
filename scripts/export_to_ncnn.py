@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-"""One-command ONNX -> ncnn convert + parity verify.
+"""One-command ONNX/TorchScript -> ncnn convert + parity verify.
 
-Run under .venv-train (has onnxruntime + ncnn). Shells out to .venv/bin/pnnx for
-the conversion (the only step that needs the .venv interpreter).
+Run under .venv-train (has onnxruntime + ncnn + torch). Shells out to .venv/bin/pnnx
+for the conversion (the only step that needs the .venv interpreter).
+
+ONNX path (default for .onnx): auto-derives inputshape, verifies onnxruntime vs ncnn.
+TorchScript path (default for .pt/.ptl): skips ONNX, runs pnnx on the .pt directly,
+and verifies torch.jit vs ncnn. --inputshape is REQUIRED for TorchScript (a .pt has
+no readable input-shape metadata). --via {onnx,torchscript,auto} forces the path.
 
 Usage:
     .venv-train/bin/python scripts/export_to_ncnn.py models/chase_policy.onnx
+    .venv-train/bin/python scripts/export_to_ncnn.py models/policy.pt --inputshape '[1,5]'
 """
 from __future__ import annotations
 
@@ -22,6 +28,30 @@ DEFAULT_PNNX = REPO_ROOT / ".venv" / "bin" / "pnnx"
 
 _INTERMEDIATE_DOT_SUFFIXES = (".pnnx.bin", ".pnnx.param", ".pnnx.onnx", ".pnnxsim.onnx")
 _INTERMEDIATE_USCORE_SUFFIXES = ("_pnnx.py", "_ncnn.py")
+
+_TORCHSCRIPT_EXTS = (".pt", ".ptl")
+_ONNX_EXTS = (".onnx",)
+
+
+def resolve_via(via: str, path: str) -> str:
+    """Resolve the conversion path (`onnx` or `torchscript`).
+
+    `via` is one of `auto`, `onnx`, `torchscript`. An explicit value is honored
+    regardless of extension. Under `auto`, `.onnx` -> `onnx` and `.pt`/`.ptl` ->
+    `torchscript`; any other extension raises ValueError (pass `--via` explicitly).
+    """
+    if via in ("onnx", "torchscript"):
+        return via
+    if via != "auto":
+        raise ValueError(f"unknown --via {via!r} (expected onnx, torchscript, or auto)")
+    ext = Path(path).suffix.lower()
+    if ext in _ONNX_EXTS:
+        return "onnx"
+    if ext in _TORCHSCRIPT_EXTS:
+        return "torchscript"
+    raise ValueError(
+        f"cannot infer --via from extension {ext!r}; pass --via onnx|torchscript"
+    )
 
 
 class OnnxInput(NamedTuple):
@@ -76,60 +106,36 @@ def ncnn_outputs(outdir: Path, stem: str) -> tuple[Path, Path]:
     return outdir / f"{stem}.ncnn.param", outdir / f"{stem}.ncnn.bin"
 
 
-def run_export(
-    onnx: str,
+def _convert_with_pnnx(
+    input_path: Path,
     *,
-    outdir: str | None = None,
-    inputshape: str | None = None,
-    in_blob: str = "in0",
-    out_blob: str = "out0",
-    skip_verify: bool = False,
-    keep_intermediates: bool = False,
-    pnnx: str = str(DEFAULT_PNNX),
-    runner: Callable = subprocess.run,
-    verifier: Callable | None = None,
-    pnnx_exists: Callable[[str], bool] = lambda p: Path(p).is_file(),
+    out: Path,
+    stem: str,
+    inputshape: str,
+    pnnx: str,
+    runner: Callable,
+    sidecars: Sequence[Path],
+    verify: Callable[[Path, Path], object] | None,
+    keep_intermediates: bool,
 ) -> int:
-    """Convert <onnx> to ncnn and (by default) verify parity. Returns an exit code.
+    """Run pnnx in an isolated temp dir and move the ncnn outputs into `out`.
 
-    pnnx runs in a private temp working directory (the ONNX and any external-data
-    sidecars are copied in) so external data resolves and no pnnx debris pollutes the
-    source/model directory. Only the requested artefacts are moved into outdir.
+    Format-agnostic: callers supply the per-path `sidecars` to copy into the work
+    dir and a `verify(param_path, bin_path) -> result` callable (or None to skip).
+    `verify`'s result must expose `.ok` and `.summary`. Returns an exit code.
     """
-    onnx_path = Path(onnx)
-    if not onnx_path.is_file():
-        print(f"ERROR: ONNX not found: {onnx}", file=sys.stderr)
-        return 1
-
-    out = Path(outdir) if outdir else onnx_path.parent
-    stem = onnx_path.stem
-
-    if inputshape is None:
-        try:
-            inputshape = derive_inputshape(read_onnx_inputs(str(onnx_path)))
-        except ValueError as e:
-            print(f"ERROR: {e}", file=sys.stderr)
-            return 1
-    print(f"inputshape: {inputshape}")
-
-    if not pnnx_exists(pnnx):
-        print(f"ERROR: pnnx not found at {pnnx} (override with --pnnx)", file=sys.stderr)
-        return 1
-
     out.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory() as workdir:
         work = Path(workdir)
-        # Copy the ONNX plus its external-data sidecar into the isolated work dir.
-        # torch/onnx emit the sidecar as "<onnx-name>.data". NOTE: only this
-        # conventional sidecar is handled; ONNX models with arbitrarily-named
-        # external-data shards would need those copied in too.
-        shutil.copy2(onnx_path, work / onnx_path.name)
-        sidecar = onnx_path.parent / (onnx_path.name + ".data")
-        if sidecar.is_file():
-            shutil.copy2(sidecar, work / sidecar.name)
+        # Copy the model plus any sidecars into the isolated work dir so external
+        # data resolves and no pnnx debris pollutes the source/model directory.
+        shutil.copy2(input_path, work / input_path.name)
+        for sidecar in sidecars:
+            if sidecar.is_file():
+                shutil.copy2(sidecar, work / sidecar.name)
 
-        cmd = pnnx_command(pnnx, onnx_path.name, inputshape)
+        cmd = pnnx_command(pnnx, input_path.name, inputshape)
         print(f"running: {' '.join(cmd)} (cwd={work})")
         proc = runner(cmd, cwd=str(work), capture_output=True, text=True)
         if proc.returncode != 0:
@@ -157,15 +163,8 @@ def run_export(
                 if f.is_file():
                     shutil.move(str(f), str(out / f.name))
 
-        if not skip_verify:
-            if verifier is None:
-                try:
-                    from verify_ncnn_parity import verify_parity
-                except ImportError as e:
-                    print(f"ERROR: cannot import verify_parity ({e}); is scripts/ on sys.path?", file=sys.stderr)
-                    return 1
-                verifier = verify_parity
-            result = verifier(str(onnx_path), str(param_path), str(bin_path), in_blob, out_blob)
+        if verify is not None:
+            result = verify(param_path, bin_path)
             if not result.ok:
                 _move_intermediates()  # keep debris for debugging
                 print(f"PARITY FAILED: {result.summary}", file=sys.stderr)
@@ -181,13 +180,130 @@ def run_export(
     return 0
 
 
+def run_export(
+    onnx: str,
+    *,
+    outdir: str | None = None,
+    inputshape: str | None = None,
+    in_blob: str = "in0",
+    out_blob: str = "out0",
+    skip_verify: bool = False,
+    keep_intermediates: bool = False,
+    via: str = "auto",
+    pnnx: str = str(DEFAULT_PNNX),
+    runner: Callable = subprocess.run,
+    verifier: Callable | None = None,
+    ts_verifier: Callable | None = None,
+    pnnx_exists: Callable[[str], bool] = lambda p: Path(p).is_file(),
+) -> int:
+    """Convert a model to ncnn and (by default) verify parity. Returns an exit code.
+
+    The first positional is the input model: an ONNX (`via=onnx`) or a TorchScript
+    `.pt`/`.ptl` (`via=torchscript`). `via=auto` infers the path from the extension.
+    The ONNX path auto-derives `inputshape`; the TorchScript path requires it
+    (a `.pt` has no readable input-shape metadata).
+    """
+    input_path = Path(onnx)
+    if not input_path.is_file():
+        print(f"ERROR: model not found: {onnx}", file=sys.stderr)
+        return 1
+
+    try:
+        resolved_via = resolve_via(via, str(input_path))
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+
+    out = Path(outdir) if outdir else input_path.parent
+    stem = input_path.stem
+
+    if resolved_via == "onnx":
+        if inputshape is None:
+            try:
+                inputshape = derive_inputshape(read_onnx_inputs(str(input_path)))
+            except ValueError as e:
+                print(f"ERROR: {e}", file=sys.stderr)
+                return 1
+        sidecars: list[Path] = [input_path.parent / (input_path.name + ".data")]
+
+        def _onnx_verify(param_path: Path, bin_path: Path):
+            v = verifier
+            if v is None:
+                try:
+                    from verify_ncnn_parity import verify_parity
+                except ImportError as e:
+                    raise ImportError(
+                        f"cannot import verify_parity ({e}); is scripts/ on sys.path?"
+                    ) from e
+                v = verify_parity
+            return v(str(input_path), str(param_path), str(bin_path), in_blob, out_blob)
+
+        verify = None if skip_verify else _onnx_verify
+    else:  # torchscript
+        if inputshape is None:
+            print(
+                "ERROR: --inputshape is required for the torchscript path "
+                "(a .pt has no input-shape metadata), e.g. --inputshape '[1,5]'",
+                file=sys.stderr,
+            )
+            return 1
+        sidecars = []
+
+        def _ts_verify(param_path: Path, bin_path: Path):
+            v = ts_verifier
+            if v is None:
+                try:
+                    from verify_torchscript_parity import verify_torchscript_parity
+                except ImportError as e:
+                    raise ImportError(
+                        f"cannot import verify_torchscript_parity ({e}); "
+                        "is scripts/ on sys.path?"
+                    ) from e
+                v = verify_torchscript_parity
+            return v(
+                str(input_path), str(param_path), str(bin_path),
+                in_blob, out_blob, inputshape,
+            )
+
+        verify = None if skip_verify else _ts_verify
+
+    print(f"via: {resolved_via}")
+    print(f"inputshape: {inputshape}")
+
+    if not pnnx_exists(pnnx):
+        print(f"ERROR: pnnx not found at {pnnx} (override with --pnnx)", file=sys.stderr)
+        return 1
+
+    return _convert_with_pnnx(
+        input_path,
+        out=out,
+        stem=stem,
+        inputshape=inputshape,
+        pnnx=pnnx,
+        runner=runner,
+        sidecars=sidecars,
+        verify=verify,
+        keep_intermediates=keep_intermediates,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
-        description="Convert an ONNX policy to ncnn and verify parity (one command)."
+        description="Convert an ONNX or TorchScript policy to ncnn and verify parity (one command)."
     )
-    p.add_argument("onnx", help="path to the ONNX model")
-    p.add_argument("--outdir", default=None, help="output dir (default: the ONNX file's dir)")
-    p.add_argument("--inputshape", default=None, help="override, e.g. '[1,5],[1]'")
+    p.add_argument("model", help="path to the ONNX or TorchScript (.pt/.ptl) model")
+    p.add_argument(
+        "--via",
+        choices=("onnx", "torchscript", "auto"),
+        default="auto",
+        help="conversion path; 'auto' infers from extension (.onnx vs .pt/.ptl)",
+    )
+    p.add_argument("--outdir", default=None, help="output dir (default: the model file's dir)")
+    p.add_argument(
+        "--inputshape",
+        default=None,
+        help="e.g. '[1,5],[1]'; auto-derived for ONNX, REQUIRED for torchscript",
+    )
     p.add_argument("--in-blob", default="in0", help="ncnn input blob name (default in0)")
     p.add_argument("--out-blob", default="out0", help="ncnn output blob name (default out0)")
     p.add_argument("--skip-verify", action="store_true", help="skip the parity check")
@@ -195,13 +311,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--pnnx", default=str(DEFAULT_PNNX), help="pnnx binary path")
     a = p.parse_args(argv)
     return run_export(
-        a.onnx,
+        a.model,
         outdir=a.outdir,
         inputshape=a.inputshape,
         in_blob=a.in_blob,
         out_blob=a.out_blob,
         skip_verify=a.skip_verify,
         keep_intermediates=a.keep_intermediates,
+        via=a.via,
         pnnx=a.pnnx,
     )
 
