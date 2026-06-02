@@ -181,8 +181,13 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
 
 ## Novel addons (neither godot_rl nor Unity — the moat)
 
-13. ⬜ **INT8 quantization export** — ncnn INT8 (2–4× faster, 4× smaller on mobile). Calibration +
+13. ✅ **INT8 quantization export** — ncnn INT8 (2–4× faster, 4× smaller on mobile). Calibration +
     `ncnn2int8` + argmax-parity check. *(novel-addons spec §3 B3)*
+    **Done 2026-06-02** — spec `docs/superpowers/specs/2026-06-02-int8-quantization-export-design.md`,
+    plan `docs/superpowers/plans/2026-06-02-int8-quantization-export.md`. Pipeline: build_ncnn_tools.sh
+    (vendored ncnn2table/ncnn2int8/ncnnoptimize) + export_int8.py (optimize → KL-calibrate via CHW .npy
+    → ncnn2int8 → argmax-agreement verify, int8 vs fp32 ncnn ≥ 0.9). No C++ changes (libncnn already
+    NCNN_INT8=ON). Synthetic-CNN fixture + GDScript deploy smoke prove NcnnRunner runs int8 natively.
 14. ⬜ **Async inference thread (`NcnnRunnerAsync`)** — non-blocking forward pass on a Godot Thread
     with a completion signal (C++ GDExtension work). *(novel-addons spec §3 B4)*
 15. ⬜ **NavMesh integration sensor** — NavigationServer path distance + next-waypoint direction

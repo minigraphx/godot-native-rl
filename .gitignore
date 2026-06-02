@@ -27,3 +27,7 @@ models/chase_policy.*
 models/rover_checkpoints/
 # Trained SB3/ONNX artifacts (the deployable ncnn model goes to examples/rover_3d/models/ instead)
 models/rover_policy.*
+
+# INT8 quantize tools (built locally, like bin/)
+thirdparty/ncnn/build-tools/
+thirdparty/ncnn/tools-bin/

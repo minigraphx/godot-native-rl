@@ -60,6 +60,64 @@ policies convert to blob names `in0`/`out0` (pnnx prunes the vestigial `state_in
   the "launch a training scene headless without a trainer → hang" and the macOS-sleep hang. Fix is
   folded into **backlog item 9** (protocol v0.8: connect/read timeout).
 
+## INT8 quantization pipeline
+
+INT8 export converts a float32 ncnn model to an INT8-quantized version using KL-divergence
+calibration. The pipeline has three stages, all orchestrated by `scripts/export_int8.py`:
+
+### Stage 1 — optimize
+
+`ncnnoptimize` (from `thirdparty/ncnn/tools-bin/`) fuses and simplifies the fp32 model (e.g. folds
+BatchNorm into Conv weights) before quantization. This step produces a clean `*_opt.ncnn.{param,bin}`
+that `ncnn2table` and `ncnn2int8` operate on.
+
+### Stage 2 — KL-calibrate (`ncnn2table`)
+
+Calibration measures the activation range of each quantizable blob across a sample set, then
+computes a per-blob INT8 quantization scale using KL-divergence minimization over a 2048-bin
+histogram.
+
+**Calibration tensor format:** tensors are CHW float32 `.npy` files, normalized `/255` — the same
+layout and scale that `NcnnRunner.run_inference_image` produces at deploy time. The `ncnn2table`
+`shape=` argument takes WHC order and reverses it internally; `type=1` selects the `.npy` path (no
+OpenCV dependency).
+
+`scripts/int8_calibration.py` generates these tensors from random (or supplied) pixel data. For
+real policies, generate calibration tensors from **captured game frames** that are representative of
+the actual observation distribution — out-of-distribution calibration images will give inaccurate
+scale estimates and degrade accuracy.
+
+**Why sample count matters:** KL calibration builds a 2048-bin activation histogram per blob. For
+the synthetic fixture (8×8×3 input), each sample contributes only ~192 activation values per
+quantizable blob, so 256 samples → roughly 24–32 values per bin — sparse but sufficient for this
+tiny model. Larger real inputs (e.g. 84×84×3) contribute many more values per sample; the default
+256 samples is usually adequate. If you see poor INT8 parity on a real policy, try `--samples 1024`
+or more.
+
+### Stage 3 — ncnn2int8 + parity verify
+
+`ncnn2int8` applies the per-blob scales from the calibration table to produce the INT8 model
+(`*_int8.ncnn.{param,bin}`). `scripts/verify_int8_parity.py` then runs both the INT8 and fp32
+ncnn models over random inputs and measures **argmax agreement** (not logit closeness).
+
+**Why argmax agreement, not logit closeness:** quantization intentionally shifts activations to fit
+INT8 precision — logits will drift by design (sometimes several percent). For RL control what
+matters is that the agent picks the same action, so the metric is the fraction of random inputs on
+which both models return the same argmax. The default threshold is 0.9 (90% agreement); models with
+≥2 distinct outputs (i.e. not degenerate all-same-action) must also be verified.
+
+### No runner changes needed
+
+The static `libncnn.a` is built with `NCNN_INT8=ON`, so `NcnnRunner` already handles INT8 models
+transparently — quantized and fp32 models are loaded and called identically from GDScript. There
+were no C++ changes in backlog item 13.
+
+### Deploy
+
+Load `*_int8.ncnn.{param,bin}` with `NcnnRunner` exactly like fp32. The committed
+`models/synthetic_cnn_int8.ncnn.*` fixture (1.74× smaller than fp32 for this tiny 8×8×3 model;
+real CNN policies see larger gains) is verified by `test/unit/test_int8_deploy.gd`.
+
 ## Where things live
 
 | Need | Path |

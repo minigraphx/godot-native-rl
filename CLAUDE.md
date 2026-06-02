@@ -63,6 +63,10 @@ complement to godot_rl, grow toward full replacement.
 - **Export VecNormalize stats (deploy):** `.venv-train/bin/python scripts/export_vecnormalize.py
   vec_normalize.pkl` → JSON; set the controller's `obs_norm_stats_path` so `ObsNormalize` replays
   the obs mean/std game-side before inference (policies trained with SB3 `VecNormalize`).
+- **Quantize to INT8 (deploy):** `./scripts/build_ncnn_tools.sh` (once) then
+  `.venv-train/bin/python scripts/export_int8.py models/m.ncnn.param models/m.ncnn.bin
+  --width W --height H --channels C --outdir models` (optimize → KL-calibrate → ncnn2int8 →
+  argmax-parity). Produces `m_int8.ncnn.{param,bin}`; deploy via `NcnnRunner` like fp32.
 
 ## Operational gotchas (learned the hard way)
 
@@ -109,6 +113,14 @@ complement to godot_rl, grow toward full replacement.
   conversion that doesn't need the tree use `parent.transform * child.position` (equals
   `to_local(child.global_position)` when `parent` is a direct child, and is offset-invariant — this is
   how `RoverGame.read_obstacles` stays tile-offset-safe for `ParallelArena`).
+- **INT8 quantize tools are NOT in the pip `ncnn` wheel** and the static-lib build sets
+  `NCNN_BUILD_TOOLS=OFF`. Build `ncnn2table`/`ncnn2int8`/`ncnnoptimize` once with
+  `scripts/build_ncnn_tools.sh` (uses `NCNN_SIMPLEOCV=ON`, so no OpenCV; we use the `.npy`
+  calibration path `type=1`). The static `libncnn.a` already has `NCNN_INT8=ON`, so
+  `NcnnRunner` runs int8 models with no C++ changes.
+- **INT8 calibration `.npy` is CHW, normalized /255** (matching `run_inference_image`); the
+  `ncnn2table shape=` arg is WHC and is reversed internally. INT8 parity is an **argmax
+  agreement rate** (default ≥ 0.9), NOT logit closeness — quantization drifts logits by design.
 - **Launching a *training* scene headless without a trainer now times out instead of hanging** —
   `NcnnSync.connect_to_server()` gives up after `connect_timeout_sec` (default 10s, falls back to human
   controls) and `_get_dict_json_message()` quits cleanly after `read_timeout_sec` (default 60s, matches
@@ -153,7 +165,8 @@ complement to godot_rl, grow toward full replacement.
     30 (ParallelArena — parallel multi-agent training, ~6.2× speedup measured),
     12 (Hide & Seek example — 2D 1v1 parameter-sharing self-play, scaffold + smoke test),
     21 (continuous + multi-key action deploy),
-    24 (obs-normalization VecNormalize parity). 9 partial (socket
+    24 (obs-normalization VecNormalize parity),
+    13 (INT8 quantization export). 9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 21–24 (deploy-side inference gaps: continuous/multi-key
     actions, recurrent/LSTM, batched multi-agent, VecNormalize parity) and 25 (Asset Library release —

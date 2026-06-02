@@ -209,6 +209,52 @@ Then set:
 controller's `obs_norm_stats_path` to the generated JSON. The addon replays the running mean/std
 game-side before inference (the network itself does not carry them).
 
+### INT8 quantization (mobile/edge deployment)
+
+INT8 quantization reduces model size by ~4× and inference time by ~2–4× on mobile and edge devices.
+This is a deployment moat: ONNX Runtime / Barracuda lack game-side INT8 support, but ncnn (statically
+linked in this project) has INT8 built in — deploying an INT8 model requires **no C++ changes**.
+
+**1. Build the quantize tools once** (not included in the pip `ncnn` wheel):
+
+```bash
+./scripts/build_ncnn_tools.sh
+```
+
+This builds `ncnn2table`, `ncnn2int8`, and `ncnnoptimize` from the vendored `thirdparty/ncnn/` source
+into `thirdparty/ncnn/tools-bin/`. Uses `NCNN_SIMPLEOCV=ON` so OpenCV is not required.
+
+**2. Export to INT8 (one command):**
+
+```bash
+.venv-train/bin/python scripts/export_int8.py models/your_model.ncnn.param \
+  models/your_model.ncnn.bin --width W --height H --channels C --outdir models
+```
+
+This runs the full pipeline: optimize → KL-calibrate → `ncnn2int8` → argmax-agreement parity check.
+Produces `your_model_int8.ncnn.{param,bin}` in `--outdir`. Flags: `--samples` (calibration images,
+default 256), `--threshold` (argmax agreement rate, default 0.9), `--skip-verify`,
+`--keep-intermediates`, `--in-blob`/`--out-blob`, `--tools-dir`.
+
+For the committed synthetic-CNN fixture (`models/synthetic_cnn.ncnn.*`, 8×8×3):
+
+```bash
+.venv-train/bin/python scripts/export_int8.py models/synthetic_cnn.ncnn.param \
+  models/synthetic_cnn.ncnn.bin --width 8 --height 8 --channels 3 --outdir models
+```
+
+**Calibration guidance:** for real policies, calibrate on **captured game frames** that are
+representative of the actual observation distribution — the synthetic set is a regression fixture.
+More samples (e.g. `--samples 1024`) improve histogram coverage for larger inputs.
+
+**3. Deploy:** load the `*_int8.ncnn.{param,bin}` files with `NcnnRunner` exactly as you would an
+fp32 model — the runtime INT8 path is compiled in, no changes required:
+
+```gdscript
+runner.load_model("res://models/your_model_int8.ncnn.param",
+                  "res://models/your_model_int8.ncnn.bin")
+```
+
 ### 4) Verify the conversion (recommended)
 
 `pnnx` is reliable for the simple MLP policies typical of RL agents, but a conversion can
