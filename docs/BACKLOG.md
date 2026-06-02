@@ -169,6 +169,16 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
     plan `docs/superpowers/plans/2026-06-01-hide-and-seek-example.md`. Scaffold scope: trained ncnn
     model + behavioral regression deferred (follow-up); SAC revisits when item 21 lands.
 
+36. ⬜ **`get_obs_space()` on agents — upstream plugin portability** — the upstream
+    `godot_rl_agents_plugin` requires every agent to implement a `get_obs_space() -> Dictionary`
+    method (same format as `get_action_space()`; e.g. `{"obs": {"size": [N], "space": "box"}}`).
+    This repo infers obs space dynamically from a live `get_obs()` call (`NcnnControllerCore.
+    obs_space_from_obs()`), so the method is absent on all current agents. Consequence: agents
+    written for this repo cannot be dropped into the upstream plugin without adding the method, and
+    vice versa. Fix: add a default `get_obs_space()` implementation to `NcnnAIController2D/3D`
+    that calls `obs_space_from_obs(get_obs())` and returns the inferred dict — zero breaking change,
+    full upstream compatibility. Do alongside item 20's `policy_name`/`agent_policy_names` work.
+
 ## Novel addons (neither godot_rl nor Unity — the moat)
 
 13. ⬜ **INT8 quantization export** — ncnn INT8 (2–4× faster, 4× smaller on mobile). Calibration +
@@ -297,3 +307,10 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     Observation History Buffer · Hugging Face Hub integration · multi-policy (`policy_name` +
     PettingZoo) · curiosity/RND intrinsic reward · curriculum learning · self-play · MA-POCA.
     *(roadmap spec Tracks B/C/D; novel-addons spec §3 A4/A5/B1/B2)*
+    **Wire-level note:** multi-policy requires `NcnnSync.build_env_info_message()` to emit
+    `agent_policy_names` (a per-agent list of policy strings). The Python side already consumes it
+    (`godot_env.py`: `json_dict.get("agent_policy_names", ["shared_policy"] * n_agents)`) and
+    defaults gracefully for single-policy SB3 — so today's training is unaffected. Multi-policy
+    RLlib/PettingZoo routing will break without this field. Fix: add a `policy_name` export to
+    `NcnnAIController2D/3D` (default `"shared_policy"`) and collect it into `agent_policy_names`
+    in the env_info message alongside item 36's `get_obs_space()` work.
