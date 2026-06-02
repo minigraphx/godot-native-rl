@@ -5,7 +5,6 @@ extends RefCounted
 # Holds no Node references; reset_after is passed into step() by the wrapper so the
 # wrapper stays the single source of truth for that exported value.
 
-const InferenceMath = preload("res://addons/godot_native_rl/controllers/inference_math.gd")
 const ActionDecode = preload("res://addons/godot_native_rl/controllers/action_decode.gd")
 
 var done: bool = false
