@@ -211,10 +211,19 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     hidden state across frames so recurrent policies deploy. (ncnn already has LSTM/GRU layers.)
 23. ⬜ **Batched multi-agent inference** — each agent currently runs its own forward pass (linear cost).
     Add batched inference (batch dim) at the C++ level for crowds / large multi-agent scenes.
-24. ⬜ **Observation-normalization parity helper** — optional `VecNormalize`-style running mean/std
-    replay game-side, for policies trained with SB3 `VecNormalize`. Today obs must be hand-normalized in
-    `get_obs()` identically at train and deploy; this silently fails if mismatched. *(top silent-failure
-    risk called out in `ncnn_vs_onnx.md`)*
+24. ✅ **Observation-normalization parity helper** — replay SB3 `VecNormalize` obs stats game-side.
+    Added pure `addons/godot_native_rl/controllers/obs_normalize.gd` (`normalize`/`validate`/`to_typed`),
+    `scripts/export_vecnormalize.py` (`vec_normalize.pkl` → committed JSON), and an
+    `obs_norm_stats_path` export on `NcnnAIController2D/3D` that loads the stats into
+    `NcnnControllerCore`, which normalizes obs in the float inference path (deploy-only — `get_obs()`
+    stays raw so training never double-normalizes).
+    **Done 2026-06-02** — spec `docs/superpowers/specs/2026-06-02-obs-normalization-parity-design.md`,
+    plan `docs/superpowers/plans/2026-06-02-obs-normalization-parity.md`. Verified by GDScript unit
+    tests + a seeded synthetic golden (`scripts/make_vecnormalize_stats.py` →
+    `models/synthetic_vecnormalize*.json`) asserting the GDScript replay reproduces SB3's own
+    `normalize_obs` at **atol 1e-6**, an end-to-end JSON-loader test, controller integration tests
+    (normalized/raw/skip), and Python export tests. No C++ change/rebuild. Full suite green from a
+    clean cache.
 25. ⬜ **Asset Library release (extension packaging)** — move `ncnn_runner.gdextension` + a `bin/`
     of prebuilt per-platform binaries into `addons/godot_native_rl/`, repoint the manifest's library
     paths + the `SConstruct` output target, build macOS/Windows/Linux (+ web/mobile) binaries, fill
