@@ -528,10 +528,22 @@ agent's `get_obs()` and concatenate with your other features.
   `control_mode = NCNN_INFERENCE` and override `get_inference_image()` to return
   `camera.get_image()` — the controller feeds it to `NcnnRunner.run_inference_image` (RGB8 + `/255`)
   and acts on the argmax. Grayscale and continuous image policies are follow-ups (backlog item 38/21).*
+- **`GridSensor2D`** (`sensors/grid_sensor_2d.gd`) — a `grid_size_x × grid_size_y` grid of cells
+  (size `cell_width × cell_height`) centered on the node. Each `get_observation()` queries the
+  physics space fresh and emits, per cell, one *count* float per active `detection_mask` layer bit
+  = how many overlapping objects sit on that layer (`obs_size = grid_x * grid_y * n_layers`).
+  Configurable `collide_with_areas`/`collide_with_bodies`. The index layout and per-layer-count
+  semantics match `godot_rl`'s `GridSensor2D`, so ported environments behave the same.
+- **`GridSensor3D`** (`sensors/grid_sensor_3d.gd`) — the 3D form: a `grid_size_x × grid_size_z`
+  grid of boxes on the X/Z plane (`BoxShape3D(cell_width, cell_height, cell_width)` — `cell_width`
+  is the grid step on both axes, `cell_height` the box's Y extent). Same query-based per-layer-count
+  encoding. `collide_with_bodies` defaults **false** (`godot_rl` note: a `StaticBody3D` needs an
+  `Area3D` to be detected). Both grid sensors deploy with zero runtime via `NcnnRunner`.
 
 Pure ray geometry lives in `sensors/raycast_math.gd`; the relative-position frame/clip math
 lives in `sensors/relative_position_math.gd`; the camera shape + hex encoding lives in
-`sensors/camera_obs_math.gd` (all headless-unit-tested).
+`sensors/camera_obs_math.gd`; the grid mapping/offset/encoding lives in `sensors/grid_sensor_math.gd`
+(all headless-unit-tested).
 This encoding matches `godot_rl`'s raycast convention, so ported environments behave the same —
 and the observations feed `NcnnRunner` for zero-runtime deployment on mobile/web/console.
 
