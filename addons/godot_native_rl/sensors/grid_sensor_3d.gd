@@ -1,5 +1,5 @@
 class_name GridSensor3D
-extends Node3D
+extends "res://addons/godot_native_rl/sensors/i_sensor_3d.gd"
 
 # A grid of 3D box cells on the X/Z plane emitting per-cell, per-layer overlap counts
 # (see GridSensorMath). Mirrors GridSensor2D: query-based, physics isolated behind

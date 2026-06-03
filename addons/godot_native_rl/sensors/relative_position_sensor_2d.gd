@@ -1,5 +1,5 @@
 class_name RelativePositionSensor2D
-extends Node2D
+extends "res://addons/godot_native_rl/sensors/i_sensor_2d.gd"
 
 # Egocentric relative-position observation for a target node: a unit direction (in the
 # sensor's local frame) + a clipped, normalized distance. See RelativePositionMath.encode_2d.
