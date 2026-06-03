@@ -51,4 +51,15 @@ func _initialize() -> void:
 	h.assert_eq(obs, [1.0, 2.0, 3.0, 4.0, 5.0], "depth-first tree order, camera+plain skipped")
 	root.free()
 
+	# Pre-order is load-bearing: a sensor that is ITSELF the parent of another sensor.
+	# Depth-first PRE-order yields parent-before-child [10, 11]; a post-order traversal
+	# would yield [11, 10], so this assertion distinguishes the two strategies.
+	var po_root := Node.new()
+	var parent_sensor := _make_sensor([10.0])
+	parent_sensor.add_child(_make_sensor([11.0]))     # sensor nested under a sensor
+	po_root.add_child(parent_sensor)
+	po_root.add_child(_make_sensor([12.0]))
+	h.assert_eq(NcnnControllerCore.collect_sensors(po_root), [10.0, 11.0, 12.0], "pre-order: parent sensor before its child sensor")
+	po_root.free()
+
 	h.finish(self)
