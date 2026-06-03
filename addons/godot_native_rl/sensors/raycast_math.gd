@@ -52,3 +52,28 @@ static func ray_directions_3d(n_w: int, n_h: int, h_fov_deg: float, v_fov_deg: f
 			d = d.rotated(Vector3(0.0, 1.0, 0.0), yaw)
 			dirs.append(d)
 	return dirs
+
+# Per-ray class/distance segment for class_sensor mode. Pure, no physics. A miss is
+# hit_distance < 0 (matching closeness()). Segment order:
+#   [ class_0 .. class_{n-1}, (other), (closeness) ]
+# Each class slot is 1.0 when the ray hit AND the hit collider's layer bitmask has that
+# layer's bit set (multi-hot — several may be 1.0); detection_classes entries are 1-based
+# layer numbers (layer L -> bit 1 << (L - 1)). The optional 'other' slot is 1.0 when the
+# ray hit but matched no listed class. The optional closeness slot is closeness(distance).
+static func encode_ray_class(
+		hit_distance: float, hit_layer: int, ray_length: float,
+		detection_classes: Array, include_other: bool, include_distance: bool) -> Array:
+	var seg := []
+	var hit := hit_distance >= 0.0
+	var matched_any := false
+	for class_layer in detection_classes:
+		var li := int(class_layer)
+		var matched := hit and li >= 1 and (hit_layer & (1 << (li - 1))) != 0
+		seg.append(1.0 if matched else 0.0)
+		if matched:
+			matched_any = true
+	if include_other:
+		seg.append(1.0 if (hit and not matched_any) else 0.0)
+	if include_distance:
+		seg.append(closeness(hit_distance, ray_length))
+	return seg
