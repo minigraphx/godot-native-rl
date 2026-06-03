@@ -497,9 +497,9 @@ for success-rate metrics). Backward-compatible: older trainers ignore it.
 
 Each controller exposes a `policy_name` export (default `"shared_policy"`). `NcnnSync` collects
 the per-agent names — in training-agent order — into the `env_info` message's `agent_policy_names`
-field, so multi-policy trainers (PettingZoo / RLlib) can map each agent to its own policy. Single
--policy training is unaffected (every agent reports `"shared_policy"`), and older trainers that
-don't read the field ignore it.
+field, so multi-policy trainers (PettingZoo / RLlib) can map each agent to its own policy.
+Single-policy training is unaffected (every agent reports `"shared_policy"`), and older trainers
+that don't read the field ignore it.
 
 ## Sensors
 

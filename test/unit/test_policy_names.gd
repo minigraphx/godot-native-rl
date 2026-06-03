@@ -4,6 +4,10 @@ const Harness = preload("res://test/harness.gd")
 const PolicyNames = preload("res://addons/godot_native_rl/policy_names.gd")
 const Stub = preload("res://test/unit/policy_name_stub.gd")
 
+# An agent that mis-typed its policy_name export (non-String) must still degrade safely.
+class IntStub extends RefCounted:
+	var policy_name = 42
+
 func _initialize() -> void:
 	var h := Harness.new()
 
@@ -43,6 +47,13 @@ func _initialize() -> void:
 		PolicyNames.policy_names_from_agents([bare]),
 		["shared_policy"],
 		"missing property -> shared_policy")
+
+	# Non-String policy_name (mis-typed export) -> "shared_policy".
+	var n := IntStub.new()
+	h.assert_eq(
+		PolicyNames.policy_names_from_agents([n]),
+		["shared_policy"],
+		"non-String -> shared_policy")
 
 	# Length invariant.
 	h.assert_eq(
