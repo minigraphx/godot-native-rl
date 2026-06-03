@@ -13,6 +13,7 @@ enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
 @export var input_blob_name: String = "in0"
 @export var output_blob_name: String = "out0"
 @export_file("*.json") var obs_norm_stats_path: String = ""
+@export var policy_name: String = "shared_policy"  # multi-policy routing (PettingZoo/RLlib)
 
 var _core := NcnnControllerCore.new()
 var _ncnn_runner = null
