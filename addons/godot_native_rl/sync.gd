@@ -49,6 +49,10 @@ func extract_action_dict(action_array: Array, action_space: Dictionary) -> Dicti
 @export var connect_timeout_sec := 10.0
 @export var read_timeout_sec := 60.0
 
+# godot_rl WIRE-PROTOCOL version (the handshake `major_version`/`minor_version`), NOT the
+# godot_rl_agents pip PACKAGE version. These track godot_env.py's MAJOR_VERSION/MINOR_VERSION
+# (currently "0"/"7" in package v0.8.2) and must match it to avoid handshake mismatch warnings.
+# Bump these only when godot_rl bumps its protocol version — never to follow the package version.
 const MAJOR_VERSION := "0"
 const MINOR_VERSION := "7"
 const DEFAULT_PORT := "11008"

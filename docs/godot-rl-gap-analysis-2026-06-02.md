@@ -1,8 +1,10 @@
 # godot_rl Ecosystem Gap Analysis
 
-**Date:** 2026-06-02  
+**Date:** 2026-06-02 · **status refreshed 2026-06-03**  
 **Repos audited:** `edbeeching/godot_rl_agents` · `edbeeching/godot_rl_agents_plugin` · `edbeeching/godot_rl_agents_examples`  
-**This repo state:** `main` @ `cf68fd2` (items 1–9 partial, 12–13, 17, 21, 24, 30, 33, 36 done)
+**This repo state:** items 1–9 partial, 11, 12–13, 17, 21, 24, 30, 33, 36, 39, 40, 44 done
+(2026-06-03 refresh: GridSensor #11 + ISensor interface #40 shipped; #44 `INHERIT_FROM_SYNC`
+found already wired in `NcnnSync._get_agents()`)
 
 ---
 
@@ -13,11 +15,11 @@
 | `RaycastSensor2D` | ✅ | ✅ | — |
 | `RaycastSensor3D` (distance) | ✅ | ✅ | — |
 | `RaycastSensor3D` class mode | ✅ `class_sensor` + `boolean_class_mask` — one-hot per class per ray | ❌ distance only | **Gap** (item 41) |
-| `ISensor2D` / `ISensor3D` interface | ✅ shared base all sensors implement | ❌ no interface | **Gap** (item 40) |
+| `ISensor2D` / `ISensor3D` interface | ✅ shared base all sensors implement | ✅ + `collect_sensors()` auto-discovery | ✅ done (item 40) |
 | `PositionSensor2D/3D` | ✅ multi-target `Array[Node2D]`, optional dir/dist split | ✅ single `target_path` only | ⚠️ partial (item 42) |
 | `RGBCameraSensor2D/3D` | ✅ configurable render res + downscale + RGBA/RGB + editor preview | ✅ fixed viewport res, RGB only, no downscale | ⚠️ partial (item 38) |
-| `GridSensor2D` | ✅ area/body occupancy grid, multi-layer, debug view | ❌ | **Gap** (item 11) |
-| `GridSensor3D` | ✅ | ❌ | **Gap** (item 11) |
+| `GridSensor2D` | ✅ area/body occupancy grid, multi-layer, debug view | ✅ query-based, per-layer counts | ✅ done (item 11) |
+| `GridSensor3D` | ✅ | ✅ | ✅ done (item 11) |
 | Pre-built sensor `.tscn` scenes | ✅ RaycastSensor2D.tscn, RGBCameraSensor2D.tscn + examples | ❌ | Minor |
 | `script_templates/AIController` | ✅ controller scaffold template in plugin | ❌ | Minor |
 
@@ -37,7 +39,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `AIController2D` / `AIController3D` base | ✅ | ✅ (`NcnnAIController2D/3D`) | — |
 | `HUMAN` / `TRAINING` modes | ✅ | ✅ | — |
 | `ONNX_INFERENCE` (requires C#/.NET) | ✅ | ❌ → replaced by `NCNN_INFERENCE` | By design |
-| `INHERIT_FROM_SYNC` mode | ✅ per-agent can override scene-level default | ⚠️ enum value declared in controllers but not wired in `NcnnSync` | **Partial** (item 44) |
+| `INHERIT_FROM_SYNC` mode | ✅ per-agent can override scene-level default | ✅ wired in `NcnnSync._get_agents()` — INHERIT agents adopt sync mode, others override | ✅ done (item 44) |
 | `RECORD_EXPERT_DEMOS` mode | ✅ | ❌ | **Gap** (item 10) |
 | `policy_name` export | ✅ default `"shared_policy"` | ❌ | **Gap** (item 20) |
 | `get_obs_space()` method | ✅ required on every agent | ✅ implemented — delegates to `obs_space_from_obs()` | — (item 39 ✅) |
@@ -116,14 +118,14 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 
 | Priority | Gap | Backlog item |
 |---|---|---|
-| 🔴 High | `GridSensor2D/3D` — last major sensor type | 11 |
 | 🔴 High | `policy_name` + `agent_policy_names` — blocks RLlib & PettingZoo | 20 |
+| ✅ Done | `GridSensor2D/3D` — last major sensor type | 11 |
+| ✅ Done | `ISensor2D/3D` interface + `collect_sensors()` | 40 |
 | ✅ Done | `get_obs_space()` on agents — already implemented | 39 |
-| 🟡 Medium | `ISensor2D/3D` interface + `collect_sensors()` | 40 |
+| ✅ Done | `INHERIT_FROM_SYNC` — already wired in `NcnnSync._get_agents()` | 44 |
 | 🟡 Medium | `RaycastSensor3D` multi-class detection mode | 41 |
 | 🟡 Medium | `RelativePositionSensor` multi-target | 42 |
 | 🟡 Medium | Stochastic action sampling (`deterministic_inference`) | 43 |
-| 🟡 Medium | `INHERIT_FROM_SYNC` — enum exists, not wired in NcnnSync | 44 |
 | 🟡 Medium | `RECORD_EXPERT_DEMOS` + demo infra | 10 |
 | 🟡 Medium | CameraSensor: configurable render res + downscale + RGBA | 38 |
 | 🟠 Lower | RLlib training script (after `policy_name` lands) | 20 |
