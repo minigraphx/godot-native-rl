@@ -198,7 +198,9 @@ complement to godot_rl, grow toward full replacement.
     11 (GridSensor2D/3D — query-based cell detection, per-layer overlap counts),
     39 (`get_obs_space()` on controllers — already present),
     40 (ISensor2D/3D interface + `collect_sensors()` sensor auto-discovery),
-    44 (`INHERIT_FROM_SYNC` per-agent control mode — already present in `NcnnSync._get_agents()`).
+    44 (`INHERIT_FROM_SYNC` per-agent control mode — already present in `NcnnSync._get_agents()`),
+    20 (multi-policy `policy_name` wire field — `agent_policy_names` in env_info; the rest of the
+    old item-20 catalog line was split 2026-06-03 into items 46–54, trained example is item 45).
     9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 21–24 (deploy-side inference gaps: continuous/multi-key

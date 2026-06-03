@@ -2,9 +2,11 @@
 
 **Date:** 2026-06-02 · **status refreshed 2026-06-03**  
 **Repos audited:** `edbeeching/godot_rl_agents` · `edbeeching/godot_rl_agents_plugin` · `edbeeching/godot_rl_agents_examples`  
-**This repo state:** items 1–9 partial, 11, 12–13, 17, 21, 24, 30, 33, 36, 39, 40, 44 done
+**This repo state:** items 1–8, 11, 12–13, 17, 20 (wire-field slice), 21, 24, 30, 33, 36, 39, 40, 44
+done; item 9 partial
 (2026-06-03 refresh: GridSensor #11 + ISensor interface #40 shipped; #44 `INHERIT_FROM_SYNC`
-found already wired in `NcnnSync._get_agents()`)
+found already wired in `NcnnSync._get_agents()`; #20 `policy_name`/`agent_policy_names` wire field
+shipped — RLlib/PettingZoo *trainers* now unblocked, tracked as new item 45)
 
 ---
 
@@ -41,7 +43,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `ONNX_INFERENCE` (requires C#/.NET) | ✅ | ❌ → replaced by `NCNN_INFERENCE` | By design |
 | `INHERIT_FROM_SYNC` mode | ✅ per-agent can override scene-level default | ✅ wired in `NcnnSync._get_agents()` — INHERIT agents adopt sync mode, others override | ✅ done (item 44) |
 | `RECORD_EXPERT_DEMOS` mode | ✅ | ❌ | **Gap** (item 10) |
-| `policy_name` export | ✅ default `"shared_policy"` | ❌ | **Gap** (item 20) |
+| `policy_name` export | ✅ default `"shared_policy"` | ✅ default `"shared_policy"` on `NcnnAIController2D/3D` | ✅ done (item 20) |
 | `get_obs_space()` method | ✅ required on every agent | ✅ implemented — delegates to `obs_space_from_obs()` | — (item 39 ✅) |
 | `get_action()` for demo recording | ✅ required when recording | ❌ | **Gap** (item 10) |
 | `expert_demo_save_path` export | ✅ | ❌ | **Gap** (item 10) |
@@ -56,7 +58,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | Feature | Upstream | This repo | Status |
 |---|---|---|---|
 | Training bridge (protocol v0.7) | ✅ | ✅ | — |
-| `agent_policy_names` in env_info | ✅ | ❌ Python defaults gracefully (single-policy) | **Gap** (item 20) |
+| `agent_policy_names` in env_info | ✅ | ✅ always emitted (one entry per training agent, obs order) | ✅ done (item 20) |
 | `call()` remote method invocation | ✅ Python can invoke arbitrary Godot methods | ✅ handled in `NcnnSync` | — |
 | `terminated`/`truncated` split | ❌ TODO both sides | ❌ | Parity (item 9) |
 | Connect / read timeouts | ❌ | ✅ | **Advantage** |
@@ -72,8 +74,8 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `StableBaselinesGodotEnv` (SB3 VecEnv, n_parallel) | ✅ | ✅ proven | — |
 | `SBGSingleObsEnv` (SB3 + `MlpPolicy` compat) | ✅ | ❌ | Minor |
 | `CleanRLGodotEnv` | ✅ | ✅ item 17 done | — |
-| `RayVectorGodotEnv` (RLlib) | ✅ | ❌ no training script | **Gap** (item 20) |
-| `GDRLPettingZooEnv` (PettingZoo, multi-policy) | ✅ | ❌ | **Gap** (item 20, needs `policy_name`) |
+| `RayVectorGodotEnv` (RLlib) | ✅ | ❌ no training script | **Gap** (item 45 — `policy_name` now shipped) |
+| `GDRLPettingZooEnv` (PettingZoo, multi-policy) | ✅ | ❌ | **Gap** (item 45 — `policy_name` shipped; needs trainer/example) |
 | `SampleFactoryEnvWrapper` (batched + non-batched) | ✅ | ❌ | **Gap** (item 18) |
 | ONNX export helper (`OnnxablePolicy`) | ✅ SB3/SAC → ONNX | ✅ `export_to_ncnn.py` ONNX+TorchScript→ncnn | Different, covered |
 | Optuna HP tuning example | ✅ | ❌ | Nice-to-have |
@@ -118,7 +120,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 
 | Priority | Gap | Backlog item |
 |---|---|---|
-| 🔴 High | `policy_name` + `agent_policy_names` — blocks RLlib & PettingZoo | 20 |
+| ✅ Done | `policy_name` + `agent_policy_names` wire field — unblocks RLlib & PettingZoo | 20 |
 | ✅ Done | `GridSensor2D/3D` — last major sensor type | 11 |
 | ✅ Done | `ISensor2D/3D` interface + `collect_sensors()` | 40 |
 | ✅ Done | `get_obs_space()` on agents — already implemented | 39 |
@@ -128,7 +130,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | 🟡 Medium | Stochastic action sampling (`deterministic_inference`) | 43 |
 | 🟡 Medium | `RECORD_EXPERT_DEMOS` + demo infra | 10 |
 | 🟡 Medium | CameraSensor: configurable render res + downscale + RGBA | 38 |
-| 🟠 Lower | RLlib training script (after `policy_name` lands) | 20 |
+| 🟠 Lower | RLlib + PettingZoo multi-policy trained example (`policy_name` has landed) | 45 |
 | 🟠 Lower | SampleFactory backend | 18 |
 | 🟠 Lower | Grayscale camera deploy (C++ `PIXEL_GRAY` path) | 38 |
 | 🟠 Lower | `SBGSingleObsEnv` compat wrapper | — |
