@@ -22,7 +22,9 @@ complement to godot_rl, grow toward full replacement.
   inference (the pre-inference mirror of post-inference `action_decode.gd`);
   thin `NcnnAIController2D`/`NcnnAIController3D` with a `get_inference_image()` hook),
   `reward/` (`RewardBuilder`/`RewardAdapter`/terms), `sensors/`
-  (`RaycastSensor2D`/`RaycastSensor3D` + `RelativePositionSensor2D`/`RelativePositionSensor3D` +
+  (`RaycastSensor2D`/`RaycastSensor3D` — both support an opt-in `class_sensor` mode: per-ray
+  multi-hot collision-layer segments via `detection_classes` + optional `other`/closeness slots,
+  encoded by pure `raycast_math.encode_ray_class` — + `RelativePositionSensor2D`/`RelativePositionSensor3D` +
   `CameraSensor` (SubViewport → hex image obs, godot_rl-compatible) +
   `GridSensor2D`/`GridSensor3D` (query-based cell detection, godot_rl-parity per-layer overlap
   counts) + pure `raycast_math`/`relative_position_math`/`camera_obs_math`/`grid_sensor_math`; all
@@ -198,6 +200,8 @@ complement to godot_rl, grow toward full replacement.
     11 (GridSensor2D/3D — query-based cell detection, per-layer overlap counts),
     39 (`get_obs_space()` on controllers — already present),
     40 (ISensor2D/3D interface + `collect_sensors()` sensor auto-discovery),
+    41 (RaycastSensor2D/3D `class_sensor` multi-class detection — per-ray multi-hot layer slots +
+    optional other/closeness, pure `raycast_math.encode_ray_class`; 2D added alongside 3D),
     44 (`INHERIT_FROM_SYNC` per-agent control mode — already present in `NcnnSync._get_agents()`),
     20 (multi-policy `policy_name` wire field — `agent_policy_names` in env_info; the rest of the
     old item-20 catalog line was split 2026-06-03 into items 46–54, trained example is item 45).
