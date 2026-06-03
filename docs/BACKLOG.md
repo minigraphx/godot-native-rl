@@ -12,6 +12,34 @@ Full reasoning lives in the two roadmap specs:
 
 Status legend: ⬜ not started · 🔄 in progress · ✅ done
 
+## GitHub issue mirror
+
+This markdown file is the **source of truth**. Every open (⬜/🔄) item is also mirrored to a GitHub
+issue titled `[Backlog N] …` (labels: `backlog`, `area:*` for the section, `priority:*` for triage)
+so PRs can `Closes #NN` and the derivation/dependency graph is visible on GitHub. Done (✅) items are
+**not** mirrored — their value is the inline history below.
+
+**Sync rule:** when an item ships, the closing PR must `Closes #NN` **and** flip the item's checkbox
+here in the same change (per the CLAUDE.md "update docs in the same change" rule). When you split or
+add an open item, file a matching `[Backlog N]` issue and add it to the map below.
+
+Open-item → issue map:
+
+| Item | Issue | Item | Issue | Item | Issue |
+|---|---|---|---|---|---|
+| 9  | #12 | 25 | #32 | 45 | #26 |
+| 10 | #13 | 31 | #37 | 46 | #17 |
+| 14 | #19 | 32 | #38 | 47 | #18 |
+| 15 | #20 | 34 | #39 | 48 | #22 |
+| 16 | #21 | 35 | #40 | 49 | #23 |
+| 18 | #24 | 37 | #35 | 50 | #31 |
+| 19 | #25 | 38 | #36 | 51 | #27 |
+| 22 | #33 | 41 | #14 | 52 | #28 |
+| 23 | #34 | 42 | #15 | 53 | #29 |
+|    |     | 43 | #16 | 54 | #30 |
+
+(#40 is a GitHub sub-issue of #39 — record-to-video builds on episode replay.)
+
 ---
 
 ## Now (highest leverage)
