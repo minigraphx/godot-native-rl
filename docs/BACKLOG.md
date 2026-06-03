@@ -180,13 +180,18 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
     `NcnnAIController2D` and `NcnnAIController3D` already implement `get_obs_space() ->
     Dictionary` (line 126-127 in each), delegating to `NcnnControllerCore.obs_space_from_obs(get_obs())`.
     Agents written for this repo are already compatible with the upstream plugin's interface.
-40. ⬜ **`ISensor2D` / `ISensor3D` interface** — upstream plugin defines `ISensor2D.gd` /
-    `ISensor3D.gd` as shared GDScript interfaces that all sensors implement. This repo has no sensor
-    interface: `RaycastSensor`, `RelativePositionSensor`, and `CameraSensor` each stand alone with
-    no common base. Add `ISensor2D` / `ISensor3D` interface scripts with `get_observation() ->
-    Array` and `obs_size() -> int` stubs, have all existing sensors extend them, and implement
-    `collect_sensors()` on `NcnnControllerCore` (deferred from items 3 and 5) — enables
-    auto-discovery of child sensors without manual obs composition. Low effort; enables item 41–42.
+40. ✅ **`ISensor2D` / `ISensor3D` interface** — upstream plugin defines `ISensor2D.gd` /
+    `ISensor3D.gd` as shared GDScript interfaces that all sensors implement. This repo had no sensor
+    interface: `RaycastSensor`, `RelativePositionSensor`, and `CameraSensor` each stood alone.
+    **Done 2026-06-03** — spec `docs/superpowers/specs/2026-06-03-isensor-interface-design.md`,
+    plan `docs/superpowers/plans/2026-06-03-isensor-interface.md`. Lightweight `ISensor2D`/`ISensor3D`
+    (Node2D/3D base, `get_observation() -> Array` + `obs_size() -> int`); the six flat sensors
+    (`Raycast`/`RelativePosition`/`Grid` ×2D/3D) extend them **by path** (headless class-cache safe);
+    `NcnnControllerCore.collect_sensors(root)` recursively gathers flat sensors via **duck typing**
+    in scene-tree order (CameraSensor skipped — no `obs_size`, composed manually), plus a
+    `collect_sensors()` convenience on `NcnnAIController2D/3D` (`get_obs()` → `{"obs": collect_sensors()}`).
+    Headless unit tests: base stubs, discovery/ordering (pre-order load-bearing)/camera-skip,
+    real-sensor `is`-conformance, controller method. Enables items 41–42.
 41. ⬜ **`RaycastSensor3D` multi-class detection mode** — upstream's `RaycastSensor3D` has a
     `class_sensor: bool` export + `boolean_class_mask` that encodes multiple object types per ray
     (one boolean slot per detected class, in addition to or instead of normalized distance).

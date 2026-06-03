@@ -547,6 +547,19 @@ lives in `sensors/relative_position_math.gd`; the camera shape + hex encoding li
 This encoding matches `godot_rl`'s raycast convention, so ported environments behave the same —
 and the observations feed `NcnnRunner` for zero-runtime deployment on mobile/web/console.
 
+All flat-float sensors (`RaycastSensor2D/3D`, `RelativePositionSensor2D/3D`, `GridSensor2D/3D`)
+extend `ISensor2D` / `ISensor3D` and expose `get_observation() -> Array` + `obs_size() -> int`. An
+agent can let the controller gather them automatically instead of concatenating by hand:
+
+```gdscript
+func get_obs() -> Dictionary:
+	return {"obs": collect_sensors()}
+```
+
+`collect_sensors()` walks the agent's child sensors depth-first in scene-tree order (so reordering
+sensor nodes changes the obs layout). `CameraSensor` returns image obs under its own key and is
+composed separately.
+
 ## Examples
 
 ### Chase The Target (2D)
