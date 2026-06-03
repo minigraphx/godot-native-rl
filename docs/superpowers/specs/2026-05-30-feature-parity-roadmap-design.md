@@ -16,58 +16,67 @@ Godot Native RL is a GDExtension-based RL framework for Godot 4.6+ that uses Ten
 
 **Strategy:** Start as a complement to godot_rl (train with their Python tooling, deploy with ncnn). Build toward full replacement as each feature gap closes. The complete replacement target is achieved when a user can do *everything* through this repo without installing godot_rl at all.
 
-**Current state (May 2026):**
-- ✅ Full godot_rl wire-protocol compatibility (proven by real SB3 training)
-- ✅ `NcnnSync` + `NcnnAIController2D` + `NcnnRunner` GDExtension
-- ✅ End-to-end Chase The Target 2D example (train → pnnx → ncnn → inference)
-- ✅ Headless test suite (unit + protocol + inference smoke + trained-chase check + golden regression)
-- ✅ Conversion verification (`verify_ncnn_parity.py`: argmax + atol + diversity)
-- ⚠️ No sensors (biggest switching friction from godot_rl)
-- ⚠️ No Godot Asset Library plugin structure
-- ⚠️ Single training backend (SB3 only; CleanRL/SampleFactory/SKRL queued)
+**Current state (updated 2026-06-03):**
+- ✅ Full godot_rl wire-protocol compatibility (proven by real SB3 + CleanRL training)
+- ✅ `NcnnSync` + `NcnnAIController2D`/`3D` + `NcnnRunner` GDExtension
+- ✅ End-to-end Chase The Target 2D + Rover 3D examples (train → pnnx → ncnn → inference) +
+  Hide & Seek 2D self-play scaffold
+- ✅ Headless test suite (unit + protocol + inference smoke + trained-chase/rover checks + golden regressions)
+- ✅ Conversion verification (`verify_ncnn_parity.py`: argmax + atol + diversity); INT8 + obs-norm + TorchScript paths
+- ✅ **Full sensor parity** — Raycast/Grid/Camera/RelativePosition (2D+3D) all shipped (was the
+  biggest switching friction; now closed, and RelativePosition puts us *ahead* of godot_rl)
+- ⚠️ Addon structure (`addons/godot_native_rl/` + `plugin.cfg`) in place; Asset Library **binary
+  packaging/release** still deferred (item 25)
+- ⚠️ Two training backends (SB3 + CleanRL; SampleFactory/SKRL/RLlib queued)
 
 ---
 
 ## 2. Gap Analysis
 
+> **Status refreshed 2026-06-03.** The `Ours` columns below reflect shipped state as of this date;
+> see `docs/BACKLOG.md` for per-item detail. Original analysis was 2026-05-30.
+
 ### 2A. vs godot_rl + godot_rl_agents
 
-#### Sensors (most critical gap)
+#### Sensors (was the most critical gap — now full parity)
 | Sensor | godot_rl | Ours |
 |---|---|---|
-| `RaycastSensor2D` | ✅ (n_rays, ray_length, collision mask) | ❌ |
-| `RaycastSensor3D` | ✅ (n_rays_width × height grid) | ❌ |
-| `GridSensor2D` | ✅ (cell-based spatial detection) | ❌ |
-| `GridSensor3D` | ✅ | ❌ |
-| `RGBCameraSensor3D` | ✅ (SubViewport → obs) | ❌ (queued) |
-| `RelativePositionSensor` | ❌ (open issue #177) | ❌ (queued) |
+| `RaycastSensor2D` | ✅ (n_rays, ray_length, collision mask) | ✅ (item 3) |
+| `RaycastSensor3D` | ✅ (n_rays_width × height grid) | ✅ (item 3) — *distance-only; per-class one-hot queued (item 41)* |
+| `GridSensor2D` | ✅ (cell-based spatial detection) | ✅ (item 11) |
+| `GridSensor3D` | ✅ | ✅ (item 11) |
+| `RGBCameraSensor3D` | ✅ (SubViewport → obs) | ✅ `CameraSensor` (item 8) + deploy-side image inference (item 36) |
+| `RelativePositionSensor` | ❌ (open issue #177) | ✅ (item 7) — **ahead of godot_rl**; multi-target queued (item 42) |
+| `ISensor2D`/`ISensor3D` interface + auto-discovery | ✅ | ✅ (item 40, `collect_sensors()`) |
 
 #### Multi-agent & policies
 | Feature | godot_rl | Ours |
 |---|---|---|
-| Per-agent `policy_name` in `env_info` | ✅ | ❌ |
-| PettingZoo wrapper | ✅ | ❌ |
-| Multi-policy training (RLlib) | ✅ | ❌ |
-| Expert-demo recording (RECORD_EXPERT_DEMOS) | ✅ | ❌ (queued) |
-| Imitation learning (BC + GAIL, `imitation` lib) | ✅ | ❌ |
+| Parallel multi-agent training (tiled worlds) | ✅ | ✅ `ParallelArena`/`ParallelArena2D` (item 30, ~6.2×) |
+| Parameter-sharing self-play example | ⚠️ | ✅ Hide & Seek 2D scaffold (item 12) |
+| Per-agent `policy_name` in `env_info` | ✅ | ❌ **(next protocol gap — item 20 wire-note)** |
+| PettingZoo wrapper | ✅ | ❌ (needs `agent_policy_names` first) |
+| Multi-policy training (RLlib) | ✅ | ❌ (needs `agent_policy_names` first) |
+| Expert-demo recording (RECORD_EXPERT_DEMOS) | ✅ | ❌ (queued — item 10) |
+| Imitation learning (BC + GAIL, `imitation` lib) | ✅ | ❌ (follows expert-demo recording) |
 
 #### Training backends
 | Backend | godot_rl | Ours |
 |---|---|---|
 | Stable-Baselines3 | ✅ | ✅ |
-| CleanRL | ✅ | ❌ (queued) |
-| SampleFactory | ✅ | ❌ (queued) |
-| RLlib | ✅ | ❌ |
-| SKRL | ❌ | ❌ (queued) |
+| CleanRL | ✅ | ✅ (item 17, trained model shipped) |
+| SampleFactory | ✅ | ❌ (queued — item 18) |
+| RLlib | ✅ | ❌ (queued; needs multi-policy field) |
+| SKRL | ❌ | ❌ (queued — item 19) |
 
 #### Distribution & DX
 | Feature | godot_rl | Ours |
 |---|---|---|
-| Godot Asset Library plugin | ✅ | ❌ |
+| Godot Asset Library plugin | ✅ | ⚠️ addon structure + `plugin.cfg` done; binary release deferred (item 25) |
 | `gdrl` CLI launcher | ✅ | ❌ |
-| Hugging Face Hub integration | ✅ | ❌ |
+| Hugging Face Hub integration | ✅ | ❌ (Later — item 20) |
 | HP tuning (Optuna) | ✅ | ❌ |
-| Troubleshooting docs | ✅ (extensive) | ⚠️ minimal |
+| Troubleshooting docs | ✅ (extensive) | ⚠️ strong dev-facing gotchas (CLAUDE.md, `DEVELOPMENT.md`, `ncnn_vs_onnx.md`); no user-facing troubleshooting guide yet |
 
 ### 2B. vs Unity ML-Agents (stretch goals)
 
@@ -76,12 +85,12 @@ Godot Native RL is a GDExtension-based RL framework for Godot 4.6+ that uses Ten
 | SAC (off-policy) | ✅ | ❌ | ❌ |
 | Curiosity intrinsic reward | ✅ | ❌ | ❌ |
 | RND intrinsic reward | ✅ | ❌ | ❌ |
-| Competitive self-play | ✅ | ❌ | ❌ |
+| Competitive self-play | ✅ | ❌ | ⚠️ (parameter-sharing self-play example, item 12; no opponent-snapshot pool) |
 | Cooperative MA-POCA | ✅ | ❌ | ❌ |
 | Curriculum learning | ✅ | ❌ | ❌ |
 | Environment parameter randomization | ✅ | ❌ | ❌ |
 | Variable-length obs (attention) | ✅ | ❌ | ❌ |
-| RNN/LSTM memory | ✅ | ⚠️ (CleanRL GRU) | ❌ |
+| RNN/LSTM memory | ✅ | ⚠️ (CleanRL GRU) | ❌ (deploy-side queued — item 22) |
 | Physics body sensor (articulation joints) | ✅ | ❌ | ❌ |
 | Buffer sensor (variable-count entities) | ✅ | ❌ | ❌ |
 | Side channels (config/stats/float/string) | ✅ | ❌ | ❌ |
