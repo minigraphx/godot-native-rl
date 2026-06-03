@@ -60,6 +60,16 @@ def main():
             failures.append("missing action_space")
         if info.get("n_agents") != 1:
             failures.append("n_agents != 1 (got %r)" % info.get("n_agents"))
+        names = info.get("agent_policy_names")
+        if not isinstance(names, list):
+            failures.append("agent_policy_names not a list (got %r)" % names)
+        elif len(names) != info.get("n_agents"):
+            failures.append(
+                "agent_policy_names length %d != n_agents %r"
+                % (len(names), info.get("n_agents"))
+            )
+        elif names != ["shared_policy"]:
+            failures.append("agent_policy_names != ['shared_policy'] (got %r)" % names)
         obs_space = info.get("observation_space")
         # observation_space may be a dict (single agent) or list of dicts.
         agent_space = obs_space[0] if isinstance(obs_space, list) else obs_space
