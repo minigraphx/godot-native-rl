@@ -2,8 +2,8 @@
 
 **Date:** 2026-06-02 · **status refreshed 2026-06-03**  
 **Repos audited:** `edbeeching/godot_rl_agents` · `edbeeching/godot_rl_agents_plugin` · `edbeeching/godot_rl_agents_examples`  
-**This repo state:** items 1–9 partial, 11, 12–13, 17, 20 (wire-field slice), 21, 24, 30, 33, 36,
-39, 40, 44 done
+**This repo state:** items 1–8, 11, 12–13, 17, 20 (wire-field slice), 21, 24, 30, 33, 36, 39, 40, 44
+done; item 9 partial
 (2026-06-03 refresh: GridSensor #11 + ISensor interface #40 shipped; #44 `INHERIT_FROM_SYNC`
 found already wired in `NcnnSync._get_agents()`; #20 `policy_name`/`agent_policy_names` wire field
 shipped — RLlib/PettingZoo *trainers* now unblocked, tracked as new item 45)
