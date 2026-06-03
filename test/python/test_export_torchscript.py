@@ -9,6 +9,7 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 import export_to_ncnn as ex  # noqa: E402
+import export_torchscript as ets  # noqa: E402
 import verify_torchscript_parity as vts  # noqa: E402
 
 
@@ -346,6 +347,57 @@ class TestShapeHelpers(unittest.TestCase):
             p.write_text(json.dumps([1, 2, 3]))
             with self.assertRaises(ValueError):
                 ex.read_sidecar_inputshape(p)
+
+    def test_write_shape_sidecar_roundtrips_with_reader(self):
+        with tempfile.TemporaryDirectory() as d:
+            pt = Path(d) / "m.pt"
+            side = ex.write_shape_sidecar(pt, [1, 5])
+            self.assertEqual(side.name, "m.pt.shape.json")
+            self.assertEqual(ex.read_sidecar_inputshape(side), "[1,5]")
+
+    def test_write_shape_sidecar_rejects_bad_shape(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(ValueError):
+                ex.write_shape_sidecar(Path(d) / "m.pt", [1, 0])
+
+
+class TestExportTorchscriptHelpers(unittest.TestCase):
+    """Torch-free helpers of the standalone TorchScript writer (export_torchscript.py)."""
+
+    def test_latest_checkpoint_picks_newest(self):
+        import os
+        with tempfile.TemporaryDirectory() as d:
+            old = Path(d) / "ckpt_100.zip"
+            new = Path(d) / "ckpt_200.zip"
+            old.write_text("a")
+            new.write_text("b")
+            os.utime(old, (1000, 1000))
+            os.utime(new, (2000, 2000))
+            self.assertEqual(ets.latest_checkpoint(d), str(new))
+
+    def test_latest_checkpoint_empty_dir(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(ets.latest_checkpoint(d), "")
+
+    def test_obs_key_and_box_dict_obs(self):
+        box = types.SimpleNamespace(shape=(5,))
+        space = types.SimpleNamespace(spaces={"obs": box})
+        key, b = ets._obs_key_and_box(space)
+        self.assertEqual(key, "obs")
+        self.assertIs(b, box)
+
+    def test_obs_key_and_box_dict_without_obs_key(self):
+        box = types.SimpleNamespace(shape=(7,))
+        space = types.SimpleNamespace(spaces={"sensors": box})
+        key, b = ets._obs_key_and_box(space)
+        self.assertEqual(key, "sensors")
+        self.assertIs(b, box)
+
+    def test_obs_key_and_box_box_obs(self):
+        space = types.SimpleNamespace(shape=(4,))  # no `spaces` attr -> Box-like
+        key, b = ets._obs_key_and_box(space)
+        self.assertIsNone(key)
+        self.assertIs(b, space)
 
 
 # --- gated end-to-end integration: real torch + real pnnx ---

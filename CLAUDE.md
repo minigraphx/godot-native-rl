@@ -78,6 +78,10 @@ toggles) +
   opt-in `StepProfiler`, enabled with the `profile=true` cmdline arg (zero overhead otherwise).
 - **Export a checkpoint (no full run):** `.venv-train/bin/python scripts/export_checkpoint.py`
   (latest checkpoint → `models/rover_policy.onnx`, non-destructive) then `scripts/export_to_ncnn.py`.
+- **Export a checkpoint → TorchScript (ONNX-free):** `.venv-train/bin/python scripts/export_torchscript.py
+  --checkpoint <ckpt.zip>` — traces the deterministic actor to `models/policy.pt` **and writes a
+  `models/policy.pt.shape.json` sidecar**, so `export_to_ncnn.py models/policy.pt` auto-derives the shape
+  with no flag (no `onnxscript`/dynamo hop). Same pnnx parity check; keep the ONNX path as default/fallback.
 - **Convert + verify (one command):** `.venv-train/bin/python scripts/export_to_ncnn.py models/model.onnx`
   (auto-derives inputshape, runs pnnx, verifies parity, cleans intermediates). Flags: `--skip-verify`,
   `--keep-intermediates`, `--inputshape`, `--outdir`, `--via {onnx,torchscript,auto}`. Underlying manual

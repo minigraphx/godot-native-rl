@@ -142,6 +142,24 @@ def read_sidecar_inputshape(path: Path) -> str:
     return parse_sidecar(data)
 
 
+def write_shape_sidecar(model_path: Path, shape: Sequence[int]) -> Path:
+    """Write a `<model>.shape.json` sidecar recording a `.pt`'s example input shape.
+
+    The write-side complement of `read_sidecar_inputshape`: a TorchScript producer
+    (e.g. `scripts/export_torchscript.py`) calls this with the shape it traced with,
+    so `export_to_ncnn.py` later auto-derives `inputshape` reliably (no first-layer
+    introspection guess). Records both a human-readable `inputshape` string and the
+    raw `shape` list. Returns the sidecar path; raises ValueError on a bad shape.
+    """
+    import json
+
+    formatted = format_inputshape(shape)  # validates: non-empty, positive ints
+    side = sidecar_path(model_path)
+    side.write_text(json.dumps({"inputshape": formatted, "shape": [int(d) for d in shape]}))
+    return side
+
+
+
 def inputshape_from_torchscript(pt_path: str) -> str:
     """Best-effort `inputshape` from a TorchScript model's first weight layer.
 

@@ -181,6 +181,16 @@ explicitly to force a path. Parity is checked by running the `.pt` through `torc
 against ncnn at `atol=1e-2`. Use the ONNX path as a fallback for architectures with ops pnnx can't take
 straight from TorchScript.
 
+To **produce** the `.pt` + sidecar from a trained SB3 checkpoint (an ONNX-free alternative to
+`export_checkpoint.py`), use `scripts/export_torchscript.py` — it traces the deterministic actor and
+writes both `models/policy.pt` and `models/policy.pt.shape.json`:
+
+    .venv-train/bin/python scripts/export_torchscript.py --checkpoint models/rover_checkpoints/<ckpt>.zip
+    .venv-train/bin/python scripts/export_to_ncnn.py models/policy.pt    # sidecar -> auto-shape
+
+This drops the `onnxscript`/dynamo ONNX hop entirely (`PyTorch → .pt → pnnx → ncnn`). The ONNX path
+remains the default; switch only after confirming the TorchScript route's parity matches on your model.
+
 Use `pnnx` (recommended) to convert ONNX models to ncnn files.
 
 ### 1) Install pnnx
