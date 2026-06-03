@@ -3,8 +3,9 @@ extends Node
 
 enum ControlModes { HUMAN, TRAINING, NCNN_INFERENCE }
 const SocketTimeout = preload("res://addons/godot_native_rl/net/socket_timeout.gd")
+const PolicyNames = preload("res://addons/godot_native_rl/policy_names.gd")
 
-var agents_training: Array[Node] = []
+var agents_training: Array = []
 var _action_space: Dictionary = {}
 var _obs_space: Dictionary = {}
 
@@ -16,6 +17,7 @@ func build_env_info_message() -> Dictionary:
 		"observation_space": _obs_space,
 		"action_space": _action_space,
 		"n_agents": agents_training.size(),
+		"agent_policy_names": PolicyNames.policy_names_from_agents(agents_training),
 	}
 
 func build_step_message(obs: Array, reward: Array, done: Array, info: Array) -> Dictionary:
