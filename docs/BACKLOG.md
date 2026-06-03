@@ -223,6 +223,15 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
     it defers *to*, so it never holds that value itself.
     **Deferred:** a dedicated mixed-mode regression test (the path is exercised indirectly by every
     training/inference scene, which relies on the INHERIT default resolving correctly).
+46. ⬜ **Observation History Buffer (frame-stacking sensor wrapper)** — an `ISensor2D/3D`-conforming
+    wrapper around any flat sensor that keeps a sliding window of the last N observations and emits
+    them concatenated (memory without RNNs; the feed-forward analogue of the blocked item 22). Pure
+    ring-buffer helper + thin wrapper; `obs_size() == N × inner.obs_size()`; auto-discovered by
+    `collect_sensors()`. *(from item 20; novel-addons spec §3 B2)*
+47. ⬜ **Running Normalization Sensor** — an `ISensor2D/3D` wrapper that tracks rolling mean/variance
+    (Welford) and normalizes its inner sensor's output online, during training AND inference, so no
+    Python `VecNormalize` is needed at deploy (game-side, unlike item 24 which replays SB3 stats).
+    Pure running-stats helper + thin wrapper. *(from item 20; novel-addons spec §3 B1)*
 
 ## Novel addons (neither godot_rl nor Unity — the moat)
 
@@ -239,8 +248,16 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
     (navigable, not line-of-sight). *(novel-addons spec §3 A3)*
 16. ⬜ **LOD policy switching (`NcnnLODRunner`)** — cheap reflex net every frame, accurate net every
     N frames / on state change. Genuinely new in game RL. *(novel-addons spec §3 B5)*
+48. ⬜ **Animation Policy Adapter** — map continuous action outputs to `AnimationTree` blend
+    parameters so a trained agent drives production animation without a hand-written blending layer.
+    Thin GDScript node taking an action→blend-param mapping; deploy-side only. *(from item 20;
+    novel-addons spec §3 A4)*
+49. ⬜ **In-editor Policy Debugger** — during NCNN inference, overlay live sensor readings + action
+    probabilities (softmax of logits) in the Godot viewport. Pure GDScript + ncnn, zero Python;
+    answers "what does the agent see and want?" visually. Needs non-`--headless` verification.
+    *(from item 20; novel-addons spec §3 A5)*
 
-## Training backends
+## Training backends & algorithms
 
 17. ✅ **CleanRL backend** — single-file PPO over godot_rl's `CleanRLGodotEnv`.
     **Done 2026-06-02** — spec `docs/superpowers/specs/2026-06-02-cleanrl-backend-design.md`, plan
@@ -266,6 +283,27 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
     multi-policy training script, a 2-policy example scene (two `AGENT`-group controllers with
     distinct `policy_name`s), and a behavioral regression. Pulls in a new backend dependency
     (RLlib/PettingZoo) — sits with the multi-agent backend track (items 18/19, SKRL).
+51. ⬜ **Intrinsic reward (Curiosity/ICM + RND)** — a pluggable intrinsic-reward signal addable to any
+    training script, for sparse-reward games (most real games). Ship RND (Random Network Distillation —
+    simpler) first, then ICM. Python-side; composes with the existing reward path. *(from item 20;
+    roadmap Track C)*
+52. ⬜ **Curriculum learning** — progressive difficulty via environment-parameter randomization,
+    driven from the trainer. Requires a side-channel or cmdline parameterization to push curriculum
+    params into the Godot scene each episode. Python + a small Godot-side param hook. *(from item 20;
+    roadmap Track C)*
+53. ⬜ **Competitive self-play** — a ghost controller backed by a frozen policy snapshot, opponent-pool
+    / league training, and ELO tracking. Natural consumer of the `policy_name` field (item 20) +
+    item 45. Heavy; multi-agent track. *(from item 20; roadmap Track B; novel-addons "behavior
+    snapshots")*
+54. ⬜ **Cooperative MA-POCA** — multi-agent centralized-critic training with a shared team reward
+    (Unity-parity stretch). Heavy; needs a multi-agent backend (items 18/19). *(from item 20;
+    roadmap Track B)*
+
+## Distribution & DX
+
+50. ⬜ **Hugging Face Hub integration** — push trained ncnn models to / pull pretrained ones from the
+    Hub in one command (e.g. `godot-ncnn push examples/chase_the_target/models/ my-org/chase-agent`).
+    Python-side CLI wrapping `huggingface_hub`. *(from item 20; roadmap Track D)*
 
 ## Deploy-side inference gaps (surfaced by `docs/ncnn_vs_onnx.md`)
 
@@ -381,12 +419,16 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     API. Pairs with item 34: train in Python, pick a replay, export a clip. Useful for sharing
     results and debugging policy behaviour visually.
 
-## Later (in catalog spec, not yet detailed)
+## Retired / split
 
-20. ⬜ Animation Policy Adapter · in-editor Policy Debugger · Running Normalization Sensor ·
-    Observation History Buffer · Hugging Face Hub integration · curiosity/RND intrinsic reward ·
-    curriculum learning · self-play · MA-POCA.
-    *(roadmap spec Tracks B/C/D; novel-addons spec §3 A4/A5/B1/B2)*
+20. 🔀 **Split 2026-06-03** — this was a catalog line bundling ten loosely-related ideas, not an
+    actionable item. Now decomposed into individually-numbered items, filed by track:
+    Observation History Buffer (**46**), Running Normalization Sensor (**47**), Animation Policy
+    Adapter (**48**), in-editor Policy Debugger (**49**), Hugging Face Hub (**50**), intrinsic
+    reward / Curiosity + RND (**51**), curriculum learning (**52**), competitive self-play (**53**),
+    cooperative MA-POCA (**54**). The `policy_name` wire-field slice shipped first (record below; the
+    trained PettingZoo/RLlib example is **45**). *(roadmap spec Tracks B/C/D; novel-addons spec §3
+    A4/A5/B1/B2)*
     **Multi-policy `policy_name` wire field — Done 2026-06-03** — spec
     `docs/superpowers/specs/2026-06-03-multi-policy-name-design.md`, plan
     `docs/superpowers/plans/2026-06-03-multi-policy-name.md`. `NcnnSync.build_env_info_message()`

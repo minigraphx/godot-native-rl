@@ -74,7 +74,7 @@ Godot Native RL is a GDExtension-based RL framework for Godot 4.6+ that uses Ten
 |---|---|---|
 | Godot Asset Library plugin | ✅ | ⚠️ addon structure + `plugin.cfg` done; binary release deferred (item 25) |
 | `gdrl` CLI launcher | ✅ | ❌ |
-| Hugging Face Hub integration | ✅ | ❌ (Later — item 20) |
+| Hugging Face Hub integration | ✅ | ❌ (item 50) |
 | HP tuning (Optuna) | ✅ | ❌ |
 | Troubleshooting docs | ✅ (extensive) | ⚠️ strong dev-facing gotchas (CLAUDE.md, `DEVELOPMENT.md`, `ncnn_vs_onnx.md`); no user-facing troubleshooting guide yet |
 
