@@ -1,10 +1,13 @@
 # Backlog
 
-Actionable work items (mirrors the spawn-task chips so they can be picked up from any session —
-including mobile — without clicking). To start one from a new chat:
+Historical record of shipped items + tracking for the currently-listed open items until they are all
+done, at which point this file retires. **GitHub issues are the primary source of truth for open
+work.** New items are filed as GitHub issues only — do not add them here.
 
-> Read `CLAUDE.md` and `docs/BACKLOG.md`. Do **backlog item N** using the superpowers
-> brainstorm → spec → plan → implement workflow, on a feature branch.
+To pick up an open item from a new chat:
+
+> Read `CLAUDE.md`. Do **GitHub issue #N** — fetch the issue for context, then use the superpowers
+> brainstorm → spec → plan → implement workflow on a feature branch.
 
 Full reasoning lives in the two roadmap specs:
 - `docs/superpowers/specs/2026-05-30-feature-parity-roadmap-design.md` (strategy + gap analysis)
@@ -12,16 +15,23 @@ Full reasoning lives in the two roadmap specs:
 
 Status legend: ⬜ not started · 🔄 in progress · ✅ done
 
-## GitHub issue mirror
+## Open-item → GitHub issue map
 
-This markdown file is the **source of truth**. Every open (⬜/🔄) item is also mirrored to a GitHub
-issue titled `[Backlog N] …` (labels: `backlog`, `area:*` for the section, `priority:*` for triage)
-so PRs can `Closes #NN` and the derivation/dependency graph is visible on GitHub. Done (✅) items are
-**not** mirrored — their value is the inline history below.
+| Item | Issue | Item | Issue | Item | Issue |
+|---|---|---|---|---|---|
+| 9  | #12 | 25 | #32 | 45 | #26 |
+| 10 | #13 | 31 | #37 | 46 | #17 |
+| 14 | #19 | 32 | #38 | 47 | #18 |
+| 15 | #20 | 34 | #39 | 48 | #22 |
+| 16 | #21 | 35 | #40 | 49 | #23 |
+| 18 | #24 | 37 | #35 | 50 | #31 |
+| 19 | #25 | 38 | #36 | 51 | #27 |
+| 22 | #33 | 41 | #14 | 52 | #28 |
+| 23 | #34 | 42 | #15 | 53 | #29 |
+|    |     | 43 | #16 | 54 | #30 |
 
-**Sync rule:** when an item ships, the closing PR must `Closes #NN` **and** flip the item's checkbox
-here in the same change (per the CLAUDE.md "update docs in the same change" rule). When you split or
-add an open item, file a matching `[Backlog N]` issue and add it to the map below.
+**Sync rule:** when an item ships, the closing PR must `Closes #NN` and flip the checkbox here in
+the same change. New items → GitHub issue only.
 
 Open-item → issue map:
 
