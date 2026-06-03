@@ -3,7 +3,7 @@
 **Date:** 2026-06-02 · **status refreshed 2026-06-03**  
 **Repos audited:** `edbeeching/godot_rl_agents` · `edbeeching/godot_rl_agents_plugin` · `edbeeching/godot_rl_agents_examples`  
 **This repo state:** backlog items 1–8, 11, 12–13, 17, 20 (wire-field slice), 21, 24, 30, 33, 36,
-39, 40, 44 done; item 9 partial. Open gaps tracked as GitHub issues (see table below).
+39, 40, 41, 44 done; item 9 partial. Open gaps tracked as GitHub issues (see table below).
 (2026-06-03 refresh: GridSensor + ISensor interface shipped; `INHERIT_FROM_SYNC` already wired;
 `policy_name`/`agent_policy_names` wire field shipped — RLlib/PettingZoo *trainers* now unblocked,
 tracked as issue #26)
@@ -16,7 +16,7 @@ tracked as issue #26)
 |---|---|---|---|
 | `RaycastSensor2D` | ✅ | ✅ | — |
 | `RaycastSensor3D` (distance) | ✅ | ✅ | — |
-| `RaycastSensor3D` class mode | ✅ `class_sensor` + `boolean_class_mask` — one-hot per class per ray | ❌ distance only | **Gap** (#14) |
+| `RaycastSensor3D` class mode | ✅ `class_sensor` + `boolean_class_mask` — one-hot per class per ray | ✅ `class_sensor` mode on both 2D+3D, per-ray multi-hot layer segments via `detection_classes` | ✅ done (#42) |
 | `ISensor2D` / `ISensor3D` interface | ✅ shared base all sensors implement | ✅ + `collect_sensors()` auto-discovery | ✅ done (item 40) |
 | `PositionSensor2D/3D` | ✅ multi-target `Array[Node2D]`, optional dir/dist split | ✅ single `target_path` only | ⚠️ partial (#15) |
 | `RGBCameraSensor2D/3D` | ✅ configurable render res + downscale + RGBA/RGB + editor preview | ✅ fixed viewport res, RGB only, no downscale | ⚠️ partial (#36) |
@@ -125,10 +125,10 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | ✅ Done | `ISensor2D/3D` interface + `collect_sensors()` | — |
 | ✅ Done | `get_obs_space()` on agents — already implemented | — |
 | ✅ Done | `INHERIT_FROM_SYNC` — already wired in `NcnnSync._get_agents()` | — |
+| ✅ Done | `RaycastSensor3D` (and 2D) multi-class detection mode (`class_sensor`) | #42 |
 | 🟠 P1 | `RECORD_EXPERT_DEMOS` + demo infra | #13 |
 | 🟠 P1 | Stochastic action sampling (`deterministic_inference`) | #16 |
 | 🟠 P1 | Recurrent / LSTM deploy | #33 |
-| 🟡 P2 | `RaycastSensor3D` multi-class detection mode | #14 |
 | 🟡 P2 | `RelativePositionSensor` multi-target | #15 |
 | 🟡 P2 | RLlib + PettingZoo multi-policy trained example | #26 |
 | 🟡 P2 | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
