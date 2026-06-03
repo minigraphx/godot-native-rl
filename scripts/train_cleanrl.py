@@ -370,7 +370,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
         steps_done = (update + 1) * batch_size
         print(f"update {update + 1}/{updates} steps={steps_done} "
-              f"mean_reward={float(rewards_buf.mean()):.4f} value_loss={float(v_loss):.4f}")
+              f"mean_reward={float(rewards_buf.mean()):.4f} value_loss={float(v_loss.detach()):.4f}")
 
     # Save the torch policy and export the actor logits to ONNX for the ncnn deploy pipeline.
     pt_path = pathlib.Path(cfg.save_model_path)

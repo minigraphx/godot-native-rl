@@ -16,6 +16,7 @@ __pycache__/
 models/__pycache__/
 models/*.pt
 models/*.onnx
+models/*.onnx.data
 models/*.pnnx.*
 models/*_ncnn.py
 models/*_pnnx.py

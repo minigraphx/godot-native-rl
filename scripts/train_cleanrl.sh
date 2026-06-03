@@ -7,6 +7,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Unbuffered stdout so per-update progress streams live even when redirected to a file/pipe
+# (Python block-buffers stdout to a non-TTY, which otherwise makes a healthy run look stalled).
+export PYTHONUNBUFFERED=1
+
 GODOT="${GODOT:-godot}"
 PY="${PY:-.venv-train/bin/python}"
 TIMESTEPS="${TIMESTEPS:-300000}"
