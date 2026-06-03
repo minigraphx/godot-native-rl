@@ -3,17 +3,20 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 GODOT="${GODOT:-godot}"
 
-# Self-heal the script-class cache. Godot's global `class_name` registry lives in
-# .godot/global_script_class_cache.cfg, which is gitignored and is ONLY written by an editor/import
-# pass — not by --headless/--script. Without it, a test that resolves a `class_name` base errors inside
-# _initialize() *before* the harness reaches quit(), so headless Godot HANGS FOREVER (~0% CPU) instead
-# of failing. On a fresh clone (or right after `rm`-ing the cache), regenerate it once with an import
-# pass, then continue. See CLAUDE.md ("Fresh-clone trap").
-if [ ! -f .godot/global_script_class_cache.cfg ]; then
-	echo "== Script-class cache missing — generating it once (headless --script can't write it) =="
-	"$GODOT" --headless --editor --quit >/dev/null 2>&1 || true
-	git clean -fq -- '*.gd.uid' 2>/dev/null || true
-fi
+# (Re)generate the script-class cache fresh on every run. Godot's global `class_name` registry lives
+# in .godot/global_script_class_cache.cfg, which is gitignored and is ONLY written by an editor/import
+# pass — not by --headless/--script. Two failure modes it must prevent:
+#   * MISSING cache (fresh clone / after `rm`): a test resolving a `class_name` base errors inside
+#     _initialize() *before* the harness reaches quit(), so headless Godot HANGS FOREVER (~0% CPU).
+#   * STALE cache (after a branch switch that moved/removed a `class_name` file): the registry still
+#     points a class at its old path, so the now-current file reports "hides a global script class"
+#     and dependent tests fail to compile.
+# A presence check (`[ ! -f ]`) catches only the first. Regenerating unconditionally — rm then import —
+# catches both, for a few seconds' cost. See CLAUDE.md ("Fresh-clone trap").
+echo "== (Re)generating script-class cache (editor import; headless --script can't write it) =="
+rm -f .godot/global_script_class_cache.cfg
+"$GODOT" --headless --editor --quit >/dev/null 2>&1 || true
+git clean -fq -- '*.gd.uid' 2>/dev/null || true
 if [ ! -f .godot/global_script_class_cache.cfg ]; then
 	echo "ERROR: could not generate .godot/global_script_class_cache.cfg (script-class registry)." >&2
 	echo "       Generate it manually before running the suite, then re-run:" >&2

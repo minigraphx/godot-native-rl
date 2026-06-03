@@ -41,9 +41,10 @@ complement to godot_rl, grow toward full replacement.
 - **Build the extension:** `scons platform=macos arch=arm64 target=template_debug` (see README for other platforms). `godot` binary: `/opt/homebrew/bin/godot` (4.6.2).
 - **Run all tests:** `./test/run_tests.sh` — headless GDScript unit tests + Python protocol test +
   inference smoke + trained-chase + golden regression + rover-3D smoke + Python helper tests. Must be
-  green before merge. (The full suite should pass from a **clean cache** — `rm
-  .godot/global_script_class_cache.cfg` first to be sure; `run_tests.sh` now self-heals a missing cache
-  with a one-time `--headless --editor --quit` import pass, so it won't hang — see the fresh-clone trap below.)
+  green before merge. (`run_tests.sh` now **regenerates the script-class cache fresh on every run**
+  — `rm` + a `--headless --editor --quit` import pass — so it self-heals both a *missing* cache (fresh
+  clone) and a *stale* one (after a branch switch that moved/removed a `class_name` file); you no longer
+  need to `rm` it manually. See the fresh-clone trap below.)
 - **Train (chase):** `TIMESTEPS=120000 ./scripts/train_chase.sh` (starts SB3 trainer, launches headless
   Godot training scene which connects on port 11008). ~34 min at 120k steps.
 - **Train (rover, resumable):** `./scripts/train_rover.sh` — checkpoints to `models/rover_checkpoints/`
@@ -110,9 +111,12 @@ complement to godot_rl, grow toward full replacement.
   **Fresh-clone trap:** with an empty/missing `.godot/` (or right after `rm
   global_script_class_cache.cfg`), a `class_name` base still can't resolve and the parse error fires
   inside a test's `_initialize()` *before* the harness reaches `quit()`, so headless Godot **hangs
-  forever** (~0% CPU; looks like a slow test). `run_tests.sh` now self-heals this — it regenerates the
-  cache once with `godot --headless --editor --quit` (then `git clean -f -- '*.gd.uid'`) before running.
-  To do it manually: run that import pass once (or open the project in the editor).
+  forever** (~0% CPU; looks like a slow test). A **stale** cache (after a branch switch that moved/removed
+  a `class_name` file) is just as bad — the registry points the class at its old path, so the now-current
+  file reports `hides a global script class` and dependent tests fail to compile. `run_tests.sh` self-heals
+  both: it **regenerates the cache fresh on every run** (`rm` + `godot --headless --editor --quit`, then
+  `git clean -f -- '*.gd.uid'`) before the tests. To do it manually: run that import pass once (or open the
+  project in the editor).
 - **Don't commit Godot-generated `*.gd.uid` files** — an editor/import pass scatters them (and can
   re-materialize moved scripts at their old paths); `git clean -f -- '*.gd.uid'` and delete stray
   root duplicates before committing.
