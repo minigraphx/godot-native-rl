@@ -131,9 +131,10 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | 🟡 P2 | `RaycastSensor3D` multi-class detection mode | #14 |
 | 🟡 P2 | `RelativePositionSensor` multi-target | #15 |
 | 🟡 P2 | RLlib + PettingZoo multi-policy trained example | #26 |
+| 🟡 P2 | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
 | 🔵 P3 | Batched multi-agent inference | #34 |
-| 🔵 P3 | SampleFactory backend | #24 |
 | ⚪ P4 | CameraSensor: configurable render res + downscale + RGBA | #36 |
 | ⚪ P4 | Grayscale camera deploy (C++ `PIXEL_GRAY` path) | #36 |
 | ⚪ P4 | `SBGSingleObsEnv` compat wrapper | — |
+| 🔴 P5 | `terminated`/`truncated` split — wire semantics change; blocked on upstream godot_rl TODO | #12 |
 | 🔵 By design | `ONNX_INFERENCE` mode — replaced by ncnn | — |
