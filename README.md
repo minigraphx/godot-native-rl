@@ -166,10 +166,15 @@ The manual `pnnx` + `verify_ncnn_parity.py` steps below are the underlying opera
 #### From TorchScript (skip ONNX)
 
 If you already have a TorchScript policy (`.pt`/`.ptl`), convert it **directly** — one fewer hop, and
-often better numerical parity since pnnx's native format *is* TorchScript. `--inputshape` is required
-(a `.pt` carries no readable shape metadata, so the tool fails fast without it):
+often better numerical parity since pnnx's native format *is* TorchScript. A `.pt` carries no readable
+shape metadata, so the tool **auto-derives `inputshape`** from a `<model>.shape.json` sidecar
+(`{"inputshape": "[1,5]"}` or `{"shape": [1, 5]}`), else best-effort from the first `Linear` layer:
 
-    .venv-train/bin/python scripts/export_to_ncnn.py models/policy.pt --inputshape '[1,5]'
+    .venv-train/bin/python scripts/export_to_ncnn.py models/policy.pt              # auto-shape
+    .venv-train/bin/python scripts/export_to_ncnn.py models/policy.pt --inputshape '[1,5]'  # override
+
+Pass `--inputshape` to override the derivation (still needed for a conv-first stem, whose spatial dims
+can't be recovered from weights).
 
 `--via` defaults to `auto` (routes by extension: `.onnx` → onnx, `.pt`/`.ptl` → torchscript); pass it
 explicitly to force a path. Parity is checked by running the `.pt` through `torch.jit` and diffing
