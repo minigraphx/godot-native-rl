@@ -21,7 +21,9 @@ Two layers, deliberately separated:
   - `controllers/` — `NcnnControllerCore` (RefCounted episode/reward state machine) + thin
     `NcnnAIController2D`/`3D` node wrappers that forward to it.
   - `reward/` — declarative reward authoring (`RewardBuilder` + `RewardAdapter` + terms).
-  - `sensors/` — `RaycastSensor2D/3D` + pure `raycast_math`.
+  - `sensors/` — `RaycastSensor2D/3D` + pure `raycast_math` (incl. an opt-in `class_sensor` mode:
+    per-ray multi-hot collision-layer segments via `detection_classes` + optional `other`/closeness
+    slots, encoded by `raycast_math.encode_ray_class`).
   - `training/` — `ParallelArena` (tiles N agent worlds in one process for ~Nx-faster training).
 
 Examples (`examples/chase_the_target/`, `examples/rover_3d/`) compose these into runnable scenes.

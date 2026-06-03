@@ -59,4 +59,44 @@ func _initialize() -> void:
 			unit3_ok = false
 	h.assert_true(unit3_ok, "all 3D dirs are unit length")
 
+	# --- encode_ray_class ---
+	var classes := [2, 3, 5]   # 1-based layers -> bit values 2, 4, 16
+
+	# miss -> all zeros; segment len = n_classes + other + distance = 5
+	var enc_miss: Array = RaycastMath.encode_ray_class(-1.0, 0, 20.0, classes, true, true)
+	h.assert_eq(enc_miss.size(), 5, "encode: segment len = n_classes + other + distance")
+	var enc_miss_zero := true
+	for v in enc_miss:
+		if absf(v) > 1e-6:
+			enc_miss_zero = false
+	h.assert_true(enc_miss_zero, "encode: miss -> all zeros")
+
+	# hit on layer 3 (bit value 4) at half distance -> middle class slot + closeness 0.5
+	var enc_c3: Array = RaycastMath.encode_ray_class(10.0, 4, 20.0, classes, true, true)
+	h.assert_eq(enc_c3, [0.0, 1.0, 0.0, 0.0, 0.5], "encode: layer-3 hit -> middle slot + closeness")
+
+	# multi-layer hit: object on layers 2 AND 5 (bit values 2 | 16 = 18), at origin
+	var enc_multi: Array = RaycastMath.encode_ray_class(0.0, 18, 20.0, classes, true, true)
+	h.assert_eq(enc_multi, [1.0, 0.0, 1.0, 0.0, 1.0], "encode: multi-layer -> multi-hot, other 0")
+
+	# unlisted-layer hit: layer 4 (bit value 8), not in classes -> other slot lit
+	var enc_other: Array = RaycastMath.encode_ray_class(0.0, 8, 20.0, classes, true, true)
+	h.assert_eq(enc_other, [0.0, 0.0, 0.0, 1.0, 1.0], "encode: unlisted layer -> other slot")
+
+	# include_other off: unlisted-layer hit -> class slots zero + distance only
+	var enc_no_other: Array = RaycastMath.encode_ray_class(0.0, 8, 20.0, classes, false, true)
+	h.assert_eq(enc_no_other, [0.0, 0.0, 0.0, 1.0], "encode: include_other off -> no other slot")
+
+	# include_distance off: layer-2 hit -> classes + other, no closeness slot
+	var enc_no_dist: Array = RaycastMath.encode_ray_class(10.0, 2, 20.0, classes, true, false)
+	h.assert_eq(enc_no_dist, [1.0, 0.0, 0.0, 0.0], "encode: include_distance off -> no closeness slot")
+
+	# both flags off: class slots only
+	var enc_only: Array = RaycastMath.encode_ray_class(10.0, 2, 20.0, classes, false, false)
+	h.assert_eq(enc_only, [1.0, 0.0, 0.0], "encode: both flags off -> class slots only")
+
+	# empty detection_classes + both flags off -> empty (degenerate but deterministic)
+	var enc_empty: Array = RaycastMath.encode_ray_class(5.0, 2, 20.0, [], false, false)
+	h.assert_eq(enc_empty.size(), 0, "encode: empty classes + no flags -> zero-length segment")
+
 	h.finish(self)

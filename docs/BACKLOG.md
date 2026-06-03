@@ -192,12 +192,20 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
     `collect_sensors()` convenience on `NcnnAIController2D/3D` (`get_obs()` → `{"obs": collect_sensors()}`).
     Headless unit tests: base stubs, discovery/ordering (pre-order load-bearing)/camera-skip,
     real-sensor `is`-conformance, controller method. Enables items 41–42.
-41. ⬜ **`RaycastSensor3D` multi-class detection mode** — upstream's `RaycastSensor3D` has a
+41. ✅ **`RaycastSensor3D` multi-class detection mode** — upstream's `RaycastSensor3D` has a
     `class_sensor: bool` export + `boolean_class_mask` that encodes multiple object types per ray
     (one boolean slot per detected class, in addition to or instead of normalized distance).
-    This repo's `RaycastSensor3D` is distance-only. Add `class_sensor` + `detection_classes`
-    (Array[int] of collision layers to distinguish) and extend `raycast_math` to emit per-class
+    This repo's `RaycastSensor3D` was distance-only. Added `class_sensor` + `detection_classes`
+    (Array[int] of collision layers to distinguish) and extended `raycast_math` to emit per-class
     one-hot segments, keeping the distance encoding as an optional additional slot.
+    **Done 2026-06-03** — implemented on **both `RaycastSensor2D` and `RaycastSensor3D`** (2D added
+    alongside 3D since the encoder is shared). Opt-in `class_sensor`: `detection_classes` (1-based
+    layer numbers) → per-ray **multi-hot** class slots + optional `other` catch-all + optional
+    `closeness`, all encoded by pure `RaycastMath.encode_ray_class`. New
+    `_cast_class`/`set_class_cast_fn_for_test` seam (returns `{distance, layer}`); the distance-only
+    path is unchanged when `class_sensor` is off. Spec
+    `docs/superpowers/specs/2026-06-03-raycast-multi-class-detection-design.md`, plan
+    `docs/superpowers/plans/2026-06-03-raycast-multi-class-detection.md`. Enables item 42.
 42. ⬜ **`RelativePositionSensor` multi-target support** — upstream's `PositionSensor2D/3D` takes
     an `Array[Node2D/Node3D]` of targets and encodes each independently (concatenated). This repo's
     `RelativePositionSensor2D/3D` takes a single `target_path`. Extend to accept an
