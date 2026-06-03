@@ -54,9 +54,9 @@ Godot Native RL is a GDExtension-based RL framework for Godot 4.6+ that uses Ten
 |---|---|---|
 | Parallel multi-agent training (tiled worlds) | ✅ | ✅ `ParallelArena`/`ParallelArena2D` (item 30, ~6.2×) |
 | Parameter-sharing self-play example | ⚠️ | ✅ Hide & Seek 2D scaffold (item 12) |
-| Per-agent `policy_name` in `env_info` | ✅ | ❌ **(next protocol gap — item 20 wire-note)** |
-| PettingZoo wrapper | ✅ | ❌ (needs `agent_policy_names` first) |
-| Multi-policy training (RLlib) | ✅ | ❌ (needs `agent_policy_names` first) |
+| Per-agent `policy_name` in `env_info` | ✅ | ✅ (item 20 wire-field slice, done 2026-06-03) |
+| PettingZoo wrapper | ✅ | ❌ (`agent_policy_names` now shipped — trained example queued, item 45) |
+| Multi-policy training (RLlib) | ✅ | ❌ (`agent_policy_names` now shipped — trained example queued, item 45) |
 | Expert-demo recording (RECORD_EXPERT_DEMOS) | ✅ | ❌ (queued — item 10) |
 | Imitation learning (BC + GAIL, `imitation` lib) | ✅ | ❌ (follows expert-demo recording) |
 
@@ -66,7 +66,7 @@ Godot Native RL is a GDExtension-based RL framework for Godot 4.6+ that uses Ten
 | Stable-Baselines3 | ✅ | ✅ |
 | CleanRL | ✅ | ✅ (item 17, trained model shipped) |
 | SampleFactory | ✅ | ❌ (queued — item 18) |
-| RLlib | ✅ | ❌ (queued; needs multi-policy field) |
+| RLlib | ✅ | ❌ (queued — item 45; multi-policy `policy_name` field now shipped) |
 | SKRL | ❌ | ❌ (queued — item 19) |
 
 #### Distribution & DX
@@ -131,7 +131,7 @@ Priority order:
 
 Sub-projects in dependency order:
 1. **`NcnnAIController3D` + base refactor** (already queued) — prerequisite for all 3D multi-agent work.
-2. **Per-agent `policy_name`** — add to `env_info`, route through `NcnnSync`. Enables godot_rl-protocol multi-policy (RLlib).
+2. **Per-agent `policy_name`** — add to `env_info`, route through `NcnnSync`. Enables godot_rl-protocol multi-policy (RLlib). *(✅ done 2026-06-03 — `agent_policy_names` wire field, item 20 slice; the trained RLlib/PettingZoo example is item 45.)*
 3. **PettingZoo wrapper** — Python-side parallel-env API. Enables MARL with any PettingZoo-compatible trainer.
 4. **Expert-demo recording (RECORD_EXPERT_DEMOS)** (already queued) — prerequisite for imitation learning.
 5. **Competitive self-play** — ghost controller (frozen policy snapshot), league training, ELO tracking.
@@ -194,7 +194,7 @@ The sensors that every godot_rl example uses. With raycasts, users can replicate
 ### Phase 3: Multi-agent + imitation
 
 - Expert-demo recording (already queued)
-- PettingZoo wrapper + per-agent policy_name
+- PettingZoo wrapper + per-agent policy_name *(policy_name wire field ✅ done — item 20; wrapper/trained example is item 45)*
 - Imitation learning (BC + GAIL)
 - CleanRL + SampleFactory backends (already queued)
 
