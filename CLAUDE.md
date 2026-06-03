@@ -37,6 +37,9 @@ complement to godot_rl, grow toward full replacement.
   golden regression; `rover_world.tscn` sub-scene + `rover_3d_train_parallel.tscn` for parallel training) and
   `examples/hide_and_seek/` (2D 1v1 parameter-sharing self-play: seeker vs hider, LOS-gated vision + occluding walls, one shared PPO policy; scaffold + self-play smoke test, trained model deferred).
 - Wire protocol is **fully godot_rl v0.8.2-compatible** (proven by real SB3 PPO training).
+- `NcnnSync.build_env_info_message()` always emits **`agent_policy_names`** (one entry per training
+  agent, in obs order, from each controller's `policy_name` export, default `"shared_policy"`), so
+  godot_rl multi-policy routing (PettingZoo/RLlib) works; single-policy training is unaffected.
 
 ## Key commands
 

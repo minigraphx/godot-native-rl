@@ -261,6 +261,11 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
     `value_loss` print. **Deferred:** continuous / `n_parallel>1` variants.
 18. ⬜ **SampleFactory backend** — async high-throughput training. *v-next, after CameraSensor.*
 19. ⬜ **SKRL backend** — multi-agent + JAX. *v-next, when multi-agent/JAX becomes priority.*
+45. ⬜ **Multi-policy trained example (PettingZoo/RLlib)** — the trainer + example that *uses* the
+    `agent_policy_names` wire field (shipped 2026-06-03, item 20 slice). Add a PettingZoo or RLlib
+    multi-policy training script, a 2-policy example scene (two `AGENT`-group controllers with
+    distinct `policy_name`s), and a behavioral regression. Pulls in a new backend dependency
+    (RLlib/PettingZoo) — sits with the multi-agent backend track (items 18/19, SKRL).
 
 ## Deploy-side inference gaps (surfaced by `docs/ncnn_vs_onnx.md`)
 
@@ -379,13 +384,16 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
 ## Later (in catalog spec, not yet detailed)
 
 20. ⬜ Animation Policy Adapter · in-editor Policy Debugger · Running Normalization Sensor ·
-    Observation History Buffer · Hugging Face Hub integration · multi-policy (`policy_name` +
-    PettingZoo) · curiosity/RND intrinsic reward · curriculum learning · self-play · MA-POCA.
+    Observation History Buffer · Hugging Face Hub integration · curiosity/RND intrinsic reward ·
+    curriculum learning · self-play · MA-POCA.
     *(roadmap spec Tracks B/C/D; novel-addons spec §3 A4/A5/B1/B2)*
-    **Wire-level note:** multi-policy requires `NcnnSync.build_env_info_message()` to emit
-    `agent_policy_names` (a per-agent list of policy strings). The Python side already consumes it
-    (`godot_env.py`: `json_dict.get("agent_policy_names", ["shared_policy"] * n_agents)`) and
-    defaults gracefully for single-policy SB3 — so today's training is unaffected. Multi-policy
-    RLlib/PettingZoo routing will break without this field. Fix: add a `policy_name` export to
-    `NcnnAIController2D/3D` (default `"shared_policy"`) and collect it into `agent_policy_names`
-    in the env_info message alongside item 39's `get_obs_space()` work.
+    **Multi-policy `policy_name` wire field — Done 2026-06-03** — spec
+    `docs/superpowers/specs/2026-06-03-multi-policy-name-design.md`, plan
+    `docs/superpowers/plans/2026-06-03-multi-policy-name.md`. `NcnnSync.build_env_info_message()`
+    now always emits `agent_policy_names` (one entry per training agent, in obs order) via pure
+    `addons/godot_native_rl/policy_names.gd`; `policy_name` export added to `NcnnAIController2D/3D`
+    (default `"shared_policy"`, null/empty/non-String → `"shared_policy"`). The Python side already
+    consumes it (`godot_env.py`: `json_dict.get("agent_policy_names", ["shared_policy"] * n_agents)`),
+    so single-policy SB3 is unaffected and older trainers ignore the field. Unit-tested (helper +
+    sync message) and asserted over the wire (`run_protocol_test.py`). The *trained* multi-policy
+    example (PettingZoo/RLlib trainer + 2-policy scene) that uses this field is item 45.
