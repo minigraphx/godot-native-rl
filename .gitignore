@@ -31,3 +31,4 @@ models/rover_policy.*
 # INT8 quantize tools (built locally, like bin/)
 thirdparty/ncnn/build-tools/
 thirdparty/ncnn/tools-bin/
+.DS_Store
