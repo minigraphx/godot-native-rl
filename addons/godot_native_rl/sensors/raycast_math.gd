@@ -75,5 +75,6 @@ static func encode_ray_class(
 	if include_other:
 		seg.append(1.0 if (hit and not matched_any) else 0.0)
 	if include_distance:
+		# closeness(-1.0, ...) == 0.0, so a miss yields 0.0 here without a special branch.
 		seg.append(closeness(hit_distance, ray_length))
 	return seg

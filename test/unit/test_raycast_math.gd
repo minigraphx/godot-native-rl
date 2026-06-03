@@ -95,4 +95,8 @@ func _initialize() -> void:
 	var enc_only: Array = RaycastMath.encode_ray_class(10.0, 2, 20.0, classes, false, false)
 	h.assert_eq(enc_only, [1.0, 0.0, 0.0], "encode: both flags off -> class slots only")
 
+	# empty detection_classes + both flags off -> empty (degenerate but deterministic)
+	var enc_empty: Array = RaycastMath.encode_ray_class(5.0, 2, 20.0, [], false, false)
+	h.assert_eq(enc_empty.size(), 0, "encode: empty classes + no flags -> zero-length segment")
+
 	h.finish(self)
