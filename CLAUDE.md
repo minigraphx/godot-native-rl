@@ -175,8 +175,9 @@ complement to godot_rl, grow toward full replacement.
 - Use the **superpowers workflow**: brainstorm → spec (`docs/superpowers/specs/`) → plan
   (`docs/superpowers/plans/`) → TDD implement on a feature branch. Don't push to `main` directly.
 - **Before every push, check and update the docs** so they match the change: README, this
-  `CLAUDE.md`, and `docs/BACKLOG.md`. Stale paths/commands/state count as a bug — fix them in the
-  same change, not later.
+  `CLAUDE.md`, and `docs/godot-rl-gap-analysis-2026-06-02.md`. Also flip the checkbox in
+  `docs/BACKLOG.md` and close the GitHub issue (`Closes #NN`) if the change ships a listed item.
+  Stale paths/commands/state count as a bug — fix them in the same change, not later.
 
 ## Roadmap & backlog
 
@@ -185,8 +186,10 @@ complement to godot_rl, grow toward full replacement.
 - **Novel addons + protocol findings:**
   `docs/superpowers/specs/2026-05-30-novel-addons-and-protocol-design.md` (10 addons in neither
   godot_rl nor Unity; 4 protocol upgrades incl. the `terminated`/`truncated` correctness fix).
-- **Actionable backlog (pick up by number):** `docs/BACKLOG.md` — any session (incl. mobile) can
-  start an item without clicking. Say "do backlog item N".
+- **Open work (primary SSOT):** GitHub issues — labelled `backlog` + `area:*` + `priority:1–5`.
+  Say "do issue #N". New items go to GitHub only.
+  `docs/BACKLOG.md` tracks the originally-listed items until they're all done (then retires);
+  it's updated by each closing PR but not extended with new entries.
   - **Done:** 1 (Signal→Reward + RewardBuilder), 2 (export_to_ncnn helper), 3 (RaycastSensor2D/3D),
     4 (ncnn_vs_onnx guide), 5 (addon structure + controller refactor), 6 (3D rover + trained model +
     golden regression), 7 (RelativePositionSensor2D/3D), 8 (CameraSensor — hex image obs protocol),

@@ -2,11 +2,11 @@
 
 **Date:** 2026-06-02 · **status refreshed 2026-06-03**  
 **Repos audited:** `edbeeching/godot_rl_agents` · `edbeeching/godot_rl_agents_plugin` · `edbeeching/godot_rl_agents_examples`  
-**This repo state:** items 1–8, 11, 12–13, 17, 20 (wire-field slice), 21, 24, 30, 33, 36, 39, 40, 44
-done; item 9 partial
-(2026-06-03 refresh: GridSensor #11 + ISensor interface #40 shipped; #44 `INHERIT_FROM_SYNC`
-found already wired in `NcnnSync._get_agents()`; #20 `policy_name`/`agent_policy_names` wire field
-shipped — RLlib/PettingZoo *trainers* now unblocked, tracked as new item 45)
+**This repo state:** backlog items 1–8, 11, 12–13, 17, 20 (wire-field slice), 21, 24, 30, 33, 36,
+39, 40, 41, 44 done; item 9 partial. Open gaps tracked as GitHub issues (see table below).
+(2026-06-03 refresh: GridSensor + ISensor interface shipped; `INHERIT_FROM_SYNC` already wired;
+`policy_name`/`agent_policy_names` wire field shipped — RLlib/PettingZoo *trainers* now unblocked,
+tracked as issue #26)
 
 ---
 
@@ -16,10 +16,10 @@ shipped — RLlib/PettingZoo *trainers* now unblocked, tracked as new item 45)
 |---|---|---|---|
 | `RaycastSensor2D` | ✅ | ✅ | — |
 | `RaycastSensor3D` (distance) | ✅ | ✅ | — |
-| `RaycastSensor3D` class mode | ✅ `class_sensor` + `boolean_class_mask` — one-hot per class per ray | ❌ distance only | **Gap** (item 41) |
+| `RaycastSensor3D` class mode | ✅ `class_sensor` + `boolean_class_mask` — one-hot per class per ray | ✅ `class_sensor` mode on both 2D+3D, per-ray multi-hot layer segments via `detection_classes` | ✅ done (#42) |
 | `ISensor2D` / `ISensor3D` interface | ✅ shared base all sensors implement | ✅ + `collect_sensors()` auto-discovery | ✅ done (item 40) |
-| `PositionSensor2D/3D` | ✅ multi-target `Array[Node2D]`, optional dir/dist split | ✅ single `target_path` only | ⚠️ partial (item 42) |
-| `RGBCameraSensor2D/3D` | ✅ configurable render res + downscale + RGBA/RGB + editor preview | ✅ fixed viewport res, RGB only, no downscale | ⚠️ partial (item 38) |
+| `PositionSensor2D/3D` | ✅ multi-target `Array[Node2D]`, optional dir/dist split | ✅ single `target_path` only | ⚠️ partial (#15) |
+| `RGBCameraSensor2D/3D` | ✅ configurable render res + downscale + RGBA/RGB + editor preview | ✅ fixed viewport res, RGB only, no downscale | ⚠️ partial (#36) |
 | `GridSensor2D` | ✅ area/body occupancy grid, multi-layer, debug view | ✅ query-based, per-layer counts | ✅ done (item 11) |
 | `GridSensor3D` | ✅ | ✅ | ✅ done (item 11) |
 | Pre-built sensor `.tscn` scenes | ✅ RaycastSensor2D.tscn, RGBCameraSensor2D.tscn + examples | ❌ | Minor |
@@ -42,13 +42,13 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `HUMAN` / `TRAINING` modes | ✅ | ✅ | — |
 | `ONNX_INFERENCE` (requires C#/.NET) | ✅ | ❌ → replaced by `NCNN_INFERENCE` | By design |
 | `INHERIT_FROM_SYNC` mode | ✅ per-agent can override scene-level default | ✅ wired in `NcnnSync._get_agents()` — INHERIT agents adopt sync mode, others override | ✅ done (item 44) |
-| `RECORD_EXPERT_DEMOS` mode | ✅ | ❌ | **Gap** (item 10) |
+| `RECORD_EXPERT_DEMOS` mode | ✅ | ❌ | **Gap** (#13) |
 | `policy_name` export | ✅ default `"shared_policy"` | ✅ default `"shared_policy"` on `NcnnAIController2D/3D` | ✅ done (item 20) |
 | `get_obs_space()` method | ✅ required on every agent | ✅ implemented — delegates to `obs_space_from_obs()` | — (item 39 ✅) |
-| `get_action()` for demo recording | ✅ required when recording | ❌ | **Gap** (item 10) |
-| `expert_demo_save_path` export | ✅ | ❌ | **Gap** (item 10) |
-| `remove_last_episode_key` binding | ✅ undo bad demonstration | ❌ | **Gap** (item 10) |
-| Stochastic action sampling | ✅ `deterministic_inference` flag (softmax vs argmax) | ❌ always deterministic argmax | **Gap** (item 43) |
+| `get_action()` for demo recording | ✅ required when recording | ❌ | **Gap** (#13) |
+| `expert_demo_save_path` export | ✅ | ❌ | **Gap** (#13) |
+| `remove_last_episode_key` binding | ✅ undo bad demonstration | ❌ | **Gap** (#13) |
+| Stochastic action sampling | ✅ `deterministic_inference` flag (softmax vs argmax) | ❌ always deterministic argmax | **Gap** (#16) |
 | VecNormalize obs replay | ❌ upstream | ✅ `obs_norm_stats_path` | **Advantage** |
 
 ---
@@ -60,10 +60,10 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | Training bridge (protocol v0.7) | ✅ | ✅ | — |
 | `agent_policy_names` in env_info | ✅ | ✅ always emitted (one entry per training agent, obs order) | ✅ done (item 20) |
 | `call()` remote method invocation | ✅ Python can invoke arbitrary Godot methods | ✅ handled in `NcnnSync` | — |
-| `terminated`/`truncated` split | ❌ TODO both sides | ❌ | Parity (item 9) |
+| `terminated`/`truncated` split | ❌ TODO both sides | ❌ | Parity (#12) |
 | Connect / read timeouts | ❌ | ✅ | **Advantage** |
 | Per-agent `info` field | ❌ | ✅ | **Advantage** |
-| `deterministic_inference` export on Sync | ✅ | ❌ (goes with item 43) | **Gap** |
+| `deterministic_inference` export on Sync | ✅ | ❌ (goes with #16) | **Gap** |
 
 ---
 
@@ -74,9 +74,9 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `StableBaselinesGodotEnv` (SB3 VecEnv, n_parallel) | ✅ | ✅ proven | — |
 | `SBGSingleObsEnv` (SB3 + `MlpPolicy` compat) | ✅ | ❌ | Minor |
 | `CleanRLGodotEnv` | ✅ | ✅ item 17 done | — |
-| `RayVectorGodotEnv` (RLlib) | ✅ | ❌ no training script | **Gap** (item 45 — `policy_name` now shipped) |
-| `GDRLPettingZooEnv` (PettingZoo, multi-policy) | ✅ | ❌ | **Gap** (item 45 — `policy_name` shipped; needs trainer/example) |
-| `SampleFactoryEnvWrapper` (batched + non-batched) | ✅ | ❌ | **Gap** (item 18) |
+| `RayVectorGodotEnv` (RLlib) | ✅ | ❌ no training script | **Gap** (#26 — `policy_name` now shipped) |
+| `GDRLPettingZooEnv` (PettingZoo, multi-policy) | ✅ | ❌ | **Gap** (#26 — `policy_name` shipped; needs trainer/example) |
+| `SampleFactoryEnvWrapper` (batched + non-batched) | ✅ | ❌ | **Gap** (#24) |
 | ONNX export helper (`OnnxablePolicy`) | ✅ SB3/SAC → ONNX | ✅ `export_to_ncnn.py` ONNX+TorchScript→ncnn | Different, covered |
 | Optuna HP tuning example | ✅ | ❌ | Nice-to-have |
 
@@ -91,12 +91,12 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | Discrete action deploy | ✅ | ✅ | — |
 | Continuous + multi-key deploy | ❌ | ✅ item 21 | **Advantage** |
 | Camera/image deploy | ❌ | ✅ item 36 | **Advantage** |
-| Grayscale (1-channel) camera deploy | ❌ | ❌ needs C++ `PIXEL_GRAY` | **Gap** (item 38) |
+| Grayscale (1-channel) camera deploy | ❌ | ❌ needs C++ `PIXEL_GRAY` | **Gap** (#36) |
 | VecNormalize obs parity | ❌ | ✅ item 24 | **Advantage** |
 | INT8 quantization | ❌ | ✅ item 13 | **Advantage** |
 | TorchScript → ncnn export | ❌ | ✅ item 33 | **Advantage** |
-| Recurrent / LSTM deploy | ❌ | ❌ | Parity gap (item 22) |
-| Batched multi-agent inference | ❌ | ❌ | Parity gap (item 23) |
+| Recurrent / LSTM deploy | ❌ | ❌ | Parity gap (#33) |
+| Batched multi-agent inference | ❌ | ❌ | Parity gap (#34) |
 
 ---
 
@@ -118,20 +118,23 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 
 ## Prioritised gap summary
 
-| Priority | Gap | Backlog item |
+| Priority | Gap | Issue |
 |---|---|---|
-| ✅ Done | `policy_name` + `agent_policy_names` wire field — unblocks RLlib & PettingZoo | 20 |
-| ✅ Done | `GridSensor2D/3D` — last major sensor type | 11 |
-| ✅ Done | `ISensor2D/3D` interface + `collect_sensors()` | 40 |
-| ✅ Done | `get_obs_space()` on agents — already implemented | 39 |
-| ✅ Done | `INHERIT_FROM_SYNC` — already wired in `NcnnSync._get_agents()` | 44 |
-| 🟡 Medium | `RaycastSensor3D` multi-class detection mode | 41 |
-| 🟡 Medium | `RelativePositionSensor` multi-target | 42 |
-| 🟡 Medium | Stochastic action sampling (`deterministic_inference`) | 43 |
-| 🟡 Medium | `RECORD_EXPERT_DEMOS` + demo infra | 10 |
-| 🟡 Medium | CameraSensor: configurable render res + downscale + RGBA | 38 |
-| 🟠 Lower | RLlib + PettingZoo multi-policy trained example (`policy_name` has landed) | 45 |
-| 🟠 Lower | SampleFactory backend | 18 |
-| 🟠 Lower | Grayscale camera deploy (C++ `PIXEL_GRAY` path) | 38 |
-| 🟠 Lower | `SBGSingleObsEnv` compat wrapper | — |
+| ✅ Done | `policy_name` + `agent_policy_names` wire field — unblocks RLlib & PettingZoo | — |
+| ✅ Done | `GridSensor2D/3D` — last major sensor type | — |
+| ✅ Done | `ISensor2D/3D` interface + `collect_sensors()` | — |
+| ✅ Done | `get_obs_space()` on agents — already implemented | — |
+| ✅ Done | `INHERIT_FROM_SYNC` — already wired in `NcnnSync._get_agents()` | — |
+| ✅ Done | `RaycastSensor3D` (and 2D) multi-class detection mode (`class_sensor`) | #42 |
+| 🟠 P1 | `RECORD_EXPERT_DEMOS` + demo infra | #13 |
+| 🟠 P1 | Stochastic action sampling (`deterministic_inference`) | #16 |
+| 🟠 P1 | Recurrent / LSTM deploy | #33 |
+| 🟡 P2 | `RelativePositionSensor` multi-target | #15 |
+| 🟡 P2 | RLlib + PettingZoo multi-policy trained example | #26 |
+| 🟡 P2 | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
+| 🔵 P3 | Batched multi-agent inference | #34 |
+| ⚪ P4 | CameraSensor: configurable render res + downscale + RGBA | #36 |
+| ⚪ P4 | Grayscale camera deploy (C++ `PIXEL_GRAY` path) | #36 |
+| ⚪ P4 | `SBGSingleObsEnv` compat wrapper | — |
+| 🔴 P5 | `terminated`/`truncated` split — wire semantics change; blocked on upstream godot_rl TODO | #12 |
 | 🔵 By design | `ONNX_INFERENCE` mode — replaced by ncnn | — |
