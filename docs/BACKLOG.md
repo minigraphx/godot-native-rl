@@ -210,13 +210,19 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
     `NcnnAIController2D/3D` and to `NcnnControllerCore.choose_and_apply_action`; when `false`,
     pass logits through a weighted-random draw before applying. Continuous actions are unaffected
     (the deterministic mean output is the standard deploy path).
-44. ⬜ **`INHERIT_FROM_SYNC` per-agent control mode — wire up the existing enum value** —
-    `INHERIT_FROM_SYNC` is already declared in both controllers' `ControlModes` enum, but
-    `NcnnSync`'s own `ControlModes` enum omits it and the sync loop never checks per-agent mode.
-    Complete the implementation: add handling in `NcnnSync` so that when an agent's `control_mode
-    == INHERIT_FROM_SYNC` it defers to the sync node's mode, and when it's any other value it
-    overrides independently. This allows mixed-mode scenes (e.g. one agent in TRAINING while
-    another is in NCNN_INFERENCE).
+44. ✅ **`INHERIT_FROM_SYNC` per-agent control mode** — when an agent's `control_mode ==
+    INHERIT_FROM_SYNC` it defers to the sync node's mode; any other value overrides independently,
+    enabling mixed-mode scenes (e.g. one agent TRAINING while another is NCNN_INFERENCE).
+    **Already implemented** (verified 2026-06-03) — `NcnnSync._get_agents()`
+    (`addons/godot_native_rl/sync.gd:140-154`) checks each AGENT's `control_mode`: if it's
+    `INHERIT_FROM_SYNC` it adopts the sync node's mode (TRAINING / NCNN_INFERENCE / else HUMAN), then
+    buckets the agent into `agents_training` / `agents_inference` / `agents_heuristic` by its
+    (possibly-overridden) mode. This deferral has been in place since the addon refactor (5282fd7),
+    so the earlier "the sync loop never checks per-agent mode" framing was inaccurate. `NcnnSync`'s
+    own `ControlModes` enum intentionally omits `INHERIT_FROM_SYNC` — the sync node is the authority
+    it defers *to*, so it never holds that value itself.
+    **Deferred:** a dedicated mixed-mode regression test (the path is exercised indirectly by every
+    training/inference scene, which relies on the INHERIT default resolving correctly).
 
 ## Novel addons (neither godot_rl nor Unity — the moat)
 

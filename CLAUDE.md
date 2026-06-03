@@ -194,7 +194,9 @@ complement to godot_rl, grow toward full replacement.
     33 (TorchScript → ncnn direct export, `--via {onnx,torchscript,auto}`),
     11 (GridSensor2D/3D — query-based cell detection, per-layer overlap counts),
     39 (`get_obs_space()` on controllers — already present),
-    40 (ISensor2D/3D interface + `collect_sensors()` sensor auto-discovery). 9 partial (socket
+    40 (ISensor2D/3D interface + `collect_sensors()` sensor auto-discovery),
+    44 (`INHERIT_FROM_SYNC` per-agent control mode — already present in `NcnnSync._get_agents()`).
+    9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 21–24 (deploy-side inference gaps: continuous/multi-key
     actions, recurrent/LSTM, batched multi-agent, VecNormalize parity) and 25 (Asset Library release —
