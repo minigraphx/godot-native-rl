@@ -246,8 +246,13 @@ Status legend: ⬜ not started · 🔄 in progress · ✅ done
     native ncnn. 17 stdlib-`unittest` tests (`test/python/test_train_cleanrl.py`). Wrapper API:
     `from godot_rl.wrappers.clean_rl_wrapper import CleanRLGodotEnv` (seed only via constructor; obs comes
     back as a plain stacked ndarray; `convert_action_space=True` makes chase's `Discrete(5)` →
-    `MultiDiscrete([5])`). **Deferred:** ship a trained CleanRL chase model + golden ncnn regression
-    (needs a real run); continuous / `n_parallel>1` variants.
+    `MultiDiscrete([5])`). **Trained model shipped 2026-06-03:** a real 300k-step run (`mean_reward`
+    −0.008 → ~0.09, learns early and holds) → `models/chase_cleanrl_policy.ncnn.*` (ncnn↔ONNX parity
+    50/50, 4 distinct actions) + a golden-inference regression
+    `test/unit/test_chase_cleanrl_golden_inference.gd` (5 fixed obs — same set as the SB3 chase golden —
+    captured from the real `NcnnRunner` deploy path; auto-discovered by `run_tests.sh`). Also added
+    `PYTHONUNBUFFERED=1` to the orchestrator (live progress when logging to a file) and detached the
+    `value_loss` print. **Deferred:** continuous / `n_parallel>1` variants.
 18. ⬜ **SampleFactory backend** — async high-throughput training. *v-next, after CameraSensor.*
 19. ⬜ **SKRL backend** — multi-agent + JAX. *v-next, when multi-agent/JAX becomes priority.*
 
