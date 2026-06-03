@@ -10,9 +10,8 @@ static func policy_names_from_agents(agents: Array) -> Array:
 	return names
 
 static func _normalize(value: Variant) -> String:
-	if value == null:
-		return "shared_policy"
-	var s := str(value)
-	if s.is_empty():
-		return "shared_policy"
-	return s
+	# Only a non-empty String is a valid policy name; null, a missing property, or any
+	# non-String value (e.g. an agent that mis-typed the export) degrades to "shared_policy".
+	if value is String and not value.is_empty():
+		return value
+	return "shared_policy"

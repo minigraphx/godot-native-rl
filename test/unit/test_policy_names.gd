@@ -36,7 +36,8 @@ func _initialize() -> void:
 		["shared_policy"],
 		"empty string -> shared_policy")
 
-	# Missing property (bare object) -> "shared_policy".
+	# Missing property (bare object) -> "shared_policy". (RefCounted frees itself when
+	# scope exits — it must NOT be .free()d below, unlike the Node stubs.)
 	var bare := RefCounted.new()
 	h.assert_eq(
 		PolicyNames.policy_names_from_agents([bare]),
