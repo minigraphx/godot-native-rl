@@ -2,6 +2,7 @@ extends SceneTree
 
 const Harness = preload("res://test/harness.gd")
 const SyncScript = preload("res://addons/godot_native_rl/sync.gd")
+const PolicyStub = preload("res://test/unit/policy_name_stub.gd")
 
 func _initialize() -> void:
 	var h := Harness.new()
@@ -22,5 +23,17 @@ func _initialize() -> void:
 	var c = s.extract_action_dict([0.5, -0.5], {"move": {"size": 2, "action_type": "continuous"}})
 	h.assert_eq(c["move"], [0.5, -0.5], "continuous action vector")
 
+	# agent_policy_names: one entry per training agent, in order.
+	var a := PolicyStub.new()
+	var b := PolicyStub.new()
+	b.policy_name = "hider"
+	s.agents_training = [a, b]
+	var info = s.build_env_info_message()
+	h.assert_eq(info["type"], "env_info", "env_info type")
+	h.assert_eq(info["n_agents"], 2, "env_info n_agents")
+	h.assert_eq(info["agent_policy_names"], ["shared_policy", "hider"], "agent_policy_names")
+
+	a.free()
+	b.free()
 	s.free()
 	h.finish(self)
