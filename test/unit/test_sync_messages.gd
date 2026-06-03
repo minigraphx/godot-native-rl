@@ -33,5 +33,7 @@ func _initialize() -> void:
 	h.assert_eq(info["n_agents"], 2, "env_info n_agents")
 	h.assert_eq(info["agent_policy_names"], ["shared_policy", "hider"], "agent_policy_names")
 
+	a.free()
+	b.free()
 	s.free()
 	h.finish(self)

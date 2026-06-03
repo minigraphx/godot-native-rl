@@ -5,7 +5,7 @@ enum ControlModes { HUMAN, TRAINING, NCNN_INFERENCE }
 const SocketTimeout = preload("res://addons/godot_native_rl/net/socket_timeout.gd")
 const PolicyNames = preload("res://addons/godot_native_rl/policy_names.gd")
 
-var agents_training: Array = []
+var agents_training: Array[Node] = []
 var _action_space: Dictionary = {}
 var _obs_space: Dictionary = {}
 

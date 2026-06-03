@@ -49,4 +49,6 @@ func _initialize() -> void:
 		3,
 		"length == agents.size()")
 
+	for stub in [a, b, c, d, e]:
+		stub.free()
 	h.finish(self)
