@@ -25,7 +25,9 @@ complement to godot_rl, grow toward full replacement.
   (`RaycastSensor2D`/`RaycastSensor3D` + `RelativePositionSensor2D`/`RelativePositionSensor3D` +
   `CameraSensor` (SubViewport → hex image obs, godot_rl-compatible) +
   `GridSensor2D`/`GridSensor3D` (query-based cell detection, godot_rl-parity per-layer overlap
-  counts) + pure `raycast_math`/`relative_position_math`/`camera_obs_math`/`grid_sensor_math`),
+  counts) + pure `raycast_math`/`relative_position_math`/`camera_obs_math`/`grid_sensor_math`; all
+  flat sensors extend `ISensor2D`/`ISensor3D` and are auto-discovered (duck-typed, tree order) by
+  `NcnnControllerCore.collect_sensors(agent)` / the controllers' `collect_sensors()`),
   `training/` (`ParallelArena` — tiles N
   agent worlds in one process for ~Nx-faster training), `net/` (pure `socket_timeout` deadline
   helpers for the bridge's connect/read timeouts), `plugin.cfg`. The C++ GDExtension
@@ -186,7 +188,9 @@ complement to godot_rl, grow toward full replacement.
     24 (obs-normalization VecNormalize parity),
     13 (INT8 quantization export), 17 (CleanRL backend — single-file PPO over `CleanRLGodotEnv`),
     33 (TorchScript → ncnn direct export, `--via {onnx,torchscript,auto}`),
-    11 (GridSensor2D/3D — query-based cell detection, per-layer overlap counts). 9 partial (socket
+    11 (GridSensor2D/3D — query-based cell detection, per-layer overlap counts),
+    39 (`get_obs_space()` on controllers — already present),
+    40 (ISensor2D/3D interface + `collect_sensors()` sensor auto-discovery). 9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 21–24 (deploy-side inference gaps: continuous/multi-key
     actions, recurrent/LSTM, batched multi-agent, VecNormalize parity) and 25 (Asset Library release —

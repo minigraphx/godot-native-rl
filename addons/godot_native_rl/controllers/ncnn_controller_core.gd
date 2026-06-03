@@ -90,3 +90,18 @@ static func obs_space_from_obs(obs: Dictionary) -> Dictionary:
 			continue
 		space[key] = {"size": [value.size()], "space": "box"}
 	return space
+
+# Recursively gather flat sensors under `root` (duck-typed) in stable scene-tree order and
+# concatenate their observations into one flat Array. Nodes without obs_size() (e.g.
+# CameraSensor, which returns a hex String under its own obs key) are skipped — compose
+# those manually. Depth-first pre-order over get_children() -> deterministic obs layout.
+static func collect_sensors(root: Node) -> Array:
+	var out: Array = []
+	_gather_sensor_obs(root, out)
+	return out
+
+static func _gather_sensor_obs(node: Node, out: Array) -> void:
+	for child in node.get_children():
+		if child.has_method("get_observation") and child.has_method("obs_size"):
+			out.append_array(child.get_observation())
+		_gather_sensor_obs(child, out)

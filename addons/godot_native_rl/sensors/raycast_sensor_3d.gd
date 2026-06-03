@@ -1,5 +1,5 @@
 class_name RaycastSensor3D
-extends Node3D
+extends "res://addons/godot_native_rl/sensors/i_sensor_3d.gd"
 
 # A grid of 3D rays emitting one "closeness" float each (see RaycastMath.closeness).
 # Mirrors RaycastSensor2D: the physics cast is isolated behind _cast_fn for headless

@@ -126,6 +126,11 @@ func get_info() -> Dictionary:
 func get_obs_space() -> Dictionary:
 	return NcnnControllerCore.obs_space_from_obs(get_obs())
 
+# Convenience: concatenate all child flat-sensor observations (recursive, tree order).
+# Agents can write `return {"obs": collect_sensors()}` in get_obs().
+func collect_sensors() -> Array:
+	return NcnnControllerCore.collect_sensors(self)
+
 func reset() -> void:
 	_core.reset()
 

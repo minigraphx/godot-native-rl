@@ -1,5 +1,5 @@
 class_name GridSensor2D
-extends Node2D
+extends "res://addons/godot_native_rl/sensors/i_sensor_2d.gd"
 
 # A grid of 2D cells emitting per-cell, per-layer overlap counts (see GridSensorMath).
 # Query-based: each get_observation() queries the physics space fresh and builds a new

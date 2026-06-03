@@ -1,5 +1,5 @@
 class_name RaycastSensor2D
-extends Node2D
+extends "res://addons/godot_native_rl/sensors/i_sensor_2d.gd"
 
 # A fan of 2D rays emitting one "closeness" float each (see RaycastMath.closeness).
 # The physics cast is isolated behind _cast_fn so the full observation path is testable
