@@ -1,0 +1,31 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://examples/chase_the_target/chase_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/chase_the_target/chase_expert_agent.gd" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="3"]
+[ext_resource type="Script" path="res://test/integration/record_demos_smoke_checker.gd" id="4"]
+
+[node name="ChaseGame" type="Node2D"]
+script = ExtResource("1")
+agent_body_path = NodePath("AgentBody")
+target_path = NodePath("Target")
+
+[node name="AgentBody" type="Node2D" parent="."]
+
+[node name="Target" type="Node2D" parent="."]
+
+[node name="ChaseAgent" type="Node2D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+control_mode = 0
+reset_after = 30
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("3")
+control_mode = 3
+action_repeat = 1
+demo_format = "gnrl_v1"
+
+[node name="RecordChecker" type="Node" parent="."]
+script = ExtResource("4")
+sync_path = NodePath("../Sync")
