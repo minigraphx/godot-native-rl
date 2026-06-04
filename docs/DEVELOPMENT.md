@@ -157,6 +157,15 @@ Each `state_pairs` entry maps a state **input** blob to the **output** blob that
 value, with the blob's `shape` (an LSTM contributes two pairs — cell + hidden; a GRU would contribute
 one — the sidecar format is the same, though only LSTM is currently verified).
 
+`RecurrentState.validate` rejects a malformed sidecar **at load** (not as silently-wrong inference):
+all shapes (`obs_shape` + each pair `shape`) must be **1-D** — the controller feeds each tensor to
+ncnn as `Mat(w)` with `w` the element count, so a 2-D `[1,8]` would set `w=1` (ncnn's LSTM reads
+`hidden_size` from `w`) and corrupt inference; and all blob names must be **unique** within inputs
+(`obs_input` + each `in`) and within outputs (`action_output` + each `out`), since a collision would
+overwrite a state slot. At inference time the core also checks the obs vector and every returned
+state blob against the declared shape product, failing loud (and skipping the action, never advancing
+state) on a mismatch.
+
 **State lifecycle.** `NcnnControllerCore` holds the carried state in `recurrent_state`:
 1. **Zero-init on load** — `recurrent_stats_path` is read in the controllers' `_ready()`
    (`NCNN_INFERENCE` mode, mirroring `obs_norm_stats_path`); a valid contract zero-fills each

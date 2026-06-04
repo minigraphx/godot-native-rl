@@ -52,4 +52,25 @@ func _initialize() -> void:
 	h.assert_eq(RecurrentState.shape_product(PackedInt32Array([2, 4])), 8, "shape_product multiplies multi-dim")
 	h.assert_eq(RecurrentState.shape_product(PackedInt32Array([8])), 8, "shape_product of 1-D shape")
 
+	# Hardening: recurrent shapes must be 1-D — a 2-D shape like [1,8] silently sets ncnn Mat w=1
+	# (ncnn LSTM reads hidden_size from w) and corrupts inference, so reject it loudly at load.
+	var multi_obs := _valid()
+	multi_obs["obs_shape"] = [1, 5]
+	h.assert_true(not RecurrentState.validate(multi_obs), "2-D obs_shape rejected")
+	var multi_state := _valid()
+	multi_state["state_pairs"] = [{"in": "in1", "out": "out1", "shape": [1, 8]}]
+	h.assert_true(not RecurrentState.validate(multi_state), "2-D state shape rejected")
+
+	# Hardening: blob names must be unique across inputs and across outputs — a collision silently
+	# corrupts carried state (one slot overwrites another, or action logits land in hidden state).
+	var dup_in := _valid()
+	dup_in["state_pairs"] = [{"in": "in1", "out": "out1", "shape": [8]}, {"in": "in1", "out": "out2", "shape": [8]}]
+	h.assert_true(not RecurrentState.validate(dup_in), "duplicate state-pair input name rejected")
+	var dup_out := _valid()
+	dup_out["action_output"] = "out1"  # collides with the first pair's out
+	h.assert_true(not RecurrentState.validate(dup_out), "action_output colliding with a state out rejected")
+	var obs_collide := _valid()
+	obs_collide["obs_input"] = "in1"  # collides with the first pair's in
+	h.assert_true(not RecurrentState.validate(obs_collide), "obs_input colliding with a state in rejected")
+
 	h.finish(self)

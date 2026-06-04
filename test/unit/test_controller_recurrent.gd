@@ -36,6 +36,19 @@ class FakeMultiRunner:
 				result["out2"] = nxt2
 		return result
 
+# Returns a valid action but a WRONG-sized state blob (out1: 3 floats, sidecar declares 8), to
+# exercise the returned-state size guard.
+class BadStateRunner:
+	var loaded := true
+	func is_model_loaded() -> bool:
+		return loaded
+	func run_inference_multi(_inputs: Array, _output_names: PackedStringArray) -> Dictionary:
+		return {
+			"out0": PackedFloat32Array([0.0, 0.0, 0.9, 0.0]),
+			"out1": PackedFloat32Array([1.0, 2.0, 3.0]),  # wrong: sidecar shape product is 8
+			"out2": PackedFloat32Array([0, 0, 0, 0, 0, 0, 0, 0]),
+		}
+
 # Single-IO fake mimicking NcnnRunner.run_inference (the non-recurrent path).
 class FakeSingleRunner:
 	var loaded := true
@@ -105,5 +118,26 @@ func _initialize() -> void:
 	wrapped.reset_recurrent_state()
 	h.assert_true(absf((wrapped._core.recurrent_state["in1"] as PackedFloat32Array)[0]) < 1e-9, "reset_recurrent_state zeroes")
 	wrapped.free()
+
+	# Hardening: obs size that mismatches the sidecar obs_shape -> action skipped (no garbage action).
+	var bad_obs_core = Core.new()
+	bad_obs_core.recurrent_contract = _contract()
+	bad_obs_core.init_recurrent_state()
+	var bad_obs_agent = Stub.new()
+	bad_obs_agent.obs_to_return = PackedFloat32Array([1.0, 2.0, 3.0])  # size 3, sidecar obs_shape is [5]
+	bad_obs_core.choose_and_apply_action(bad_obs_agent, FakeMultiRunner.new())
+	h.assert_eq(bad_obs_agent.last_action, null, "obs/obs_shape size mismatch skips action")
+	bad_obs_agent.free()
+
+	# Hardening: a returned state blob of the wrong size -> action skipped AND state not advanced
+	# (caught this frame, not deferred to the next with a misdirected C++ error).
+	var bad_state_core = Core.new()
+	bad_state_core.recurrent_contract = _contract()
+	bad_state_core.init_recurrent_state()
+	var bad_state_agent = Stub.new()
+	bad_state_core.choose_and_apply_action(bad_state_agent, BadStateRunner.new())
+	h.assert_eq(bad_state_agent.last_action, null, "wrong-sized returned state skips action")
+	h.assert_true(absf((bad_state_core.recurrent_state["in1"] as PackedFloat32Array)[0]) < 1e-9, "state not advanced on wrong-sized blob")
+	bad_state_agent.free()
 
 	h.finish(self)

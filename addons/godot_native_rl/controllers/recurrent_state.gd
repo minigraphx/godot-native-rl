@@ -18,21 +18,33 @@ static func _is_positive_int_array(v) -> bool:
 			return false
 	return true
 
+# A shape the recurrent deploy path can feed to ncnn as a flat Mat(w): 1-D, positive. Recurrent
+# deploy is the flat-vector path — obs and each hidden-state tensor are 1-D — because the controller
+# builds Mat(w) with w == element count. A 2-D shape like [1,8] would silently set w=1 (ncnn LSTM
+# reads hidden_size from w) and corrupt inference, so reject multi-dim shapes loudly at load.
+static func _is_1d_positive_int_array(v) -> bool:
+	return _is_positive_int_array(v) and v.size() == 1
+
 # True iff a JSON-decoded contract is well-formed. Checked at load so a bad fixture fails loudly
-# up front, not at the first inference frame.
+# up front, not at the first inference frame (or, worse, as silently wrong inference).
 static func validate(contract: Dictionary) -> bool:
 	if not (contract.has("obs_input") and contract.has("obs_shape")
 			and contract.has("action_output") and contract.has("state_pairs")):
 		return false
 	if not (contract["obs_input"] is String) or not (contract["action_output"] is String):
 		return false
-	if not _is_positive_int_array(contract["obs_shape"]):
+	if not _is_1d_positive_int_array(contract["obs_shape"]):
 		return false
 	if not (contract["state_pairs"] is Array):
 		return false
 	var pairs: Array = contract["state_pairs"]
 	if pairs.size() == 0:
 		return false
+	# Blob names must be unique within inputs and within outputs: a duplicate input slot, or an
+	# action_output colliding with a state output, silently corrupts the carried state (one slot
+	# overwrites another, or action logits get written into hidden state).
+	var input_names := {contract["obs_input"]: true}
+	var output_names := {contract["action_output"]: true}
 	for pair in pairs:
 		if not (pair is Dictionary):
 			return false
@@ -40,8 +52,12 @@ static func validate(contract: Dictionary) -> bool:
 			return false
 		if not (pair["in"] is String) or not (pair["out"] is String):
 			return false
-		if not _is_positive_int_array(pair["shape"]):
+		if not _is_1d_positive_int_array(pair["shape"]):
 			return false
+		if input_names.has(pair["in"]) or output_names.has(pair["out"]):
+			return false
+		input_names[pair["in"]] = true
+		output_names[pair["out"]] = true
 	return true
 
 # Coerce a validated contract into typed arrays once, so the per-frame hot path doesn't re-coerce.

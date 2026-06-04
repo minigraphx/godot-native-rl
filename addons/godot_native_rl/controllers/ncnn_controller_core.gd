@@ -21,6 +21,7 @@ var obs_norm_stats: Dictionary = {}
 # <model>.recurrent.json sidecar). Empty -> feed-forward (current behavior, zero overhead).
 var recurrent_contract: Dictionary = {}
 var recurrent_state: Dictionary = {}  # blob_name -> PackedFloat32Array (carried across frames)
+var _warned_image_recurrent: bool = false  # one-shot guard so the image+recurrent warning isn't per-frame
 
 func init_recurrent_state() -> void:
 	if recurrent_contract.is_empty():
@@ -86,6 +87,12 @@ func choose_and_apply_action(agent, runner) -> void:
 	var output: PackedFloat32Array
 	var img: Image = agent.get_inference_image()
 	if img != null:
+		# The recurrent path is float-obs only. If a recurrent contract is configured but the agent
+		# also supplies a live frame, hidden state is NOT used or advanced on the image path — warn
+		# once so this misconfiguration is loud instead of silently producing zero-context inference.
+		if not recurrent_contract.is_empty() and not _warned_image_recurrent:
+			push_warning("NcnnControllerCore: a recurrent contract is set but get_inference_image() returned a frame — recurrent hidden state is NOT used on the image path (float-obs only).")
+			_warned_image_recurrent = true
 		output = runner.run_inference_image(img, true)
 	else:
 		var obs_dict: Dictionary = agent.get_obs()
@@ -141,6 +148,12 @@ static func _gather_sensor_obs(node: Node, out: Array) -> void:
 func _run_recurrent_and_advance(runner, obs_vec: PackedFloat32Array) -> PackedFloat32Array:
 	if recurrent_state.is_empty():
 		init_recurrent_state()
+	# Validate the obs against the sidecar shape here (GDScript side), so a sensor/sidecar drift
+	# names the sidecar as the cause rather than surfacing as a generic C++ Mat size error.
+	var obs_expected: int = RecurrentState.shape_product(recurrent_contract["obs_shape"])
+	if obs_vec.size() != obs_expected:
+		push_error("NcnnControllerCore: obs size %d does not match recurrent sidecar obs_shape product %d; skipping action." % [obs_vec.size(), obs_expected])
+		return PackedFloat32Array()
 	var inputs: Array = [{
 		"name": recurrent_contract["obs_input"],
 		"data": obs_vec,
@@ -157,6 +170,15 @@ func _run_recurrent_and_advance(runner, obs_vec: PackedFloat32Array) -> PackedFl
 	for name in out_names:
 		if not result.has(name):
 			push_error("NcnnControllerCore: recurrent result missing expected blob '%s'; skipping action." % name)
+			return PackedFloat32Array()
+	# Validate every returned state blob's size against the sidecar BEFORE storing any, so a
+	# mismatch is caught on this frame (naming the blob) instead of leaving state half-advanced and
+	# surfacing a misdirected C++ Mat error on the next frame.
+	for pair in recurrent_contract["state_pairs"]:
+		var expected: int = RecurrentState.shape_product(pair["shape"])
+		var got: int = (result[pair["out"]] as PackedFloat32Array).size()
+		if got != expected:
+			push_error("NcnnControllerCore: state blob '%s' returned %d values, expected %d (sidecar shape); skipping action." % [pair["out"], got, expected])
 			return PackedFloat32Array()
 	for pair in recurrent_contract["state_pairs"]:
 		recurrent_state[pair["in"]] = result[pair["out"]]
