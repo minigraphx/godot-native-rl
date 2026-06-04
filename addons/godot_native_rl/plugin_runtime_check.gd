@@ -9,6 +9,7 @@ extends RefCounted
 static func extension_error_message(runner_class_available: bool) -> String:
 	if runner_class_available:
 		return ""
-	return "Godot Native RL: the NcnnRunner GDExtension is not loaded for this platform — " + \
-		"inference and training will not work. Build it from source (see docs/dev/building.md) " + \
-		"or place a prebuilt binary in bin/, then reload the project."
+	return "Godot Native RL: the NcnnRunner GDExtension is not loaded for this platform " + \
+		"(missing from bin/, or built for the wrong Godot version/architecture) — inference and " + \
+		"training will not work. Build it from source (see docs/dev/building.md) or place a " + \
+		"matching prebuilt binary in bin/, then reload the project."

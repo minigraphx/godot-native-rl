@@ -12,4 +12,4 @@ config_version=5
 
 config/name="Godot Native RL"
 run/main_scene="uid://dpxy8gpo1mfiu"
-config/features=PackedStringArray("4.6")
+config/features=PackedStringArray("4.5")
