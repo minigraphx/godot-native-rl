@@ -56,6 +56,9 @@ echo "== Rover 3D smoke test (headless) =="
 echo "== Parallel arena smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/parallel_arena_smoke_scene.tscn
 
+echo "== Expert-demo record smoke test (headless) =="
+"$GODOT" --headless --path . res://examples/chase_the_target/record_chase_demos.tscn
+
 echo "== Hide & seek self-play smoke test =="
 PY="${PY:-.venv/bin/python}"
 "$PY" test/integration/run_hide_seek_smoke_test.py

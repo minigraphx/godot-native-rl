@@ -180,8 +180,17 @@ the same change. New items → GitHub issue only.
      **forever**. Two symptoms fixed: (a) launching a *training* scene headless without a running
      trainer hung on port 11008; (b) the macOS-sleep hang (trainer blocks on the dead socket — see the
      gotcha in CLAUDE.md; the Godot client now self-terminates).
-10. ⬜ **Expert-demo recording (imitation learning)** — godot_rl `RECORD_EXPERT_DEMOS` parity; save
+10. ✅ **Expert-demo recording (imitation learning)** — godot_rl `RECORD_EXPERT_DEMOS` parity; save
     demos in godot_rl format for BC/GAIL.
+    **Done 2026-06-04** — spec `docs/superpowers/specs/2026-06-04-expert-demo-recording-design.md`,
+    plan `docs/superpowers/plans/2026-06-04-expert-demo-recording.md`. Pure `DemoRecorder`
+    (`training/demo_recorder.gd`) + `NcnnSync` `RECORD_EXPERT_DEMOS` offline mode (no trainer
+    required); two on-disk formats: `gnrl_v1` (default — `{"format_version","action_space","demo_trajectories"}`)
+    and `godot_rl` (legacy bare array, drop-in for stock godot_rl BC/GAIL tooling). Python
+    `scripts/load_expert_demos.py` (version-aware loader) + `scripts/train_bc.py` (behavior cloning
+    → TorchScript `.pt` + `.pt.shape.json` sidecar → consumable by `export_to_ncnn.py`). Chase
+    scripted-expert example (`chase_expert_agent.gd` + `record_chase_demos.tscn`) with committed
+    sample `examples/chase_the_target/demos/chase_expert_demos.json`; headless smoke in test suite.
 11. ✅ **GridSensor2D + GridSensor3D** — cell-based spatial detection. *(roadmap spec Track A.3)*
     **Done 2026-06-03** — spec `docs/superpowers/specs/2026-06-03-grid-sensor-design.md`, plan
     `docs/superpowers/plans/2026-06-03-grid-sensor.md`. Query-based (fresh each call, immutable),

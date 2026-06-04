@@ -149,6 +149,14 @@ func get_action_space() -> Dictionary:
 func set_action(_action) -> void:
 	assert(false, "set_action must be implemented by the agent extending NcnnAIController3D")
 
+# Return the flat action array for expert-demo recording (godot_rl get_action() parity).
+# A scripted-expert or human-controlled agent overrides this: it decides the action,
+# applies it (so the avatar moves via the agent's own _physics_process), and returns the
+# flat array recorded into the demo file. Default asserts — only required when recording.
+func get_action() -> Array:
+	assert(false, "get_action must be implemented by the agent to record expert demos")
+	return []
+
 # Override in an image agent to return the live frame for native inference, e.g.
 # `return _camera.get_image()`. Non-null routes infer_and_act through run_inference_image.
 func get_inference_image() -> Image:

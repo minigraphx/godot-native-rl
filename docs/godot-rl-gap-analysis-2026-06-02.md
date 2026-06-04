@@ -2,11 +2,13 @@
 
 **Date:** 2026-06-02 · **status refreshed 2026-06-03**  
 **Repos audited:** `edbeeching/godot_rl_agents` · `edbeeching/godot_rl_agents_plugin` · `edbeeching/godot_rl_agents_examples`  
-**This repo state:** backlog items 1–8, 11, 12–13, 17, 20 (wire-field slice), 21, 24, 30, 33, 36,
+**This repo state:** backlog items 1–8, 10–13, 17, 20 (wire-field slice), 21, 24, 30, 33, 36,
 39, 40, 41, 44 done; item 9 partial. Open gaps tracked as GitHub issues (see table below).
 (2026-06-03 refresh: GridSensor + ISensor interface shipped; `INHERIT_FROM_SYNC` already wired;
 `policy_name`/`agent_policy_names` wire field shipped — RLlib/PettingZoo *trainers* now unblocked,
 tracked as issue #26)
+(2026-06-04 refresh: expert-demo recording shipped — `RECORD_EXPERT_DEMOS` mode + `gnrl_v1`/`godot_rl`
+formats + Python loader + `train_bc.py` BC trainer + chase scripted-expert example; item 10 done)
 
 ---
 
@@ -42,12 +44,12 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `HUMAN` / `TRAINING` modes | ✅ | ✅ | — |
 | `ONNX_INFERENCE` (requires C#/.NET) | ✅ | ❌ → replaced by `NCNN_INFERENCE` | By design |
 | `INHERIT_FROM_SYNC` mode | ✅ per-agent can override scene-level default | ✅ wired in `NcnnSync._get_agents()` — INHERIT agents adopt sync mode, others override | ✅ done (item 44) |
-| `RECORD_EXPERT_DEMOS` mode | ✅ | ❌ | **Gap** (#13) |
+| `RECORD_EXPERT_DEMOS` mode | ✅ | ✅ offline mode on `NcnnSync`; `gnrl_v1` default format + `godot_rl` interop | ✅ done (item 10) |
 | `policy_name` export | ✅ default `"shared_policy"` | ✅ default `"shared_policy"` on `NcnnAIController2D/3D` | ✅ done (item 20) |
 | `get_obs_space()` method | ✅ required on every agent | ✅ implemented — delegates to `obs_space_from_obs()` | — (item 39 ✅) |
-| `get_action()` for demo recording | ✅ required when recording | ❌ | **Gap** (#13) |
-| `expert_demo_save_path` export | ✅ | ❌ | **Gap** (#13) |
-| `remove_last_episode_key` binding | ✅ undo bad demonstration | ❌ | **Gap** (#13) |
+| `get_action()` for demo recording | ✅ required when recording | ✅ hook on controllers | ✅ done (item 10) |
+| `expert_demo_save_path` export | ✅ | ✅ on `NcnnSync` | ✅ done (item 10) |
+| `remove_last_episode_key` binding | ✅ undo bad demonstration | ✅ `remove_last_episode_action` export on `NcnnSync` | ✅ done (item 10) |
 | Stochastic action sampling | ✅ `deterministic_inference` flag (softmax vs argmax) | ✅ `deterministic_inference` + `inference_seed`; discrete softmax-sample (continuous follow-up #64) | ✅ done (#16) |
 | VecNormalize obs replay | ❌ upstream | ✅ `obs_norm_stats_path` | **Advantage** |
 
@@ -127,7 +129,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | ✅ Done | `get_obs_space()` on agents — already implemented | — |
 | ✅ Done | `INHERIT_FROM_SYNC` — already wired in `NcnnSync._get_agents()` | — |
 | ✅ Done | `RaycastSensor3D` (and 2D) multi-class detection mode (`class_sensor`) | #42 |
-| 🟠 P1 | `RECORD_EXPERT_DEMOS` + demo infra | #13 |
+| ✅ Done | `RECORD_EXPERT_DEMOS` + demo infra — `gnrl_v1`/`godot_rl` formats, Python loader + `train_bc.py`, chase scripted-expert | #13 |
 | ✅ Done | Recurrent / LSTM **deploy** (hidden-state carry; training/export still pending) | #33 |
 | 🟡 P2 | RLlib + PettingZoo multi-policy trained example | #26 |
 | 🟡 P2 | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
