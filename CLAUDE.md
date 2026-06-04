@@ -2,7 +2,7 @@
 
 ## What this is
 
-A GDExtension-based reinforcement-learning framework for Godot 4.6+ that uses Tencent's **ncnn**
+A GDExtension-based reinforcement-learning framework for Godot 4.5+ that uses Tencent's **ncnn**
 for native inference (statically linked C++, **no C#/.NET, no external runtime**). It speaks the
 `godot_rl_agents` wire protocol for training, so you train with the stock `godot-rl` Python package
 and deploy with native ncnn — on mobile, web, console, desktop, and edge.
@@ -22,7 +22,7 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 
 ## Key commands
 
-- **Build the extension:** `scons platform=macos arch=arm64 target=template_debug` (see README for other platforms). `godot` binary: `/opt/homebrew/bin/godot` (4.6.2).
+- **Build the extension:** `scons platform=macos arch=arm64 target=template_debug` (see README for other platforms). Project minimum is **Godot 4.5**; developed/tested on both 4.5 and 4.6 (e.g. `/opt/homebrew/bin/godot-mono` is 4.5.1). Set `GODOT=` to pick the binary for `run_tests.sh`.
 - **Run all tests:** `./test/run_tests.sh` — headless GDScript unit tests + Python protocol test +
   inference smoke + trained-chase + golden regression + rover-3D smoke + Python helper tests. Must be
   green before merge. (`run_tests.sh` now **regenerates the script-class cache fresh on every run**

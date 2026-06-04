@@ -1,6 +1,6 @@
 # Godot Native RL (ncnn GDExtension)
 
-Reinforcement learning for **Godot 4.6+** with **native ncnn inference** — statically linked C++,
+Reinforcement learning for **Godot 4.5+** with **native ncnn inference** — statically linked C++,
 no C#/.NET, no external runtime. Train with the standard `godot-rl` Python stack; deploy native on
 web/WASM, console, mobile, desktop, and edge.
 

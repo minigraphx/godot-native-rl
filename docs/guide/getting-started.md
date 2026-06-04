@@ -3,7 +3,7 @@
 For **game developers** who downloaded this package and want to run an example or train a policy.
 
 ## 1. Prerequisites
-- **Godot 4.6+**.
+- **Godot 4.5+**.
 - The **`NcnnRunner` GDExtension** for your platform.
 
 ## 2. Get the extension
