@@ -141,11 +141,15 @@ daily:
     20 (multi-policy `policy_name` wire field — `agent_policy_names` in env_info; the rest of the
     old item-20 catalog line was split 2026-06-03 into items 46–54, trained example is item 45),
     43 (stochastic action sampling — `deterministic_inference`/`inference_seed` on controllers,
-    discrete softmax-sample via seedable RNG in core).
+    discrete softmax-sample via seedable RNG in core),
+    22 (recurrent/LSTM deploy — `NcnnRunner.run_inference_multi` multi-IO + `NcnnControllerCore`
+    hidden-state carry + `recurrent.json` sidecar; synthetic-LSTM golden; real RecurrentPPO
+    train/export deferred).
     9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
-  - **Newer items surfaced this work:** 21–24 (deploy-side inference gaps: continuous/multi-key
-    actions, recurrent/LSTM, batched multi-agent, VecNormalize parity) and 25 (Asset Library release —
+  - **Newer items surfaced this work:** 23 (deploy-side inference gap: batched multi-agent
+    inference; 21/22/24 — continuous/multi-key actions, recurrent/LSTM, VecNormalize parity — now
+    done) and 25 (Asset Library release —
     move the GDExtension + prebuilt binaries into the addon and submit).
 
 ## The moat (why this beats godot_rl + Unity)

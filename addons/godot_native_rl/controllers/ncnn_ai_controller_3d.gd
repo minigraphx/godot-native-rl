@@ -4,6 +4,7 @@ extends Node3D
 const RewardAdapterScript = preload("res://addons/godot_native_rl/reward/reward_adapter.gd")
 const NcnnControllerCore = preload("res://addons/godot_native_rl/controllers/ncnn_controller_core.gd")
 const ObsNormalize = preload("res://addons/godot_native_rl/controllers/obs_normalize.gd")
+const RecurrentState = preload("res://addons/godot_native_rl/controllers/recurrent_state.gd")
 
 enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
 @export var control_mode: ControlModes = ControlModes.INHERIT_FROM_SYNC  # read/written by NcnnSync
@@ -13,6 +14,7 @@ enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
 @export var input_blob_name: String = "in0"
 @export var output_blob_name: String = "out0"
 @export_file("*.json") var obs_norm_stats_path: String = ""
+@export_file("*.json") var recurrent_stats_path: String = ""  # LSTM/GRU deploy: <model>.recurrent.json
 @export var policy_name: String = "shared_policy"  # multi-policy routing (PettingZoo/RLlib)
 @export var deterministic_inference: bool = true  # false -> sample discrete actions from softmax(logits)
 @export var inference_seed: int = -1  # -1 = randomize each run; >= 0 = fixed seed (reproducible eval)
@@ -59,6 +61,7 @@ func _ready() -> void:
 	if control_mode == ControlModes.NCNN_INFERENCE:
 		_setup_ncnn_runner()
 		_load_obs_norm_stats()
+		_load_recurrent_stats()
 		_core.deterministic_inference = deterministic_inference
 		_core.setup_rng(inference_seed)
 
@@ -97,6 +100,31 @@ func _load_obs_norm_stats() -> void:
 
 func set_obs_norm_stats_for_test(stats: Dictionary) -> void:
 	_core.obs_norm_stats = stats
+
+func _load_recurrent_stats() -> void:
+	if recurrent_stats_path.is_empty():
+		return
+	var f := FileAccess.open(recurrent_stats_path, FileAccess.READ)
+	if f == null:
+		push_error("NcnnAIController3D: cannot open recurrent_stats_path '%s'." % recurrent_stats_path)
+		return
+	var text := f.get_as_text()
+	f.close()
+	var parsed = JSON.parse_string(text)
+	if not (parsed is Dictionary) or not RecurrentState.validate(parsed):
+		push_error("NcnnAIController3D: invalid recurrent contract JSON at '%s'." % recurrent_stats_path)
+		return
+	_core.recurrent_contract = RecurrentState.to_typed(parsed)
+	_core.init_recurrent_state()
+
+func set_recurrent_contract_for_test(path: String) -> void:
+	recurrent_stats_path = path
+	_load_recurrent_stats()
+
+# Public: zero the recurrent hidden state. Call at episode boundaries when the game manages its
+# own lifecycle without routing through reset(). No-op for feed-forward policies.
+func reset_recurrent_state() -> void:
+	_core.init_recurrent_state()
 
 func set_stochastic_for_test(deterministic: bool, seed_value: int) -> void:
 	_core.deterministic_inference = deterministic

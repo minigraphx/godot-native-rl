@@ -82,6 +82,8 @@ Key `NcnnRunner` methods:
 - `run_inference(input: PackedFloat32Array) -> PackedFloat32Array`
 - `run_inference_image(image: Image, normalize_to_zero_one := true) -> PackedFloat32Array`
 - `run_discrete_action(input: PackedFloat32Array) -> int` — argmax over output
+- `run_inference_multi(inputs, output_names) -> Dictionary` — multi-input/multi-output pass (used
+  for recurrent state-carry; see "Recurrent (LSTM) policies" below)
 - `is_model_loaded() -> bool`
 - `input_blob_name`, `output_blob_name` — set to `"in0"` / `"out0"` for godot-rl-exported models
 - `input_shape: PackedInt32Array` — optional: reshapes flat floats to 1D/2D/3D ncnn tensor
@@ -134,6 +136,34 @@ replays the mean/std game-side before inference:
 
 This writes a JSON file. Point the controller's `obs_norm_stats_path` export at it. The network
 itself does not carry the stats — this step is required for policies trained with `VecNormalize`.
+
+## Recurrent (LSTM) policies (`recurrent_stats_path`)
+
+Recurrent LSTM policies deploy natively: `NcnnControllerCore` carries the network's hidden state
+across frames via the C++ `NcnnRunner.run_inference_multi` multi-IO path. Point the controller's
+`recurrent_stats_path` export at a `<model>.recurrent.json` sidecar that declares which blobs carry
+state:
+
+```json
+{
+  "obs_input": "in0",
+  "obs_shape": [5],
+  "action_output": "out0",
+  "state_pairs": [
+    { "in": "in1", "out": "out1", "shape": [8] },
+    { "in": "in2", "out": "out2", "shape": [8] }
+  ]
+}
+```
+
+State zero-inits on load and re-zeroes on `reset()` / `reset_recurrent_state()` (so memory never
+bleeds across episodes); the action output decodes through the normal action path. Float-obs path
+only.
+
+> Deploy plumbing — the synthetic-LSTM fixture proves the round-trip; real `RecurrentPPO` training +
+> general export tooling are follow-ups. The C++ multi-IO method changed the extension ABI, so
+> **rebuild `NcnnRunner` after pulling** (see [../dev/building.md](../dev/building.md)). Full
+> contract: [../dev/DEVELOPMENT.md](../dev/DEVELOPMENT.md) "The recurrent deploy contract".
 
 ## Platform targets (the moat)
 
