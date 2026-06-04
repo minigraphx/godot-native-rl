@@ -93,6 +93,11 @@ toggles) +
   a `<model>.shape.json` sidecar (`{"inputshape": "[1,5]"}` or `{"shape": [1,5]}`), else best-effort
   from the first `Linear` layer (MLPs); pass `--inputshape '[1,5]'` to override (still **required** for a
   conv-first stem — spatial dims aren't recoverable from weights). Parity = `torch.jit` vs ncnn at atol=1e-2.
+- **Direct module → ncnn (no ONNX/TorchScript/pnnx):** `.venv-train/bin/python
+  scripts/export_statedict_to_ncnn.py --checkpoint <ckpt.zip>` — writes `.ncnn.{param,bin}` straight
+  from an SB3 MLP policy by hand-mapping layers (Input/Linear/ReLU/Tanh/Sigmoid/Flatten only; fails
+  loud otherwise). Zero toolchain-deprecation exposure; simple feed-forward nets only. **Validate with
+  `verify_ncnn_parity.py` before deploy** (the format writer is unit-tested; the round-trip isn't yet).
 - **Export VecNormalize stats (deploy):** `.venv-train/bin/python scripts/export_vecnormalize.py
   vec_normalize.pkl` → JSON; set the controller's `obs_norm_stats_path` so `ObsNormalize` replays
   the obs mean/std game-side before inference (policies trained with SB3 `VecNormalize`).
