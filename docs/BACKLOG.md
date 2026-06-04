@@ -357,8 +357,25 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     elements, which counts SIMD cstep padding (a `w=3` output over-reports as 4) — fixed to copy the
     logical `w*h*d` per channel; **rebuild the extension on a fresh clone** (`bin/` gitignored). Full suite
     green from a clean cache. **Unblocks SAC for the hide & seek example (item 12).**
-22. ⬜ **Recurrent / LSTM policy support** — controller is feed-forward and stateless per call. Carry
-    hidden state across frames so recurrent policies deploy. (ncnn already has LSTM/GRU layers.)
+22. ✅ **Recurrent / LSTM policy support (deploy)** — controller was feed-forward and stateless per
+    call. Now carries hidden state across frames so recurrent LSTM policies deploy. (The path is
+    layer-agnostic — GRU would use the same sidecar format — but only LSTM is verified.)
+    **Done 2026-06-04 (`#33`)** — deploy plumbing shipped: generic
+    `NcnnRunner.run_inference_multi(inputs, output_names)` multi-IO C++ path (single-IO
+    `run_inference`/`run_inference_image` unchanged, share a `build_mat_from_shape` helper),
+    `NcnnControllerCore` hidden-state carry in `choose_and_apply_action` (zero-init on load → feed
+    carried `*_in`, store returned `*_out` each frame → re-zero on `reset()` /
+    `reset_recurrent_state()`), a `<model>.recurrent.json` sidecar parsed by pure
+    `controllers/recurrent_state.gd`, and a `recurrent_stats_path` export on
+    `NcnnAIController2D/3D`. Verified by a synthetic-LSTM golden (`scripts/make_synthetic_lstm.py` →
+    `models/synthetic_lstm.ncnn.*` + `.recurrent.json`): end-to-end per-step argmax + logit parity
+    (`atol 1e-2`) and reset-reproduction; pnnx confirmed to preserve the LSTM's 3-in/3-out state
+    blobs. **C++ ABI changed → rebuild the extension** (`template_debug` + `template_release`; `bin/`
+    gitignored). See DEVELOPMENT.md "The recurrent deploy contract".
+    **Deferred:** real `RecurrentPPO` (sb3-contrib) training + a trained recurrent example; general
+    export tooling that emits the sidecar from an arbitrary trained model (only a synthetic fixture
+    here); image-obs + recurrent (float-obs path only); batched multi-agent recurrent (item 23 /
+    #34).
 23. ⬜ **Batched multi-agent inference** — each agent currently runs its own forward pass (linear cost).
     Add batched inference (batch dim) at the C++ level for crowds / large multi-agent scenes.
 24. ✅ **Observation-normalization parity helper** — replay SB3 `VecNormalize` obs stats game-side.

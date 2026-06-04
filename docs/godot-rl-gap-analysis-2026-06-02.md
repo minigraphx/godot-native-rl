@@ -95,7 +95,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | VecNormalize obs parity | ❌ | ✅ item 24 | **Advantage** |
 | INT8 quantization | ❌ | ✅ item 13 | **Advantage** |
 | TorchScript → ncnn export | ❌ | ✅ item 33 | **Advantage** |
-| Recurrent / LSTM deploy | ❌ | ❌ | Parity gap (#33) |
+| Recurrent / LSTM deploy | ❌ | ✅ item 22 | **Advantage** (deploy; training/export pending #33) |
 | Batched multi-agent inference | ❌ | ❌ | Parity gap (#34) |
 
 ---
@@ -109,6 +109,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | INT8 quantization pipeline | `export_int8.py` + `build_ncnn_tools.sh` |
 | VecNormalize obs replay game-side | `ObsNormalize` + `export_vecnormalize.py` |
 | Continuous + multi-key action deploy | `action_decode.gd` + C++ fix |
+| Recurrent / LSTM deploy (hidden-state carry) | `run_inference_multi` + `recurrent_state.gd` + `.recurrent.json` |
 | TorchScript → ncnn direct export | `--via torchscript` in `export_to_ncnn.py` |
 | Socket connect/read timeouts | Clean exit on dead trainer |
 | Per-agent `info` field | `get_info()` hook on controllers |
@@ -127,7 +128,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | ✅ Done | `INHERIT_FROM_SYNC` — already wired in `NcnnSync._get_agents()` | — |
 | ✅ Done | `RaycastSensor3D` (and 2D) multi-class detection mode (`class_sensor`) | #42 |
 | 🟠 P1 | `RECORD_EXPERT_DEMOS` + demo infra | #13 |
-| 🟠 P1 | Recurrent / LSTM deploy | #33 |
+| ✅ Done | Recurrent / LSTM **deploy** (hidden-state carry; training/export still pending) | #33 |
 | 🟡 P2 | RLlib + PettingZoo multi-policy trained example | #26 |
 | 🟡 P2 | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
 | 🔵 P3 | Batched multi-agent inference | #34 |

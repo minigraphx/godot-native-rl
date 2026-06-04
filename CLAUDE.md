@@ -23,7 +23,10 @@ complement to godot_rl, grow toward full replacement.
   `action_type`, never the RL algo: PPO logits ≡ DQN Q-values under argmax, PPO/TD3 mean ≡ SAC
   `tanh(mean)`; see DEVELOPMENT.md "deploy contract"), plus pure
   `obs_normalize.gd` (`ObsNormalize`) replaying SB3 `VecNormalize` obs stats game-side **before**
-  inference (the pre-inference mirror of post-inference `action_decode.gd`);
+  inference (the pre-inference mirror of post-inference `action_decode.gd`); **recurrent (LSTM) policies deploy natively** (GRU: same path, unverified) — the core carries hidden state across frames via the C++
+  `NcnnRunner.run_inference_multi` multi-IO path, configured by a `<model>.recurrent.json` sidecar
+  (parsed by pure `recurrent_state.gd`) + the controllers' `recurrent_stats_path` export; state
+  zero-inits and re-zeroes on `reset()`/`reset_recurrent_state()` (float-obs path only);
   thin `NcnnAIController2D`/`NcnnAIController3D` with a `get_inference_image()` hook),
   `reward/` (`RewardBuilder`/`RewardAdapter`/terms), `sensors/`
   (`RaycastSensor2D`/`RaycastSensor3D` — both support an opt-in `class_sensor` mode: per-ray
@@ -230,11 +233,15 @@ toggles) +
     20 (multi-policy `policy_name` wire field — `agent_policy_names` in env_info; the rest of the
     old item-20 catalog line was split 2026-06-03 into items 46–54, trained example is item 45),
     43 (stochastic action sampling — `deterministic_inference`/`inference_seed` on controllers,
-    discrete softmax-sample via seedable RNG in core).
+    discrete softmax-sample via seedable RNG in core),
+    22 (recurrent/LSTM deploy — `NcnnRunner.run_inference_multi` multi-IO + `NcnnControllerCore`
+    hidden-state carry + `recurrent.json` sidecar; synthetic-LSTM golden; real RecurrentPPO
+    train/export deferred).
     9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
-  - **Newer items surfaced this work:** 21–24 (deploy-side inference gaps: continuous/multi-key
-    actions, recurrent/LSTM, batched multi-agent, VecNormalize parity) and 25 (Asset Library release —
+  - **Newer items surfaced this work:** 23 (deploy-side inference gap: batched multi-agent
+    inference; 21/22/24 — continuous/multi-key actions, recurrent/LSTM, VecNormalize parity — now
+    done) and 25 (Asset Library release —
     move the GDExtension + prebuilt binaries into the addon and submit).
 
 ## The moat (why this beats godot_rl + Unity)

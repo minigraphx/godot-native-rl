@@ -579,6 +579,18 @@ that don't read the field ignore it.
 - **`inference_seed`** (`int`, default `-1`) — `-1` randomizes each run; a non-negative value seeds the
   sampler for reproducible stochastic eval.
 
+### Recurrent (LSTM) deploy (`recurrent_stats_path`)
+
+Recurrent LSTM policies deploy natively: `NcnnControllerCore` carries the network's hidden state across
+frames via the C++ `NcnnRunner.run_inference_multi` multi-IO path. Point the controller's
+`recurrent_stats_path` export at a `<model>.recurrent.json` sidecar that declares which blobs carry
+state (`{ "obs_input", "obs_shape", "action_output", "state_pairs": [{ "in", "out", "shape" }] }`).
+State zero-inits on load and re-zeroes on `reset()` / `reset_recurrent_state()` (so memory never
+bleeds across episodes); the action output decodes through the normal action path. Float-obs path
+only. *(Deploy plumbing — the synthetic-LSTM fixture proves the round-trip; real `RecurrentPPO`
+training + general export tooling are follow-ups. The C++ multi-IO method changed the extension ABI,
+so rebuild `NcnnRunner` after pulling. See `docs/DEVELOPMENT.md` "The recurrent deploy contract".)*
+
 ## Sensors
 
 Reusable observation sources implementing the shared sensor interface
