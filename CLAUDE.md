@@ -78,15 +78,21 @@ toggles) +
   opt-in `StepProfiler`, enabled with the `profile=true` cmdline arg (zero overhead otherwise).
 - **Export a checkpoint (no full run):** `.venv-train/bin/python scripts/export_checkpoint.py`
   (latest checkpoint → `models/rover_policy.onnx`, non-destructive) then `scripts/export_to_ncnn.py`.
+- **Export a checkpoint → TorchScript (ONNX-free):** `.venv-train/bin/python scripts/export_torchscript.py
+  --checkpoint <ckpt.zip>` — traces the deterministic actor to `models/policy.pt` **and writes a
+  `models/policy.pt.shape.json` sidecar**, so `export_to_ncnn.py models/policy.pt` auto-derives the shape
+  with no flag (no `onnxscript`/dynamo hop). Same pnnx parity check; keep the ONNX path as default/fallback.
 - **Convert + verify (one command):** `.venv-train/bin/python scripts/export_to_ncnn.py models/model.onnx`
   (auto-derives inputshape, runs pnnx, verifies parity, cleans intermediates). Flags: `--skip-verify`,
   `--keep-intermediates`, `--inputshape`, `--outdir`, `--via {onnx,torchscript,auto}`. Underlying manual
   steps: `../.venv/bin/pnnx model.onnx 'inputshape=[1,5],[1]'` then `scripts/verify_ncnn_parity.py <onnx>
   <param> <bin> in0 out0`.
 - **Convert TorchScript → ncnn (skip ONNX):** `.venv-train/bin/python scripts/export_to_ncnn.py
-  models/policy.pt --inputshape '[1,5]'` — runs pnnx on a `.pt`/`.ptl` directly (one fewer hop, pnnx's
-  native format). `--via` defaults to `auto` (routes by extension); `--inputshape` is **required** for
-  `.pt` (no readable shape metadata). Parity = `torch.jit` vs ncnn at atol=1e-2.
+  models/policy.pt` — runs pnnx on a `.pt`/`.ptl` directly (one fewer hop, pnnx's native format).
+  `--via` defaults to `auto` (routes by extension). `inputshape` is **auto-derived** for `.pt` too: from
+  a `<model>.shape.json` sidecar (`{"inputshape": "[1,5]"}` or `{"shape": [1,5]}`), else best-effort
+  from the first `Linear` layer (MLPs); pass `--inputshape '[1,5]'` to override (still **required** for a
+  conv-first stem — spatial dims aren't recoverable from weights). Parity = `torch.jit` vs ncnn at atol=1e-2.
 - **Export VecNormalize stats (deploy):** `.venv-train/bin/python scripts/export_vecnormalize.py
   vec_normalize.pkl` → JSON; set the controller's `obs_norm_stats_path` so `ObsNormalize` replays
   the obs mean/std game-side before inference (policies trained with SB3 `VecNormalize`).

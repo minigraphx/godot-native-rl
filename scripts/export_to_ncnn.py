@@ -6,11 +6,13 @@ for the conversion (the only step that needs the .venv interpreter).
 
 ONNX path (default for .onnx): auto-derives inputshape, verifies onnxruntime vs ncnn.
 TorchScript path (default for .pt/.ptl): skips ONNX, runs pnnx on the .pt directly,
-and verifies torch.jit vs ncnn. --inputshape is REQUIRED for TorchScript (a .pt has
-no readable input-shape metadata). --via {onnx,torchscript,auto} forces the path.
+and verifies torch.jit vs ncnn. `inputshape` is auto-derived from a `<model>.shape.json`
+sidecar, else best-effort from the first Linear layer; `--inputshape` overrides both
+(required only when neither yields a shape). --via {onnx,torchscript,auto} forces the path.
 
 Usage:
     .venv-train/bin/python scripts/export_to_ncnn.py models/chase_policy.onnx
+    .venv-train/bin/python scripts/export_to_ncnn.py models/policy.pt            # auto-shape
     .venv-train/bin/python scripts/export_to_ncnn.py models/policy.pt --inputshape '[1,5]'
 """
 from __future__ import annotations
@@ -89,6 +91,130 @@ def read_onnx_inputs(onnx_path: str) -> list[OnnxInput]:
 
     sess = ort.InferenceSession(onnx_path)
     return [OnnxInput(i.name, tuple(i.shape)) for i in sess.get_inputs()]
+
+
+_SIDECAR_SUFFIX = ".shape.json"
+
+
+def sidecar_path(model_path: Path) -> Path:
+    """Path of the shape sidecar for a TorchScript model: `<model>.shape.json`.
+
+    e.g. `models/policy.pt` -> `models/policy.pt.shape.json`. The sidecar records the
+    example input shape a `.pt` can't carry, so the torchscript path can auto-derive
+    `inputshape` the way the ONNX path reads it from the model.
+    """
+    return model_path.parent / (model_path.name + _SIDECAR_SUFFIX)
+
+
+def format_inputshape(shape: Sequence[int]) -> str:
+    """Format an int sequence as a pnnx single-input shape, e.g. (1, 5) -> `[1,5]`."""
+    dims = [int(d) for d in shape]
+    if not dims or any(d <= 0 for d in dims):
+        raise ValueError(f"shape must be non-empty positive ints, got {list(shape)!r}")
+    return "[" + ",".join(str(d) for d in dims) + "]"
+
+
+def parse_sidecar(data: dict) -> str:
+    """Extract a pnnx `inputshape` string from a parsed shape-sidecar dict.
+
+    Accepts either `{"inputshape": "[1,5],[1]"}` (used verbatim) or
+    `{"shape": [1, 5]}` / `{"input_shape": [1, 5]}` (one input's dims, batch
+    included -> `[1,5]`). Raises ValueError on anything else.
+    """
+    raw = data.get("inputshape")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    shape = data.get("shape", data.get("input_shape"))
+    if isinstance(shape, (list, tuple)):
+        return format_inputshape(shape)
+    raise ValueError(
+        "sidecar must have an 'inputshape' string or a 'shape'/'input_shape' int list"
+    )
+
+
+def read_sidecar_inputshape(path: Path) -> str:
+    """Read + parse a shape sidecar file into a pnnx `inputshape` string."""
+    import json
+
+    data = json.loads(Path(path).read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"sidecar {path} must contain a JSON object")
+    return parse_sidecar(data)
+
+
+def write_shape_sidecar(model_path: Path, shape: Sequence[int]) -> Path:
+    """Write a `<model>.shape.json` sidecar recording a `.pt`'s example input shape.
+
+    The write-side complement of `read_sidecar_inputshape`: a TorchScript producer
+    (e.g. `scripts/export_torchscript.py`) calls this with the shape it traced with,
+    so `export_to_ncnn.py` later auto-derives `inputshape` reliably (no first-layer
+    introspection guess). Records both a human-readable `inputshape` string and the
+    raw `shape` list. Returns the sidecar path; raises ValueError on a bad shape.
+    """
+    import json
+
+    formatted = format_inputshape(shape)  # validates: non-empty, positive ints
+    side = sidecar_path(model_path)
+    side.write_text(json.dumps({"inputshape": formatted, "shape": [int(d) for d in shape]}))
+    return side
+
+
+
+def inputshape_from_torchscript(pt_path: str) -> str:
+    """Best-effort `inputshape` from a TorchScript model's first weight layer.
+
+    Loads the `.pt` and returns `[1,N]` from the first `Linear`'s `in_features`
+    (covers MLP policies). Raises ValueError for a conv-first stem (spatial dims
+    can't be recovered from weights) or when no weight layer is found -- callers
+    then fall back to an explicit `--inputshape`. Lazy torch import.
+    """
+    import torch
+
+    module = torch.jit.load(pt_path)
+    module.eval()
+    for _name, sub in module.named_modules():
+        kind = getattr(sub, "original_name", type(sub).__name__)
+        if kind == "Linear":
+            weight = getattr(sub, "weight", None)
+            if weight is None or weight.dim() != 2:
+                continue
+            return f"[1,{int(weight.shape[1])}]"
+        if kind in ("Conv1d", "Conv2d", "Conv3d"):
+            raise ValueError(
+                "first weight layer is a conv stem; spatial dims can't be inferred "
+                "from weights -- pass --inputshape (e.g. '[1,3,84,84]') or a sidecar"
+            )
+    raise ValueError("no Linear layer found to infer inputshape from")
+
+
+def derive_torchscript_inputshape(
+    input_path: Path, *, introspect: Callable[[str], str]
+) -> str | None:
+    """Resolve a `.pt`'s `inputshape` without an explicit flag: sidecar, then introspection.
+
+    Returns the pnnx `inputshape` string, or None if neither source yields one (the
+    caller then errors asking for `--inputshape`). A malformed sidecar warns and
+    falls through to introspection rather than hard-failing; the (fragile)
+    introspection result warns so a wrong guess is visible.
+    """
+    side = sidecar_path(input_path)
+    if side.is_file():
+        try:
+            return read_sidecar_inputshape(side)
+        except (ValueError, OSError) as e:
+            print(f"WARNING: ignoring malformed sidecar {side.name}: {e}", file=sys.stderr)
+    try:
+        shape = introspect(str(input_path))
+    except Exception as e:
+        print(f"could not auto-derive inputshape: {e}", file=sys.stderr)
+        return None
+    print(
+        f"WARNING: inputshape {shape} auto-derived via first-layer introspection; "
+        "pass --inputshape or add a sidecar if this is wrong",
+        file=sys.stderr,
+    )
+    return shape
+
 
 
 def pnnx_command(pnnx_path: str, onnx_arg: str, inputshape: str) -> list[str]:
@@ -194,14 +320,16 @@ def run_export(
     runner: Callable = subprocess.run,
     verifier: Callable | None = None,
     ts_verifier: Callable | None = None,
+    ts_introspect: Callable[[str], str] = inputshape_from_torchscript,
     pnnx_exists: Callable[[str], bool] = lambda p: Path(p).is_file(),
 ) -> int:
     """Convert a model to ncnn and (by default) verify parity. Returns an exit code.
 
     The first positional is the input model: an ONNX (`via=onnx`) or a TorchScript
     `.pt`/`.ptl` (`via=torchscript`). `via=auto` infers the path from the extension.
-    The ONNX path auto-derives `inputshape`; the TorchScript path requires it
-    (a `.pt` has no readable input-shape metadata).
+    Both paths auto-derive `inputshape` when it's omitted: ONNX reads it from the model;
+    TorchScript reads a `<model>.shape.json` sidecar, else introspects the first Linear
+    (`ts_introspect`, injectable). An explicit `inputshape` overrides the derivation.
     """
     input_path = Path(onnx)
     if not input_path.is_file():
@@ -241,12 +369,15 @@ def run_export(
         verify = None if skip_verify else _onnx_verify
     else:  # torchscript
         if inputshape is None:
-            print(
-                "ERROR: --inputshape is required for the torchscript path "
-                "(a .pt has no input-shape metadata), e.g. --inputshape '[1,5]'",
-                file=sys.stderr,
-            )
-            return 1
+            inputshape = derive_torchscript_inputshape(input_path, introspect=ts_introspect)
+            if inputshape is None:
+                print(
+                    "ERROR: could not auto-derive inputshape for the torchscript path; "
+                    "pass --inputshape (e.g. '[1,5]') or add a '<model>.shape.json' "
+                    "sidecar ({\"inputshape\": \"[1,5]\"} or {\"shape\": [1, 5]})",
+                    file=sys.stderr,
+                )
+                return 1
         sidecars = []
 
         def _ts_verify(param_path: Path, bin_path: Path):
@@ -302,7 +433,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--inputshape",
         default=None,
-        help="e.g. '[1,5],[1]'; auto-derived for ONNX, REQUIRED for torchscript",
+        help="e.g. '[1,5],[1]'; auto-derived for both paths "
+        "(ONNX: from model; torchscript: sidecar or first-Linear) -- overrides when given",
     )
     p.add_argument("--in-blob", default="in0", help="ncnn input blob name (default in0)")
     p.add_argument("--out-blob", default="out0", help="ncnn output blob name (default out0)")

@@ -9,6 +9,7 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 import export_to_ncnn as ex  # noqa: E402
+import export_torchscript as ets  # noqa: E402
 import verify_torchscript_parity as vts  # noqa: E402
 
 
@@ -92,19 +93,40 @@ class _Spy:
         return types.SimpleNamespace(ok=True, summary="ok")
 
 
+def _raise_introspect(pt_path):
+    """ts_introspect stand-in for "first-layer introspection yields nothing"."""
+    raise ValueError("no shape derivable")
+
+
+class _CaptureTs:
+    """ts_verifier stand-in that records the resolved inputshape it was handed."""
+
+    def __init__(self):
+        self.called = False
+        self.inputshape = None
+
+    def __call__(self, pt, param, bin_, in_blob, out_blob, inputshape):
+        self.called = True
+        self.inputshape = inputshape
+        return types.SimpleNamespace(ok=True, summary="ok")
+
+
 class TestRunExportTorchscript(unittest.TestCase):
     def _pt(self, d, name="m.pt"):
         p = Path(d) / name
         p.write_text("dummy")
         return p
 
-    def test_missing_inputshape_fails_fast(self):
+    def test_no_inputshape_no_sidecar_no_introspect_fails_fast(self):
+        # With no --inputshape, no sidecar, and introspection yielding nothing, the
+        # torchscript path errors before pnnx (and before the verifier) is reached.
         spy = _Spy()
         with tempfile.TemporaryDirectory() as d:
             pt = self._pt(d)
             rc = ex.run_export(
                 str(pt), via="torchscript", inputshape=None, pnnx="/fake/pnnx",
-                runner=_boom_runner, ts_verifier=spy, pnnx_exists=lambda p: True,
+                runner=_boom_runner, ts_verifier=spy, ts_introspect=_raise_introspect,
+                pnnx_exists=lambda p: True,
             )
             self.assertEqual(rc, 1)
             self.assertFalse(spy.called)
@@ -201,6 +223,183 @@ class TestViaAutoVerifierSelection(unittest.TestCase):
             self.assertFalse(ts_spy.called)
 
 
+class TestTorchscriptInputshapeDerivation(unittest.TestCase):
+    """--inputshape is optional for .pt: sidecar -> introspection -> explicit override."""
+
+    def _pt(self, d, name="m.pt"):
+        p = Path(d) / name
+        p.write_text("dummy")
+        return p
+
+    def _sidecar(self, d, content, name="m.pt.shape.json"):
+        import json
+        p = Path(d) / name
+        p.write_text(json.dumps(content))
+        return p
+
+    def test_sidecar_inputshape_string(self):
+        cap = _CaptureTs()
+        with tempfile.TemporaryDirectory() as d:
+            pt = self._pt(d)
+            self._sidecar(d, {"inputshape": "[1,7]"})
+            rc = ex.run_export(
+                str(pt), via="torchscript", inputshape=None, pnnx="/fake/pnnx",
+                runner=_fake_runner(), ts_verifier=cap, ts_introspect=_raise_introspect,
+                pnnx_exists=lambda p: True,
+            )
+            self.assertEqual(rc, 0)
+            self.assertEqual(cap.inputshape, "[1,7]")
+
+    def test_sidecar_shape_list(self):
+        cap = _CaptureTs()
+        with tempfile.TemporaryDirectory() as d:
+            pt = self._pt(d)
+            self._sidecar(d, {"shape": [1, 9]})
+            rc = ex.run_export(
+                str(pt), via="torchscript", inputshape=None, pnnx="/fake/pnnx",
+                runner=_fake_runner(), ts_verifier=cap, ts_introspect=_raise_introspect,
+                pnnx_exists=lambda p: True,
+            )
+            self.assertEqual(rc, 0)
+            self.assertEqual(cap.inputshape, "[1,9]")
+
+    def test_introspection_when_no_sidecar(self):
+        cap = _CaptureTs()
+        with tempfile.TemporaryDirectory() as d:
+            pt = self._pt(d)
+            rc = ex.run_export(
+                str(pt), via="torchscript", inputshape=None, pnnx="/fake/pnnx",
+                runner=_fake_runner(), ts_verifier=cap,
+                ts_introspect=lambda p: "[1,11]", pnnx_exists=lambda p: True,
+            )
+            self.assertEqual(rc, 0)
+            self.assertEqual(cap.inputshape, "[1,11]")
+
+    def test_explicit_inputshape_overrides_sidecar_and_introspection(self):
+        cap = _CaptureTs()
+        introspect_calls = []
+        with tempfile.TemporaryDirectory() as d:
+            pt = self._pt(d)
+            self._sidecar(d, {"inputshape": "[1,7]"})
+            rc = ex.run_export(
+                str(pt), via="torchscript", inputshape="[1,5]", pnnx="/fake/pnnx",
+                runner=_fake_runner(), ts_verifier=cap,
+                ts_introspect=lambda p: introspect_calls.append(p) or "[1,99]",
+                pnnx_exists=lambda p: True,
+            )
+            self.assertEqual(rc, 0)
+            self.assertEqual(cap.inputshape, "[1,5]")
+            self.assertEqual(introspect_calls, [])  # derivation not consulted at all
+
+    def test_malformed_sidecar_falls_through_to_introspection(self):
+        cap = _CaptureTs()
+        with tempfile.TemporaryDirectory() as d:
+            pt = self._pt(d)
+            self._sidecar(d, {"bogus": 1})
+            rc = ex.run_export(
+                str(pt), via="torchscript", inputshape=None, pnnx="/fake/pnnx",
+                runner=_fake_runner(), ts_verifier=cap,
+                ts_introspect=lambda p: "[1,3]", pnnx_exists=lambda p: True,
+            )
+            self.assertEqual(rc, 0)
+            self.assertEqual(cap.inputshape, "[1,3]")
+
+
+class TestShapeHelpers(unittest.TestCase):
+    def test_sidecar_path(self):
+        self.assertEqual(ex.sidecar_path(Path("/a/policy.pt")).name, "policy.pt.shape.json")
+
+    def test_format_inputshape(self):
+        self.assertEqual(ex.format_inputshape([1, 5]), "[1,5]")
+        self.assertEqual(ex.format_inputshape((1, 3, 84, 84)), "[1,3,84,84]")
+
+    def test_format_inputshape_rejects_empty_and_nonpositive(self):
+        with self.assertRaises(ValueError):
+            ex.format_inputshape([])
+        with self.assertRaises(ValueError):
+            ex.format_inputshape([1, 0])
+
+    def test_parse_sidecar_inputshape_string(self):
+        self.assertEqual(ex.parse_sidecar({"inputshape": "[1,5],[1]"}), "[1,5],[1]")
+
+    def test_parse_sidecar_shape_list(self):
+        self.assertEqual(ex.parse_sidecar({"shape": [1, 8]}), "[1,8]")
+        self.assertEqual(ex.parse_sidecar({"input_shape": [1, 4]}), "[1,4]")
+
+    def test_parse_sidecar_inputshape_wins_over_shape(self):
+        self.assertEqual(ex.parse_sidecar({"inputshape": "[1,2]", "shape": [1, 9]}), "[1,2]")
+
+    def test_parse_sidecar_missing_raises(self):
+        with self.assertRaises(ValueError):
+            ex.parse_sidecar({"nope": 1})
+
+    def test_read_sidecar_inputshape_roundtrip(self):
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "m.pt.shape.json"
+            p.write_text(json.dumps({"shape": [1, 6]}))
+            self.assertEqual(ex.read_sidecar_inputshape(p), "[1,6]")
+
+    def test_read_sidecar_non_object_raises(self):
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "m.pt.shape.json"
+            p.write_text(json.dumps([1, 2, 3]))
+            with self.assertRaises(ValueError):
+                ex.read_sidecar_inputshape(p)
+
+    def test_write_shape_sidecar_roundtrips_with_reader(self):
+        with tempfile.TemporaryDirectory() as d:
+            pt = Path(d) / "m.pt"
+            side = ex.write_shape_sidecar(pt, [1, 5])
+            self.assertEqual(side.name, "m.pt.shape.json")
+            self.assertEqual(ex.read_sidecar_inputshape(side), "[1,5]")
+
+    def test_write_shape_sidecar_rejects_bad_shape(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(ValueError):
+                ex.write_shape_sidecar(Path(d) / "m.pt", [1, 0])
+
+
+class TestExportTorchscriptHelpers(unittest.TestCase):
+    """Torch-free helpers of the standalone TorchScript writer (export_torchscript.py)."""
+
+    def test_latest_checkpoint_picks_newest(self):
+        import os
+        with tempfile.TemporaryDirectory() as d:
+            old = Path(d) / "ckpt_100.zip"
+            new = Path(d) / "ckpt_200.zip"
+            old.write_text("a")
+            new.write_text("b")
+            os.utime(old, (1000, 1000))
+            os.utime(new, (2000, 2000))
+            self.assertEqual(ets.latest_checkpoint(d), str(new))
+
+    def test_latest_checkpoint_empty_dir(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(ets.latest_checkpoint(d), "")
+
+    def test_obs_key_and_box_dict_obs(self):
+        box = types.SimpleNamespace(shape=(5,))
+        space = types.SimpleNamespace(spaces={"obs": box})
+        key, b = ets._obs_key_and_box(space)
+        self.assertEqual(key, "obs")
+        self.assertIs(b, box)
+
+    def test_obs_key_and_box_dict_without_obs_key(self):
+        box = types.SimpleNamespace(shape=(7,))
+        space = types.SimpleNamespace(spaces={"sensors": box})
+        key, b = ets._obs_key_and_box(space)
+        self.assertEqual(key, "sensors")
+        self.assertIs(b, box)
+
+    def test_obs_key_and_box_box_obs(self):
+        space = types.SimpleNamespace(shape=(4,))  # no `spaces` attr -> Box-like
+        key, b = ets._obs_key_and_box(space)
+        self.assertIsNone(key)
+        self.assertIs(b, space)
+
+
 # --- gated end-to-end integration: real torch + real pnnx ---
 
 _PNNX = ROOT / ".venv" / "bin" / "pnnx"
@@ -235,6 +434,41 @@ class TestTorchscriptEndToEnd(unittest.TestCase):
             self.assertTrue((Path(d) / "tiny.ncnn.param").is_file())
             self.assertTrue((Path(d) / "tiny.ncnn.bin").is_file())
             self.assertFalse((Path(d) / "tiny.pnnx.bin").is_file())
+
+    def test_convert_via_sidecar_no_inputshape(self):
+        import json
+        import torch
+        import torch.nn as nn
+
+        with tempfile.TemporaryDirectory() as d:
+            model = nn.Sequential(nn.Linear(5, 8), nn.ReLU(), nn.Linear(8, 3))
+            model.eval()
+            scripted = torch.jit.trace(model, torch.randn(1, 5))
+            pt = Path(d) / "tiny.pt"
+            scripted.save(str(pt))
+            (Path(d) / "tiny.pt.shape.json").write_text(json.dumps({"shape": [1, 5]}))
+
+            # No --inputshape: resolved from the sidecar.
+            rc = ex.run_export(str(pt), outdir=d, via="torchscript", pnnx=str(_PNNX))
+            self.assertEqual(rc, 0)
+            self.assertTrue((Path(d) / "tiny.ncnn.param").is_file())
+
+    def test_convert_via_first_layer_introspection_no_inputshape(self):
+        import torch
+        import torch.nn as nn
+
+        with tempfile.TemporaryDirectory() as d:
+            model = nn.Sequential(nn.Linear(5, 8), nn.ReLU(), nn.Linear(8, 3))
+            model.eval()
+            scripted = torch.jit.trace(model, torch.randn(1, 5))
+            pt = Path(d) / "tiny.pt"
+            scripted.save(str(pt))
+
+            # No --inputshape and no sidecar: real introspection reads the first
+            # Linear's in_features (5) -> [1,5].
+            rc = ex.run_export(str(pt), outdir=d, via="torchscript", pnnx=str(_PNNX))
+            self.assertEqual(rc, 0)
+            self.assertTrue((Path(d) / "tiny.ncnn.param").is_file())
 
 
 if __name__ == "__main__":
