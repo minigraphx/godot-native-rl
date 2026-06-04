@@ -7,6 +7,7 @@ extends RefCounted
 
 const ActionDecode = preload("res://addons/godot_native_rl/controllers/action_decode.gd")
 const ObsNormalize = preload("res://addons/godot_native_rl/controllers/obs_normalize.gd")
+const RecurrentState = preload("res://addons/godot_native_rl/controllers/recurrent_state.gd")
 
 var done: bool = false
 var reward: float = 0.0
@@ -15,6 +16,17 @@ var needs_reset: bool = false
 var heuristic: String = "human"
 var reward_source = null
 var obs_norm_stats: Dictionary = {}
+
+# Recurrent (LSTM/GRU) deploy: a typed contract (from RecurrentState.to_typed of a
+# <model>.recurrent.json sidecar). Empty -> feed-forward (current behavior, zero overhead).
+var recurrent_contract: Dictionary = {}
+var recurrent_state: Dictionary = {}  # blob_name -> PackedFloat32Array (carried across frames)
+
+func init_recurrent_state() -> void:
+	if recurrent_contract.is_empty():
+		recurrent_state = {}
+		return
+	recurrent_state = RecurrentState.zero_state(recurrent_contract)
 
 # Stochastic deploy: when false, discrete actions are sampled from softmax(logits) via `rng`
 # instead of argmax. Continuous actions are unaffected (mean). Set by the controller wrappers.
@@ -39,6 +51,7 @@ func step(reset_after: int) -> void:
 func reset() -> void:
 	n_steps = 0
 	needs_reset = false
+	init_recurrent_state()  # recurrent policies must not carry memory across episodes
 
 func reset_if_done() -> void:
 	if done:
@@ -84,7 +97,10 @@ func choose_and_apply_action(agent, runner) -> void:
 			if obs_vec.is_empty():
 				push_error("NcnnControllerCore.choose_and_apply_action: obs normalization failed (size mismatch); skipping action.")
 				return
-		output = runner.run_inference(obs_vec)
+		if recurrent_contract.is_empty():
+			output = runner.run_inference(obs_vec)
+		else:
+			output = _run_recurrent_and_advance(runner, obs_vec)
 	var action: Dictionary = ActionDecode.decode_actions(output, agent.get_action_space(), deterministic_inference, rng)
 	if action.is_empty():
 		push_error("NcnnControllerCore.choose_and_apply_action: action decode failed (empty/mismatched output); skipping action.")
@@ -117,3 +133,31 @@ static func _gather_sensor_obs(node: Node, out: Array) -> void:
 		if child.has_method("get_observation") and child.has_method("obs_size"):
 			out.append_array(child.get_observation())
 		_gather_sensor_obs(child, out)
+
+# Recurrent inference: feed obs + the carried state blobs into run_inference_multi, store the
+# returned next-state blobs for the following frame, and return the action_output blob to decode.
+# On any failure (empty result, or a result missing an expected blob) it push_errors and returns
+# an empty array WITHOUT advancing state, so the caller skips set_action.
+func _run_recurrent_and_advance(runner, obs_vec: PackedFloat32Array) -> PackedFloat32Array:
+	if recurrent_state.is_empty():
+		init_recurrent_state()
+	var inputs: Array = [{
+		"name": recurrent_contract["obs_input"],
+		"data": obs_vec,
+		"shape": recurrent_contract["obs_shape"],
+	}]
+	var out_names := PackedStringArray([recurrent_contract["action_output"]])
+	for pair in recurrent_contract["state_pairs"]:
+		inputs.append({"name": pair["in"], "data": recurrent_state[pair["in"]], "shape": pair["shape"]})
+		out_names.append(pair["out"])
+	var result: Dictionary = runner.run_inference_multi(inputs, out_names)
+	if result.is_empty():
+		push_error("NcnnControllerCore: recurrent inference returned empty result.")
+		return PackedFloat32Array()
+	for name in out_names:
+		if not result.has(name):
+			push_error("NcnnControllerCore: recurrent result missing expected blob '%s'; skipping action." % name)
+			return PackedFloat32Array()
+	for pair in recurrent_contract["state_pairs"]:
+		recurrent_state[pair["in"]] = result[pair["out"]]
+	return result[recurrent_contract["action_output"]]
