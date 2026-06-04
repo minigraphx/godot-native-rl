@@ -55,6 +55,36 @@ isolated temp dir + parity verify) → `models/*.ncnn.{param,bin}` → loaded by
 Parity is checked at `atol=1e-2` (torch-dynamo vs ncnn InnerProduct drift; argmax is stable). godot_rl
 policies convert to blob names `in0`/`out0` (pnnx prunes the vestigial `state_ins` input).
 
+## The inference-backend boundary (swappable runtime)
+
+The deploy runtime is a **pluggable seam, not hardcoded**. `NcnnControllerCore.choose_and_apply_action(agent,
+runner)` takes the `runner` as an injected, duck-typed dependency and only ever calls a tiny inference
+surface — it has no idea it's talking to ncnn. `NcnnRunner` is the only implementation today, but a second
+backend (e.g. an ExecuTorch `.pte` runner — see **issue #54**) drops in by implementing the same surface,
+with **no changes to the controller, `ActionDecode`, `ObsNormalize`, the sensors, or the wire protocol**.
+
+The inference surface the controller depends on (backend-**neutral**):
+
+- `is_model_loaded() -> bool`
+- `run_inference(PackedFloat32Array obs) -> PackedFloat32Array` — float-vector deploy
+- `run_inference_image(Image, normalize: bool) -> PackedFloat32Array` — image deploy
+
+Everything downstream touches only the **output float vector** (sliced + argmax/mean-decoded by
+`ActionDecode`, identically regardless of the training algorithm) — never the runtime that produced it. So
+"what runs the forward pass" is fully decoupled from "what the agent does with the result."
+
+**Neutral vs backend-specific.** The inference surface above is neutral; **model loading is the one
+backend-specific spot**. `NcnnRunner.load_model(param_path, bin_path)` takes ncnn's *two* files (plus
+`set_input_blob_name`/`set_output_blob_name`/`set_input_shape` config); a `.pte` runner would load a *single*
+program file. So a swap means a new C++ GDExtension implementing this surface **plus** a new `PyTorch ->
+<format>` export path (alongside the existing ONNX / TorchScript / state_dict → ncnn paths) — and nothing in
+the GDScript deploy logic.
+
+**Why we don't ship a second backend yet.** Two native runtimes = a doubled build/CI/binary-shipping matrix
+across every platform, for no current payoff (ncnn still wins the decisive web/WASM axis — see #54). The seam
+keeps the decision **reversible at low cost**: add a runner when a trigger fires, don't pre-build the
+abstraction. This section *is* the contract a future backend implements.
+
 ## Known robustness gaps (see docs/BACKLOG.md)
 
 - **No socket timeout** — `NcnnSync.connect_to_server()` / `_get_dict_json_message()` poll in
