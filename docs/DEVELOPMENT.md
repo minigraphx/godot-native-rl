@@ -85,6 +85,42 @@ across every platform, for no current payoff (ncnn still wins the decisive web/W
 keeps the decision **reversible at low cost**: add a runner when a trigger fires, don't pre-build the
 abstraction. This section *is* the contract a future backend implements.
 
+## The deploy contract (algorithm-agnostic)
+
+**PPO is the only algorithm we've *proven*, not one we depend on.** The deploy path is a stable,
+narrow contract that is independent of the RL algorithm that trained the weights — this is what lets
+the project grow (SAC, DQN, TD3, A2C, …) without churning the runtime. The contract:
+
+```
+obs vector ──(optional ObsNormalize)──► policy network (ncnn) ──► output vector ──(ActionDecode)──► action dict
+```
+
+- **The runtime is a pure forward pass.** `NcnnRunner` (C++) loads `.param`/`.bin` and runs
+  `obs → output`; it has no notion of which algorithm trained the net.
+- **Decode keys off output *shape* + `action_type` only, never the algorithm.** `ActionDecode`
+  (`controllers/action_decode.gd`) slices the output per action_space key and:
+  - `discrete` → **argmax** over the segment. PPO/A2C pre-softmax **logits**, DQN action-value
+    **Q-values**, and any other discrete head all argmax identically — same code path, same action.
+  - `continuous` → the segment as-is, optionally `tanh`-squashed (`"squash": true`). PPO/A2C and
+    TD3/DDPG deterministic actors pass the **mean** through; SAC's squashed-Gaussian deploys as
+    `tanh(mean)` via the `squash` flag. All share the one continuous path.
+- **Obs normalization is a VecEnv wrapper, not an algorithm feature.** `ObsNormalize` replays SB3
+  `VecNormalize` running mean/var (it lives in a side `.pkl`, not the network), used by PPO/A2C/SAC/…
+  alike — so it's algorithm-independent too.
+- **Training is backend-agnostic via the godot_rl wire protocol.** Anything that speaks it works:
+  SB3 (PPO + A2C/DQN/SAC/TD3), the shipped CleanRL backend (`scripts/train_cleanrl.py`), and later
+  SampleFactory/SKRL/RLlib. The only PPO/godot_rl-flavored vestige is the `state_ins` wire input,
+  which pnnx **prunes at conversion** → inert at deploy.
+
+**Guarded by** `test/unit/test_algorithm_agnostic_decode.gd` (DQN Q-values / SAC / TD3 / hybrid heads
+all decode through the same path). That's a decode/runtime guard needing no training run; the full
+trained non-PPO regression (SB3 SAC/DQN end-to-end → ncnn → behavioral check) is the separate
+`needs-training-run` slice of issue #45.
+
+**Not yet algorithm-agnostic at deploy:** recurrent (LSTM/GRU) policies need hidden state carried
+across frames — a *runtime feature* gap (issue #33), not a contract violation; feed-forward policies
+of every algorithm above already satisfy the contract as-is.
+
 ## Known robustness gaps (see docs/BACKLOG.md)
 
 - **No socket timeout** — `NcnnSync.connect_to_server()` / `_get_dict_json_message()` poll in

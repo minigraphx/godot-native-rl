@@ -17,7 +17,9 @@ complement to godot_rl, grow toward full replacement.
 - The reusable library lives under **`addons/godot_native_rl/`** (item 5): `sync.gd` (`NcnnSync`,
   the bridge), `controllers/` (`NcnnControllerCore` RefCounted core with shared
   `choose_and_apply_action` decoding **all godot_rl action types** (discrete, continuous, multi-discrete,
-  multi-key) via pure `action_decode.gd` for float + **image** (`run_inference_image`) deploy, plus pure
+  multi-key) via pure `action_decode.gd` for float + **image** (`run_inference_image`) deploy — the deploy
+  path is **algorithm-agnostic** (keys off output shape + `action_type`, never the RL algo: PPO logits ≡
+  DQN Q-values under argmax, PPO/TD3 mean ≡ SAC `tanh(mean)`; see DEVELOPMENT.md "deploy contract"), plus pure
   `obs_normalize.gd` (`ObsNormalize`) replaying SB3 `VecNormalize` obs stats game-side **before**
   inference (the pre-inference mirror of post-inference `action_decode.gd`);
   thin `NcnnAIController2D`/`NcnnAIController3D` with a `get_inference_image()` hook),
