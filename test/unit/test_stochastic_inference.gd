@@ -4,9 +4,10 @@ const Harness = preload("res://test/harness.gd")
 const NcnnControllerCore = preload("res://addons/godot_native_rl/controllers/ncnn_controller_core.gd")
 const Stub = preload("res://test/unit/stub_agent.gd")
 
-# Fake runner returning fixed logits over the stub's size-5 "move" space.
+# Fake runner returning fixed logits over the stub's "move" space.
 class FakeRunner:
 	var loaded := true
+	# Length must match stub_agent.gd get_action_space() ({"move": size 5}). Peak is index 1.
 	var output := PackedFloat32Array([0.5, 2.0, 0.5, 1.0, 0.5])
 	func is_model_loaded() -> bool:
 		return loaded
@@ -27,8 +28,11 @@ func _initialize() -> void:
 	core.setup_rng(42)
 	var again: float = core.rng.randf()
 	h.assert_true(absf(first - again) < 1e-9, "setup_rng(42) is reproducible")
-	core.setup_rng(-1)  # must not error (randomize path)
-	h.assert_true(true, "setup_rng(-1) randomizes without error")
+	# setup_rng(-1) takes the randomize path: rng must stay usable and yield a draw in [0,1).
+	core.setup_rng(-1)
+	var rand_draw: float = core.rng.randf()
+	h.assert_true(core.rng != null and rand_draw >= 0.0 and rand_draw < 1.0,
+		"setup_rng(-1) randomizes, rng still usable")
 
 	# Controller exports default to deterministic.
 	var dflt := Stub.new()
@@ -39,7 +43,7 @@ func _initialize() -> void:
 	# Deterministic wiring -> argmax (peak of the fixed logits is index 1).
 	var det := Stub.new()
 	det.set_ncnn_runner_for_test(FakeRunner.new())
-	det.set_stochastic_for_test(true, 0)
+	det.set_stochastic_for_test(true, 0)  # seed irrelevant on the deterministic (argmax) path
 	det.infer_and_act()
 	h.assert_eq(det.last_action, {"move": 1}, "deterministic controller -> argmax index 1")
 	det.free()
