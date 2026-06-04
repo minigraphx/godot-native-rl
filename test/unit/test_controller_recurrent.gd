@@ -95,4 +95,15 @@ func _initialize() -> void:
 	plain_agent.free()
 
 	agent.free()
+
+	# Controller wrapper loads the real sidecar and exposes reset_recurrent_state().
+	var wrapped = Stub.new()
+	wrapped.set_recurrent_contract_for_test("res://models/synthetic_lstm.recurrent.json")
+	h.assert_true(not wrapped._core.recurrent_contract.is_empty(), "wrapper loads recurrent sidecar")
+	h.assert_eq((wrapped._core.recurrent_state["in1"] as PackedFloat32Array).size(), 8, "wrapper zero-inits state")
+	wrapped._core.recurrent_state["in1"] = PackedFloat32Array([9,9,9,9,9,9,9,9])
+	wrapped.reset_recurrent_state()
+	h.assert_true(absf((wrapped._core.recurrent_state["in1"] as PackedFloat32Array)[0]) < 1e-9, "reset_recurrent_state zeroes")
+	wrapped.free()
+
 	h.finish(self)
