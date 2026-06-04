@@ -7,7 +7,7 @@
 
 ## Prerequisites
 
-- Godot `4.6+`
+- Godot `4.5+`
 - C++ toolchain for your platform
 - [SCons](https://scons.org/)
 - CMake (to build ncnn)
@@ -51,7 +51,8 @@ Install CMake and Git with your preferred method (`winget`, installer, etc.).
 From repository root, clone dependencies into the expected paths:
 
 ```bash
-git clone -b 4.6 https://github.com/godotengine/godot-cpp.git
+# Build against the minimum Godot you want to support (4.5) — the resulting binary also runs on newer.
+git clone -b 4.5 https://github.com/godotengine/godot-cpp.git
 mkdir -p thirdparty
 git clone https://github.com/Tencent/ncnn.git thirdparty/ncnn
 ```

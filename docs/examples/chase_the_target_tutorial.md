@@ -15,7 +15,7 @@ build scene → train (godot-rl + PPO over NcnnSync) → export ONNX → pnnx �
 
 ## 1. Prerequisites
 
-- **Godot 4.6+**.
+- **Godot 4.5+**.
 - The **`NcnnRunner` GDExtension built** for your platform — see
   [docs/dev/building.md](../dev/building.md) for the full build steps.
 - A **training Python environment** — run the one-time setup script from the repo root:
