@@ -146,6 +146,10 @@ scons platform=windows target=template_debug
 
 Build output is written to `bin/` and matched by `ncnn_runner.gdextension`.
 
+### Enable the plugin in Godot
+
+Open the project in the Godot editor, then go to **Project → Project Settings → Plugins** and enable **Godot Native RL**. This is a one-time step per clone. Headless training does not require this — the plugin only affects editor tooling.
+
 ## Convert ONNX To ncnn
 
 > New here? Read [docs/ncnn_vs_onnx.md](docs/ncnn_vs_onnx.md) first to decide whether converting to
@@ -469,6 +473,57 @@ Agents extend `NcnnAIController2D` (auto-added to group `"AGENT"`) and implement
 
 `get_obs_space`, `get_done`, `reset`, and the other contract methods are provided by the base class.
 You may optionally override `get_info() -> Dictionary` (default `{}`) — see **Per-agent `info`** below.
+
+### Running training
+
+Training always requires two processes running simultaneously: the **Godot environment** (the scene) and the **Python trainer** (SB3/CleanRL). The training scripts start both for you.
+
+#### Headless (recommended)
+
+The training scripts launch Godot headless and the Python trainer in one command:
+
+```bash
+# Chase the Target (2D)
+caffeinate -is ./scripts/train_chase.sh
+
+# 3D Rover (checkpoint/resume-capable)
+caffeinate -is ./scripts/train_rover.sh
+
+# 3D Rover, parallel ×8 (~6× faster)
+SCENE=res://examples/rover_3d/rover_3d_train_parallel.tscn caffeinate -is ./scripts/train_rover.sh
+
+# Hide & Seek self-play
+caffeinate -is ./scripts/train_hide_seek.sh
+
+# Chase via CleanRL backend
+./scripts/train_cleanrl.sh
+```
+
+`caffeinate -is` (macOS) prevents the machine from sleeping mid-run — always use it on Apple Silicon (see **⚠️ Apple Silicon** note in the Rover example below).
+
+#### In-editor
+
+Run the Godot environment from the editor and the Python trainer manually in a terminal — useful for watching the scene visually or debugging agent behaviour.
+
+1. Open the project in Godot, enable the plugin (Project → Project Settings → Plugins → **Godot Native RL**).
+2. Open the training scene (e.g. `examples/chase_the_target/chase_the_target_train.tscn`) and press **F5**.
+3. In a separate terminal, start the Python trainer pointed at the same port (`11008` by default):
+
+```bash
+.venv-train/bin/python -c "
+from godot_rl.wrappers.stable_baselines_wrapper import StableBaselinesGodotEnv
+from stable_baselines3 import PPO
+env = StableBaselinesGodotEnv(env_path=None, port=11008)
+model = PPO('MlpPolicy', env, verbose=1)
+model.learn(120000)
+model.save('models/my_policy')
+env.close()
+"
+```
+
+Omit `env_path` when the editor already has the scene running — the trainer connects to the already-running Godot process instead of launching a new one.
+
+> **Never launch a training scene on its own** (without a running trainer). The `NcnnSync` node waits for a trainer connection and will either time out (`connect_timeout_sec`, default 10 s) or, if timeouts are disabled, hang indefinitely.
 
 ### Wire-Up In Scene
 
