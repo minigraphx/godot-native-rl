@@ -4,6 +4,7 @@ extends Node
 enum ControlModes { HUMAN, TRAINING, NCNN_INFERENCE }
 const SocketTimeout = preload("res://addons/godot_native_rl/net/socket_timeout.gd")
 const PolicyNames = preload("res://addons/godot_native_rl/policy_names.gd")
+const StepProfiler = preload("res://addons/godot_native_rl/net/step_profiler.gd")
 
 var agents_training: Array[Node] = []
 var _action_space: Dictionary = {}
@@ -70,6 +71,9 @@ var args = null
 var initialized := false
 var just_reset := false
 var n_action_steps := 0
+# Opt-in step-phase profiler (cmdline `profile=true`); null = disabled (zero overhead).
+var _profiler = null
+var _profile_interval := 1000
 
 func _ready() -> void:
 	# The Sync node must keep ticking while the SceneTree is paused.
@@ -83,6 +87,8 @@ func _ready() -> void:
 func _initialize() -> void:
 	_get_agents()
 	args = _get_args()
+	if args.get("profile", "false") == "true":
+		_profiler = StepProfiler.new()
 	Engine.physics_ticks_per_second = int(_get_speedup() * 60)
 	Engine.time_scale = _get_speedup() * 1.0
 	_set_heuristic("human", all_agents)
@@ -123,14 +129,28 @@ func _training_process() -> void:
 		_send_dict_as_json_message(build_reset_message(obs))
 		get_tree().set_pause(false)
 		return
+	var t_phase_start := Time.get_ticks_usec()
+	var did_send := false
 	if need_to_send_obs:
 		need_to_send_obs = false
 		var reward_arr := _get_reward_from_agents()
 		var done_arr := _get_done_from_agents()
 		var obs := _get_obs_from_agents(agents_training)
 		var info_arr := _get_info_from_agents()
+		var t_obs_done := Time.get_ticks_usec()
 		_send_dict_as_json_message(build_step_message(obs, reward_arr, done_arr, info_arr))
+		var t_sent := Time.get_ticks_usec()
+		did_send = true
+		if _profiler != null:
+			_profiler.record("collect_obs", t_obs_done - t_phase_start)
+			_profiler.record("serialize_send", t_sent - t_obs_done)
+	var t_wait_start := Time.get_ticks_usec()
 	handle_message()
+	if _profiler != null and did_send:
+		_profiler.record("await_action", Time.get_ticks_usec() - t_wait_start)
+		_profiler.step_done()
+		if _profiler.get_steps() % _profile_interval == 0:
+			print(_profiler.format_report())
 
 func _heuristic_process() -> void:
 	if agents_heuristic.size() > 0:
@@ -225,6 +245,8 @@ func handle_message() -> bool:
 		return false
 	match message["type"]:
 		"close":
+			if _profiler != null:
+				print(_profiler.format_report())
 			get_tree().quit()
 			get_tree().set_pause(false)
 			return true

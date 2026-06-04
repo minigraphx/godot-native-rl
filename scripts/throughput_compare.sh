@@ -28,7 +28,7 @@ run_scene() {  # $1=scene  $2=tag ; writes elapsed seconds to $TMP/$2.secs
 		--checkpoint_dir "$TMP/${tag}_ckpts" > "$TMP/$tag.trainer.log" 2>&1 &
 	local trainer=$!
 	sleep 5
-	"$GODOT" --headless --path . "$scene" "speedup=$SPEEDUP" "action_repeat=$ACTION_REPEAT" \
+	"$GODOT" --headless --path . "$scene" "speedup=$SPEEDUP" "action_repeat=$ACTION_REPEAT" profile=true \
 		> "$TMP/$tag.godot.log" 2>&1 &
 	local godot=$!
 	local start end rc
@@ -45,6 +45,13 @@ run_scene() {  # $1=scene  $2=tag ; writes elapsed seconds to $TMP/$2.secs
 		exit 1
 	fi
 	echo $((end - start)) > "$TMP/$tag.secs"
+	# Surface the bridge's per-step phase breakdown (collect_obs / serialize_send / await_action)
+	# so you can see whether sim, JSON, or the socket round-trip dominates. Last sample = header
+	# + 3 phase lines; if the trainer didn't send a clean close, periodic samples are still logged.
+	if grep -q '\[step-profile\]' "$TMP/$tag.godot.log" 2>/dev/null; then
+		echo "-- step-phase profile ($tag), last sample --"
+		grep '\[step-profile\]' "$TMP/$tag.godot.log" | tail -n 4
+	fi
 }
 
 run_scene "$SINGLE_SCENE" single

@@ -70,7 +70,10 @@ toggles) +
   godot_rl's `CleanRLGodotEnv` (same chase scene + port 11008; `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`
   overrides). Exports ONNX (`models/chase_cleanrl_policy.onnx`) consumable unchanged by `export_to_ncnn.py`.
 - **Throughput check:** `./scripts/throughput_compare.sh` — short fresh runs of the parallel vs
-  single-agent scene into temp dirs (never touches `models/`); prints samples/sec + speedup.
+  single-agent scene into temp dirs (never touches `models/`); prints samples/sec + speedup **plus a
+  per-step phase breakdown** (`collect_obs` / `serialize_send` / `await_action`) so you can see whether
+  the sim, JSON serialization, or the socket round-trip dominates. The breakdown comes from `NcnnSync`'s
+  opt-in `StepProfiler`, enabled with the `profile=true` cmdline arg (zero overhead otherwise).
 - **Export a checkpoint (no full run):** `.venv-train/bin/python scripts/export_checkpoint.py`
   (latest checkpoint → `models/rover_policy.onnx`, non-destructive) then `scripts/export_to_ncnn.py`.
 - **Convert + verify (one command):** `.venv-train/bin/python scripts/export_to_ncnn.py models/model.onnx`
