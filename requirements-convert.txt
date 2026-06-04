@@ -1,0 +1,3 @@
+# Conversion env (.venv, Python 3.14). Used by scripts/export_to_ncnn.py / pnnx.
+pnnx
+torch
