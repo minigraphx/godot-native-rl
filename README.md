@@ -763,7 +763,7 @@ godot --headless --path . \
   -- --demo-out=examples/chase_the_target/demos/my_demos.json --demo-trajectories=20
 ```
 
-A committed sample lives at `examples/chase_the_target/demos/chase_expert_demos.json`.
+A committed sample lives at `examples/chase_the_target/demos/chase_expert_demos.json` (a small illustrative fixture of a few scripted-expert trajectories — useful for testing the loader and exploring the format, not a fully-balanced training set).
 
 **Clone and deploy** — behavior cloning trains a policy from the recorded demos and exports it
 through the normal ncnn pipeline:

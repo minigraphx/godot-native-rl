@@ -140,6 +140,10 @@ func _initialize_demo_recording() -> void:
 func _demo_record_process() -> void:
 	if _recorder == null:
 		return
+	# NOTE: on the terminal step this obs reflects the post-reset world (the agent's own
+	# _physics_process runs first in tree order and resets on done). That's fine: the demo
+	# loader drops the terminal obs (obs[:-1]) and no terminal action is recorded, so this
+	# frame is don't-care. Do not rely on it being the true episode-ending observation.
 	var obs_dict: Dictionary = _record_agent.get_obs()
 	if not obs_dict.has("obs"):
 		push_error("NcnnSync: recording agent get_obs() has no 'obs' key; image-obs demo recording is unsupported.")

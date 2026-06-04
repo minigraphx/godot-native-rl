@@ -21,6 +21,9 @@ func _ready() -> void:
 			save_path = arg.substr("--demo-out=".length())
 		elif arg.begins_with("--demo-trajectories="):
 			target_trajectories = arg.substr("--demo-trajectories=".length()).to_int()
+	if target_trajectories <= 0:
+		_fail("target_trajectories must be > 0 (got %d)" % target_trajectories)
+		return
 	if _sync == null:
 		_fail("sync_path '%s' did not resolve to a node" % str(sync_path))
 		return
