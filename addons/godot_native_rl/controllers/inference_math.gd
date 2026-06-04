@@ -36,3 +36,17 @@ static func softmax(logits: PackedFloat32Array) -> PackedFloat32Array:
 	for i in range(exps.size()):
 		exps[i] = exps[i] / total
 	return exps
+
+# Inverse-CDF categorical sample. `u` is a uniform draw expected in [0, 1): walk the cumulative
+# sum and return the first index whose running total exceeds u. Float drift or u >= total clamps
+# to the last index (never out of range). Empty input -> -1 (same sentinel as argmax). Leading
+# zero-probability buckets are skipped (u < cumulative stays false while cumulative is 0).
+static func sample_categorical(probs: PackedFloat32Array, u: float) -> int:
+	if probs.is_empty():
+		return -1
+	var cumulative := 0.0
+	for i in range(probs.size()):
+		cumulative += probs[i]
+		if u < cumulative:
+			return i
+	return probs.size() - 1

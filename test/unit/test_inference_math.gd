@@ -26,4 +26,17 @@ func _initialize() -> void:
 		"softmax stable for large logits")
 	h.assert_eq(InferenceMath.softmax(PackedFloat32Array()).size(), 0, "softmax empty -> empty")
 
+	# --- sample_categorical: inverse-CDF over a prob vector with a uniform draw u in [0,1) ---
+	var p := PackedFloat32Array([0.3, 0.7])
+	h.assert_eq(InferenceMath.sample_categorical(p, 0.0), 0, "u=0 -> first bucket")
+	h.assert_eq(InferenceMath.sample_categorical(p, 0.29), 0, "u just below boundary -> 0")
+	h.assert_eq(InferenceMath.sample_categorical(p, 0.5), 1, "u past boundary -> 1")
+	h.assert_eq(InferenceMath.sample_categorical(p, 0.999), 1, "u near 1 -> last")
+	h.assert_eq(InferenceMath.sample_categorical(p, 1.5), 1, "u>=1 clamps to last index")
+	h.assert_eq(InferenceMath.sample_categorical(PackedFloat32Array([0.0, 0.0, 1.0]), 0.0),
+		2, "one-hot at end -> that index for u=0")
+	h.assert_eq(InferenceMath.sample_categorical(PackedFloat32Array([1.0, 0.0]), 0.5),
+		0, "one-hot at start -> index 0")
+	h.assert_eq(InferenceMath.sample_categorical(PackedFloat32Array(), 0.5), -1, "empty -> -1")
+
 	h.finish(self)
