@@ -1,39 +1,47 @@
 class_name RelativePositionSensor3D
 extends "res://addons/godot_native_rl/sensors/i_sensor_3d.gd"
 
-# Egocentric relative-position observation for a target node (3D): a unit direction in the
-# sensor's local frame + a clipped, normalized distance. See RelativePositionMath.encode_3d.
-# Mirrors RelativePositionSensor2D and the raycast sensors: pure math core + thin node
-# wrapper, with target resolution isolated behind set_target_for_test for headless testing.
+# 3D egocentric relative-position observation for a set of target nodes, matching godot_rl's
+# PositionSensor3D. Each target in `objects_to_observe` contributes a slot (see
+# RelativePositionMath): the normalized clamped offset (default) or a unit direction (local frame,
+# forward = -Z) + distance (use_separate_direction). Per-axis include_x/y/z toggles drop axes.
+# obs_size() is fixed by config + target count; a freed/invalid target zero-fills its slot.
 
 const RelativePositionMath = preload("res://addons/godot_native_rl/sensors/relative_position_math.gd")
 
-@export var target_path: NodePath
-@export var max_distance: float = 50.0
+## Targets to observe, in order; each contributes a slot. Freed/invalid entries zero-fill.
+@export var objects_to_observe: Array[Node3D]
+## Include the relative x component in each slot.
+@export var include_x: bool = true
+## Include the relative y component in each slot.
+@export var include_y: bool = true
+## Include the relative z component in each slot.
+@export var include_z: bool = true
+## Distance normalizer. Obs values are normalized so 0 is closest and 1 is at/over this distance.
+@export_range(0.01, 2500.0) var max_distance: float = 1.0
+## false: emit the normalized clamped offset. true: emit unit direction + a distance scalar.
+@export var use_separate_direction: bool = false
 
-# Test seam: a target node injected directly, bypassing target_path resolution.
-var _target_override: Node3D = null
-var _warned_no_target := false
-
-func set_target_for_test(node: Node3D) -> void:
-	_target_override = node
+var _warned_invalid := false
 
 func obs_size() -> int:
-	return 4
+	return objects_to_observe.size() * RelativePositionMath.per_target_size(use_separate_direction, include_x, include_y, include_z)
 
 func get_observation() -> Array:
-	var target: Node3D = _target_override if _target_override != null else get_node_or_null(target_path) as Node3D
-	if target == null:
-		if not _warned_no_target:
-			push_error("RelativePositionSensor3D: target_path resolves to no Node3D; returning zeros.")
-			_warned_no_target = true
-		var zeros := []
-		zeros.resize(obs_size())
-		zeros.fill(0.0)
-		return zeros
-	_warned_no_target = false
-	# World transform when in the tree; local transform fallback when detached (unit tests).
 	var sensor_xform := global_transform if is_inside_tree() else transform
-	var target_pos := target.global_position if target.is_inside_tree() else target.position
-	var world_offset := target_pos - sensor_xform.origin
-	return RelativePositionMath.encode_3d(world_offset, sensor_xform.basis, max_distance)
+	var out: Array = []
+	var any_invalid := false
+	for obj in objects_to_observe:
+		var world_offset := Vector3.ZERO
+		if is_instance_valid(obj):
+			var target_pos := obj.global_position if obj.is_inside_tree() else obj.position
+			world_offset = target_pos - sensor_xform.origin
+		else:
+			any_invalid = true
+		out.append_array(RelativePositionMath.encode_3d(world_offset, sensor_xform.basis, max_distance, use_separate_direction, include_x, include_y, include_z))
+	if any_invalid and not _warned_invalid:
+		push_error("RelativePositionSensor3D: one or more objects_to_observe are invalid; their slots are zero-filled.")
+		_warned_invalid = true
+	elif not any_invalid:
+		_warned_invalid = false
+	return out
