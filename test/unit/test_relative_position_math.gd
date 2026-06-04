@@ -3,52 +3,62 @@ extends SceneTree
 const Harness = preload("res://test/harness.gd")
 const RelativePositionMath = preload("res://addons/godot_native_rl/sensors/relative_position_math.gd")
 
-func _approx(h: Harness, out: Array, expected: Array, label: String) -> void:
-	var ok := out.size() == expected.size()
-	for i in range(mini(out.size(), expected.size())):
-		if absf(float(out[i]) - float(expected[i])) > 1e-5:
-			ok = false
-	h.assert_true(ok, "%s (got %s, want %s)" % [label, str(out), str(expected)])
-
 func _initialize() -> void:
 	var h := Harness.new()
 
-	# Target straight ahead (+X), unrotated sensor -> dir (1,0), dist 10/100
-	_approx(h, RelativePositionMath.encode_2d(Vector2(10, 0), 0.0, 100.0), [1.0, 0.0, 0.1], "2d ahead, no rotation")
+	# --- per_target_size ---
+	h.assert_eq(RelativePositionMath.per_target_size(false, true, true, false), 2, "2D default mode -> 2")
+	h.assert_eq(RelativePositionMath.per_target_size(true, true, true, false), 3, "2D separate mode -> 3 (dir+dist)")
+	h.assert_eq(RelativePositionMath.per_target_size(false, true, true, true), 3, "3D default mode -> 3")
+	h.assert_eq(RelativePositionMath.per_target_size(true, true, true, true), 4, "3D separate mode -> 4")
+	h.assert_eq(RelativePositionMath.per_target_size(false, true, false, false), 1, "x-only default -> 1")
+	h.assert_eq(RelativePositionMath.per_target_size(true, false, false, false), 1, "all-axes-off separate -> 1 (dist only)")
 
-	# Sensor yawed +90deg: a world +X target reads as local (0,-1)
-	_approx(h, RelativePositionMath.encode_2d(Vector2(10, 0), PI / 2.0, 100.0), [0.0, -1.0, 0.1], "2d rotation rotates direction")
+	# --- 2D default mode (non-separate): normalized clamped offset, NO distance ---
+	var d: Array = RelativePositionMath.encode_2d(Vector2(50, 0), 0.0, 100.0, false, true, true)
+	h.assert_eq(d.size(), 2, "default mode emits 2 (no dist)")
+	h.assert_true(absf(d[0] - 0.5) < 1e-5 and absf(d[1]) < 1e-5, "half distance +X -> (0.5,0)")
 
-	# Distance is rotation-invariant and clips at max_distance
-	_approx(h, RelativePositionMath.encode_2d(Vector2(200, 0), 0.0, 100.0), [1.0, 0.0, 1.0], "2d distance clips to 1")
-	_approx(h, RelativePositionMath.encode_2d(Vector2(50, 0), 0.0, 100.0), [1.0, 0.0, 0.5], "2d half distance -> 0.5")
+	var c: Array = RelativePositionMath.encode_2d(Vector2(200, 0), 0.0, 100.0, false, true, true)
+	h.assert_true(absf(c[0] - 1.0) < 1e-5 and absf(c[1]) < 1e-5, "beyond max -> clamped unit (1,0)")
 
-	# Zero offset -> zero direction + zero distance
-	_approx(h, RelativePositionMath.encode_2d(Vector2.ZERO, 0.0, 100.0), [0.0, 0.0, 0.0], "2d zero offset")
+	# --- 2D separate mode: unit dir + dist ---
+	var s: Array = RelativePositionMath.encode_2d(Vector2(50, 0), 0.0, 100.0, true, true, true)
+	h.assert_eq(s.size(), 3, "separate mode emits 3")
+	h.assert_true(absf(s[0] - 1.0) < 1e-5 and absf(s[1]) < 1e-5 and absf(s[2] - 0.5) < 1e-5, "separate -> dir(1,0)+dist0.5")
 
-	# max_distance <= 0 -> dist_norm guarded to 0 (direction still valid)
-	_approx(h, RelativePositionMath.encode_2d(Vector2(10, 0), 0.0, 0.0), [1.0, 0.0, 0.0], "2d max_distance 0 guard")
+	# --- axis mask: include_y only, separate -> [dir.y, dist] ---
+	var m: Array = RelativePositionMath.encode_2d(Vector2(0, 50), 0.0, 100.0, true, false, true)
+	h.assert_eq(m.size(), 2, "include_y only separate -> 2")
+	h.assert_true(absf(m[0] - 1.0) < 1e-5 and absf(m[1] - 0.5) < 1e-5, "y-axis dir + dist")
 
-	# Direction is unit length for a non-axis-aligned offset
-	var out: Array = RelativePositionMath.encode_2d(Vector2(3, 4), 0.0, 100.0)
-	h.assert_true(absf(Vector2(out[0], out[1]).length() - 1.0) < 1e-5, "2d direction is unit length")
+	# --- separate mode: distance clamps to 1.0 beyond max_distance ---
+	var sc: Array = RelativePositionMath.encode_2d(Vector2(300, 0), 0.0, 100.0, true, true, true)
+	h.assert_true(absf(sc[0] - 1.0) < 1e-5 and absf(sc[2] - 1.0) < 1e-5, "separate beyond max -> dir(1,0)+dist clamped 1.0")
 
-	# 3D: target along -Z (forward) of an unrotated sensor -> dir (0,0,-1), dist 10/100
-	_approx(h, RelativePositionMath.encode_3d(Vector3(0, 0, -10), Basis.IDENTITY, 100.0), [0.0, 0.0, -1.0, 0.1], "3d forward, no rotation")
+	# --- egocentric rotation: target +X, sensor +90deg -> local (0,-1) ---
+	var r: Array = RelativePositionMath.encode_2d(Vector2(10, 0), PI / 2.0, 100.0, true, true, true)
+	h.assert_true(absf(r[0]) < 1e-5 and absf(r[1] + 1.0) < 1e-5, "rotation maps +X to local -Y")
 
-	# Sensor yawed +90deg about Y: a world-forward (-Z) target reads as local +X
-	var yaw := Basis(Vector3(0, 1, 0), PI / 2.0)
-	_approx(h, RelativePositionMath.encode_3d(Vector3(0, 0, -10), yaw, 100.0), [1.0, 0.0, 0.0, 0.1], "3d yaw rotates direction")
+	# --- guards ---
+	var z: Array = RelativePositionMath.encode_2d(Vector2.ZERO, 0.0, 100.0, true, true, true)
+	h.assert_true(absf(z[0]) < 1e-6 and absf(z[1]) < 1e-6 and absf(z[2]) < 1e-6, "zero offset -> zeros")
+	var g: Array = RelativePositionMath.encode_2d(Vector2(10, 0), 0.0, 0.0, false, true, true)
+	h.assert_true(g.size() == 2 and absf(g[0]) < 1e-6 and absf(g[1]) < 1e-6, "max<=0 -> zeros (correct count)")
 
-	# Distance clips and is rotation-invariant
-	_approx(h, RelativePositionMath.encode_3d(Vector3(0, 0, -200), Basis.IDENTITY, 100.0), [0.0, 0.0, -1.0, 1.0], "3d distance clips to 1")
+	# --- 3D separate: target -Z forward -> [0,0,-1, 0.1] ---
+	var t3: Array = RelativePositionMath.encode_3d(Vector3(0, 0, -10), Basis(), 100.0, true, true, true, true)
+	h.assert_eq(t3.size(), 4, "3D separate -> 4")
+	h.assert_true(absf(t3[0]) < 1e-5 and absf(t3[1]) < 1e-5 and absf(t3[2] + 1.0) < 1e-5 and absf(t3[3] - 0.1) < 1e-5, "3D forward -> [0,0,-1,0.1]")
 
-	# Zero offset -> zeros; max_distance <= 0 -> dist guarded
-	_approx(h, RelativePositionMath.encode_3d(Vector3.ZERO, Basis.IDENTITY, 100.0), [0.0, 0.0, 0.0, 0.0], "3d zero offset")
-	_approx(h, RelativePositionMath.encode_3d(Vector3(0, 0, -10), Basis.IDENTITY, 0.0), [0.0, 0.0, -1.0, 0.0], "3d max_distance 0 guard")
+	# --- 3D default mode: normalized clamped offset, no dist ---
+	var d3: Array = RelativePositionMath.encode_3d(Vector3(0, 0, -50), Basis(), 100.0, false, true, true, true)
+	h.assert_eq(d3.size(), 3, "3D default -> 3 (no dist)")
+	h.assert_true(absf(d3[2] + 0.5) < 1e-5, "3D half -Z -> z=-0.5")
 
-	# Direction unit length for an arbitrary offset
-	var out3: Array = RelativePositionMath.encode_3d(Vector3(1, 2, 2), Basis.IDENTITY, 100.0)
-	h.assert_true(absf(Vector3(out3[0], out3[1], out3[2]).length() - 1.0) < 1e-5, "3d direction is unit length")
+	# --- 3D axis mask: include_z only, default -> [scaled.z] ---
+	var mz: Array = RelativePositionMath.encode_3d(Vector3(0, 0, -50), Basis(), 100.0, false, false, false, true)
+	h.assert_eq(mz.size(), 1, "z-only default -> 1")
+	h.assert_true(absf(mz[0] + 0.5) < 1e-5, "z-only -> -0.5")
 
 	h.finish(self)

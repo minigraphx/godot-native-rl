@@ -24,7 +24,9 @@ complement to godot_rl, grow toward full replacement.
   `reward/` (`RewardBuilder`/`RewardAdapter`/terms), `sensors/`
   (`RaycastSensor2D`/`RaycastSensor3D` — both support an opt-in `class_sensor` mode: per-ray
   multi-hot collision-layer segments via `detection_classes` + optional `other`/closeness slots,
-  encoded by pure `raycast_math.encode_ray_class` — + `RelativePositionSensor2D`/`RelativePositionSensor3D` +
+  encoded by pure `raycast_math.encode_ray_class` — + `RelativePositionSensor2D`/`RelativePositionSensor3D` (multi-target `objects_to_observe`, godot_rl
+PositionSensor parity: normalized-offset default + optional unit-dir/dist split, per-axis include
+toggles) +
   `CameraSensor` (SubViewport → hex image obs, godot_rl-compatible) +
   `GridSensor2D`/`GridSensor3D` (query-based cell detection, godot_rl-parity per-layer overlap
   counts) + pure `raycast_math`/`relative_position_math`/`camera_obs_math`/`grid_sensor_math`; all
@@ -192,7 +194,8 @@ complement to godot_rl, grow toward full replacement.
   it's updated by each closing PR but not extended with new entries.
   - **Done:** 1 (Signal→Reward + RewardBuilder), 2 (export_to_ncnn helper), 3 (RaycastSensor2D/3D),
     4 (ncnn_vs_onnx guide), 5 (addon structure + controller refactor), 6 (3D rover + trained model +
-    golden regression), 7 (RelativePositionSensor2D/3D), 8 (CameraSensor — hex image obs protocol),
+    golden regression), 7 (RelativePositionSensor2D/3D), 42 (RelativePositionSensor multi-target + PositionSensor parity),
+    8 (CameraSensor — hex image obs protocol),
     36 (deploy-side image inference — `run_inference_image` glue + synthetic-CNN golden),
     30 (ParallelArena — parallel multi-agent training, ~6.2× speedup measured),
     12 (Hide & Seek example — 2D 1v1 parameter-sharing self-play, scaffold + smoke test),
