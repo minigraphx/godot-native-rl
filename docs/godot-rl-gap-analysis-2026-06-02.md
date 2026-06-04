@@ -18,7 +18,7 @@ tracked as issue #26)
 | `RaycastSensor3D` (distance) | ✅ | ✅ | — |
 | `RaycastSensor3D` class mode | ✅ `class_sensor` + `boolean_class_mask` — one-hot per class per ray | ✅ `class_sensor` mode on both 2D+3D, per-ray multi-hot layer segments via `detection_classes` | ✅ done (#42) |
 | `ISensor2D` / `ISensor3D` interface | ✅ shared base all sensors implement | ✅ + `collect_sensors()` auto-discovery | ✅ done (item 40) |
-| `PositionSensor2D/3D` | ✅ multi-target `Array[Node2D]`, optional dir/dist split | ✅ single `target_path` only | ⚠️ partial (#15) |
+| `PositionSensor2D/3D` | ✅ multi-target `Array[Node2D]`, optional dir/dist split | ✅ multi-target `objects_to_observe`, both modes + axis toggles | ✅ done (#15) |
 | `RGBCameraSensor2D/3D` | ✅ configurable render res + downscale + RGBA/RGB + editor preview | ✅ fixed viewport res, RGB only, no downscale | ⚠️ partial (#36) |
 | `GridSensor2D` | ✅ area/body occupancy grid, multi-layer, debug view | ✅ query-based, per-layer counts | ✅ done (item 11) |
 | `GridSensor3D` | ✅ | ✅ | ✅ done (item 11) |
@@ -129,7 +129,6 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | 🟠 P1 | `RECORD_EXPERT_DEMOS` + demo infra | #13 |
 | 🟠 P1 | Stochastic action sampling (`deterministic_inference`) | #16 |
 | 🟠 P1 | Recurrent / LSTM deploy | #33 |
-| 🟡 P2 | `RelativePositionSensor` multi-target | #15 |
 | 🟡 P2 | RLlib + PettingZoo multi-policy trained example | #26 |
 | 🟡 P2 | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
 | 🔵 P3 | Batched multi-agent inference | #34 |

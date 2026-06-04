@@ -514,14 +514,16 @@ agent's `get_obs()` and concatenate with your other features.
 - **`RaycastSensor3D`** (`sensors/raycast_sensor_3d.gd`) — an `n_rays_width × n_rays_height`
   grid of 3D rays across `horizontal_fov × vertical_fov`, centered on forward (−Z). Same
   closeness encoding and physics options.
-- **`RelativePositionSensor2D`** (`sensors/relative_position_sensor_2d.gd`) — the egocentric
-  position of a `target_path` node: a unit direction in the sensor's local frame plus a
-  clipped, normalized distance, `[dir_x, dir_y, dist_norm]` (3 floats). `dist_norm =
-  clamp(distance / max_distance, 0, 1)`. Answers "where is my target relative to me?"
-  (`godot_rl` issue #177).
-- **`RelativePositionSensor3D`** (`sensors/relative_position_sensor_3d.gd`) — the 3D form:
-  `[dir_x, dir_y, dir_z, dist_norm]` (4 floats), direction in the sensor's local frame
-  (forward = −Z), same `max_distance` clipping.
+- **`RelativePositionSensor2D`** (`sensors/relative_position_sensor_2d.gd`) — egocentric positions of
+  a set of `objects_to_observe` (`Array[Node2D]`), matching `godot_rl`'s `PositionSensor2D`. Two
+  modes: `use_separate_direction = false` (default) emits the normalized clamped offset
+  `[x, y]` per target; `true` emits a unit direction plus a clipped normalized distance
+  `[dir_x, dir_y, dist_norm]`. Per-axis `include_x`/`include_y` toggles, `max_distance` normalizer.
+  Freed/invalid targets zero-fill their slot, so `obs_size()` stays fixed. Answers "where are my
+  targets relative to me?" (`godot_rl` issue #177).
+- **`RelativePositionSensor3D`** (`sensors/relative_position_sensor_3d.gd`) — the 3D form over
+  `objects_to_observe` (`Array[Node3D]`), direction in the sensor's local frame (forward = −Z), with
+  `include_x`/`include_y`/`include_z` toggles and the same two modes + `max_distance` clipping.
 - **`CameraSensor`** (`sensors/camera_sensor.gd`) — image observations from a `SubViewport`
   (`godot_rl` issue #78). Dimension-agnostic: point it at a `SubViewport` holding a `Camera2D` or
   `Camera3D`. Unlike the float sensors above, it returns a **hex-encoded `String`** of raw `uint8`

@@ -229,7 +229,7 @@ the same change. New items → GitHub issue only.
     path is unchanged when `class_sensor` is off. Spec
     `docs/superpowers/specs/2026-06-03-raycast-multi-class-detection-design.md`, plan
     `docs/superpowers/plans/2026-06-03-raycast-multi-class-detection.md`. Enables item 42.
-42. ⬜ **`RelativePositionSensor` multi-target support** — upstream's `PositionSensor2D/3D` takes
+42. ✅ **`RelativePositionSensor` multi-target support** — upstream's `PositionSensor2D/3D` takes
     an `Array[Node2D/Node3D]` of targets and encodes each independently (concatenated). This repo's
     `RelativePositionSensor2D/3D` takes a single `target_path`. Extend to accept an
     `Array[NodePath]` of targets; encode each as `[dir_x, dir_y, (dir_z,) dist_norm]` and
