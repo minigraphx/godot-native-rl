@@ -21,7 +21,7 @@ complement to godot_rl, grow toward full replacement.
   decode is argmax by default, optionally softmax-sampled via the controllers' `deterministic_inference`/`inference_seed`
   exports (seedable RNG in the core); the deploy path is **algorithm-agnostic** (keys off output shape +
   `action_type`, never the RL algo: PPO logits ≡ DQN Q-values under argmax, PPO/TD3 mean ≡ SAC
-  `tanh(mean)`; see DEVELOPMENT.md "deploy contract"), plus pure
+  `tanh(mean)`; see docs/dev/DEVELOPMENT.md "deploy contract"), plus pure
   `obs_normalize.gd` (`ObsNormalize`) replaying SB3 `VecNormalize` obs stats game-side **before**
   inference (the pre-inference mirror of post-inference `action_decode.gd`);
   thin `NcnnAIController2D`/`NcnnAIController3D` with a `get_inference_image()` hook),
@@ -181,7 +181,7 @@ toggles) +
 ## Conventions
 
 - **Deeper dev reference** (architecture, data flow, the long-form "why") lives in
-  `docs/DEVELOPMENT.md`. Keep CLAUDE.md terse (it's always-loaded); put new deep-dives there.
+  `docs/dev/DEVELOPMENT.md`. Keep CLAUDE.md terse (it's always-loaded); put new deep-dives there.
 - GDScript uses **TAB** indentation. Dependency-free headless test harness at `test/harness.gd`
   (tests `extends SceneTree`, run via `godot --headless --path . --script res://test/...`).
 - The reusable library lives under `addons/godot_native_rl/`; reference moved scripts by their
