@@ -117,9 +117,72 @@ all decode through the same path). That's a decode/runtime guard needing no trai
 trained non-PPO regression (SB3 SAC/DQN end-to-end → ncnn → behavioral check) is the separate
 `needs-training-run` slice of issue #45.
 
-**Not yet algorithm-agnostic at deploy:** recurrent (LSTM/GRU) policies need hidden state carried
-across frames — a *runtime feature* gap (issue #33), not a contract violation; feed-forward policies
-of every algorithm above already satisfy the contract as-is.
+**Recurrent (LSTM) policies** carry hidden state across frames — the runtime-feature extension
+of the contract, not a violation; see the next subsection. Feed-forward policies of every algorithm
+above already satisfy the base contract as-is.
+
+## The recurrent deploy contract (LSTM)
+
+Recurrent policies extend the base contract with **carried hidden state**: the network has extra
+input/output blobs that thread state from one frame to the next. This is **deploy plumbing only** —
+the training/export side (real `RecurrentPPO` from sb3-contrib + tooling that emits the sidecar from
+an arbitrary trained model) is **deferred** (issue #33); what's shipped is the runtime path plus a
+hand-built synthetic fixture.
+
+**Generic multi-IO runner (C++).** `NcnnRunner.run_inference_multi(inputs, output_names)` runs a net
+with any number of inputs and outputs (the single-IO `run_inference`/`run_inference_image` are
+unchanged and now share a `build_mat_from_shape` helper).
+- `inputs`: `Array` of `{ "name": String, "data": PackedFloat32Array, "shape": PackedInt32Array }`.
+- `output_names`: `PackedStringArray` of blobs to extract.
+- Returns `{ blob_name: PackedFloat32Array }`; **empty `Dictionary` on any error** (bad shape,
+  missing blob, extract failure) — fail loud, no partial results.
+
+**Sidecar (`<model>.recurrent.json`).** Declares the contract so nothing is hardcoded; parsed +
+validated at load by pure `controllers/recurrent_state.gd` (`RecurrentState`, the recurrent analogue
+of `obs_normalize.gd`). Schema:
+
+```json
+{
+  "obs_input": "in0",
+  "obs_shape": [5],
+  "action_output": "out0",
+  "state_pairs": [
+    { "in": "in1", "out": "out1", "shape": [8] },
+    { "in": "in2", "out": "out2", "shape": [8] }
+  ]
+}
+```
+
+Each `state_pairs` entry maps a state **input** blob to the **output** blob that produces its next
+value, with the blob's `shape` (an LSTM contributes two pairs — cell + hidden; a GRU would contribute
+one — the sidecar format is the same, though only LSTM is currently verified).
+
+**State lifecycle.** `NcnnControllerCore` holds the carried state in `recurrent_state`:
+1. **Zero-init on load** — `recurrent_stats_path` is read in the controllers' `_ready()`
+   (`NCNN_INFERENCE` mode, mirroring `obs_norm_stats_path`); a valid contract zero-fills each
+   `pair.in` to `product(shape)` floats.
+2. **Each frame** — `choose_and_apply_action` takes the recurrent branch: it feeds `obs` + the
+   carried `*_in` blobs into `run_inference_multi`, decodes the `action_output` blob via the same
+   `ActionDecode` path, and **stores the returned `*_out` blobs** as the next frame's `*_in`. On any
+   failure it push_errors and skips `set_action` **without advancing state**.
+3. **Re-zero on episode boundary** — `reset()` (and the public `reset_recurrent_state()` on the
+   controllers, for games that manage their own episode boundaries) re-zeroes the state so memory
+   never bleeds across episodes.
+
+**Scope.** Float-obs path only — image-obs + recurrent is **out of scope** (the recurrent branch
+does not run `run_inference_image`). Batched multi-agent recurrent inference is separate (issue #34).
+
+**Conversion + fixture.** pnnx was confirmed to **preserve the LSTM's 3-in/3-out state blobs**
+through ONNX→ncnn conversion. The synthetic fixture (`scripts/make_synthetic_lstm.py` →
+`models/synthetic_lstm.ncnn.{param,bin}` + `models/synthetic_lstm.recurrent.json` + `models/synthetic_lstm_golden.json`) verifies the full
+path: end-to-end per-step argmax + logit parity (`atol 1e-2`) and reset-reproduction. If a future
+model's conversion ever prunes those blobs, the fallback is to **hand-author the `.param`** state
+blobs (and the sidecar names them either way).
+
+**Rebuild required.** `run_inference_multi` changed the C++ ABI and `bin/` is gitignored, so a fresh
+clone (or anyone pulling this branch) **must rebuild** the extension —
+`scons platform=... target=template_debug` **and** `target=template_release` — or `NcnnRunner` won't
+expose the new method.
 
 ## Known robustness gaps (see docs/BACKLOG.md)
 
