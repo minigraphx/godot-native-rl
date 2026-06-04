@@ -16,16 +16,15 @@ build scene → train (godot-rl + PPO over NcnnSync) → export ONNX → pnnx �
 ## 1. Prerequisites
 
 - **Godot 4.6+**.
-- The **`NcnnRunner` GDExtension built** for your platform — see the build steps in the
-  [top-level README](../../README.md).
-- A **training Python environment** (kept separate from any conversion env):
+- The **`NcnnRunner` GDExtension built** for your platform — see
+  [docs/dev/building.md](../dev/building.md) for the full build steps.
+- A **training Python environment** — run the one-time setup script from the repo root:
   ```bash
-  python3 -m venv .venv-train
-  .venv-train/bin/python -m pip install --upgrade pip
-  .venv-train/bin/python -m pip install godot-rl onnxruntime ncnn onnxscript pnnx
+  ./scripts/setup_training.sh
   ```
-  `onnxscript` is required by the ONNX exporter; `ncnn` + `onnxruntime` are used to verify the
-  converted model; `pnnx` does the ONNX→ncnn conversion.
+  This creates `.venv-train` (godot-rl, onnxruntime, ncnn, onnxscript, pnnx) and `.venv`
+  (torch + pnnx for conversion). See [docs/guide/training.md](../guide/training.md) for the full
+  setup walkthrough including conda and interpreter-override options.
 
 ## 2. The game
 

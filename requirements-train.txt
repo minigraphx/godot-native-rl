@@ -1,0 +1,6 @@
+# Training + verification env (.venv-train, Python 3.13 — torch wheels don't exist for 3.14).
+# Used by scripts/train_*.sh and the parity/verify scripts.
+godot-rl
+onnxruntime
+ncnn
+onnxscript

@@ -380,7 +380,7 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     `models/synthetic_lstm.ncnn.*` + `.recurrent.json`): end-to-end per-step argmax + logit parity
     (`atol 1e-2`) and reset-reproduction; pnnx confirmed to preserve the LSTM's 3-in/3-out state
     blobs. **C++ ABI changed → rebuild the extension** (`template_debug` + `template_release`; `bin/`
-    gitignored). See DEVELOPMENT.md "The recurrent deploy contract".
+    gitignored). See docs/dev/DEVELOPMENT.md "The recurrent deploy contract".
     **Deferred:** real `RecurrentPPO` (sb3-contrib) training + a trained recurrent example; general
     export tooling that emits the sidecar from an arbitrary trained model (only a synthetic fixture
     here); image-obs + recurrent (float-obs path only); batched multi-agent recurrent (item 23 /
