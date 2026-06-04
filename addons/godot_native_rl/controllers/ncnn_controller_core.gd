@@ -16,6 +16,18 @@ var heuristic: String = "human"
 var reward_source = null
 var obs_norm_stats: Dictionary = {}
 
+# Stochastic deploy: when false, discrete actions are sampled from softmax(logits) via `rng`
+# instead of argmax. Continuous actions are unaffected (mean). Set by the controller wrappers.
+var deterministic_inference: bool = true
+var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+
+# seed_value < 0 -> randomize each run; >= 0 -> fixed seed for reproducible stochastic eval.
+func setup_rng(seed_value: int) -> void:
+	if seed_value < 0:
+		rng.randomize()
+	else:
+		rng.seed = seed_value
+
 func step(reset_after: int) -> void:
 	n_steps += 1
 	if n_steps > reset_after:
@@ -73,7 +85,7 @@ func choose_and_apply_action(agent, runner) -> void:
 				push_error("NcnnControllerCore.choose_and_apply_action: obs normalization failed (size mismatch); skipping action.")
 				return
 		output = runner.run_inference(obs_vec)
-	var action: Dictionary = ActionDecode.decode_actions(output, agent.get_action_space())
+	var action: Dictionary = ActionDecode.decode_actions(output, agent.get_action_space(), deterministic_inference, rng)
 	if action.is_empty():
 		push_error("NcnnControllerCore.choose_and_apply_action: action decode failed (empty/mismatched output); skipping action.")
 		return

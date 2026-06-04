@@ -5,6 +5,7 @@ extends RefCounted
 # godot_rl action dict by slicing the output into one contiguous segment per action_space key
 # (insertion order):
 #   discrete   -> argmax over the next `size` values            -> int in [0, size)
+#   discrete (stochastic) -> sample from softmax(values) via rng when deterministic=false
 #   continuous -> the next `size` values, optionally tanh-squashed (per-key "squash": true)
 #                 -> Array[float]  (godot_rl continuous convention is [-1, 1], so tanh suffices)
 # The total consumed length must equal output.size(); a mismatch (train/deploy shape error) or an
@@ -13,7 +14,7 @@ extends RefCounted
 
 const InferenceMath = preload("res://addons/godot_native_rl/controllers/inference_math.gd")
 
-static func decode_actions(output: PackedFloat32Array, action_space: Dictionary) -> Dictionary:
+static func decode_actions(output: PackedFloat32Array, action_space: Dictionary, deterministic: bool = true, rng: RandomNumberGenerator = null) -> Dictionary:
 	var result := {}
 	var index := 0
 	for key in action_space.keys():
@@ -28,7 +29,13 @@ static func decode_actions(output: PackedFloat32Array, action_space: Dictionary)
 			return {}
 		var segment: PackedFloat32Array = output.slice(index, index + size)
 		if action_type == "discrete":
-			result[key] = InferenceMath.argmax(segment)
+			if deterministic:
+				result[key] = InferenceMath.argmax(segment)
+			else:
+				var probs := InferenceMath.softmax(segment)
+				# rng=null falls back to Godot's global RNG; pass an explicit RNG for reproducible eval.
+				var u: float = rng.randf() if rng != null else randf()
+				result[key] = InferenceMath.sample_categorical(probs, u)
 		elif action_type == "continuous":
 			var squash: bool = entry.get("squash", false)
 			var values: Array = []

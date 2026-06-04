@@ -516,6 +516,14 @@ field, so multi-policy trainers (PettingZoo / RLlib) can map each agent to its o
 Single-policy training is unaffected (every agent reports `"shared_policy"`), and older trainers
 that don't read the field ignore it.
 
+### Stochastic inference (`deterministic_inference`, `inference_seed`)
+
+- **`deterministic_inference`** (`bool`, default `true`) — when `false`, discrete actions are sampled
+  from `softmax(logits)` instead of `argmax` (exploration during eval / human-in-the-loop play, no
+  retraining). Continuous actions stay the deterministic mean. Matches `godot_rl`'s flag.
+- **`inference_seed`** (`int`, default `-1`) — `-1` randomizes each run; a non-negative value seeds the
+  sampler for reproducible stochastic eval.
+
 ## Sensors
 
 Reusable observation sources implementing the shared sensor interface

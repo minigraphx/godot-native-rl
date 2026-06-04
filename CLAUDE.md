@@ -17,9 +17,11 @@ complement to godot_rl, grow toward full replacement.
 - The reusable library lives under **`addons/godot_native_rl/`** (item 5): `sync.gd` (`NcnnSync`,
   the bridge), `controllers/` (`NcnnControllerCore` RefCounted core with shared
   `choose_and_apply_action` decoding **all godot_rl action types** (discrete, continuous, multi-discrete,
-  multi-key) via pure `action_decode.gd` for float + **image** (`run_inference_image`) deploy — the deploy
-  path is **algorithm-agnostic** (keys off output shape + `action_type`, never the RL algo: PPO logits ≡
-  DQN Q-values under argmax, PPO/TD3 mean ≡ SAC `tanh(mean)`; see DEVELOPMENT.md "deploy contract"), plus pure
+  multi-key) via pure `action_decode.gd` for float + **image** (`run_inference_image`) deploy — discrete
+  decode is argmax by default, optionally softmax-sampled via the controllers' `deterministic_inference`/`inference_seed`
+  exports (seedable RNG in the core); the deploy path is **algorithm-agnostic** (keys off output shape +
+  `action_type`, never the RL algo: PPO logits ≡ DQN Q-values under argmax, PPO/TD3 mean ≡ SAC
+  `tanh(mean)`; see DEVELOPMENT.md "deploy contract"), plus pure
   `obs_normalize.gd` (`ObsNormalize`) replaying SB3 `VecNormalize` obs stats game-side **before**
   inference (the pre-inference mirror of post-inference `action_decode.gd`);
   thin `NcnnAIController2D`/`NcnnAIController3D` with a `get_inference_image()` hook),
@@ -226,7 +228,9 @@ toggles) +
     optional other/closeness, pure `raycast_math.encode_ray_class`; 2D added alongside 3D),
     44 (`INHERIT_FROM_SYNC` per-agent control mode — already present in `NcnnSync._get_agents()`),
     20 (multi-policy `policy_name` wire field — `agent_policy_names` in env_info; the rest of the
-    old item-20 catalog line was split 2026-06-03 into items 46–54, trained example is item 45).
+    old item-20 catalog line was split 2026-06-03 into items 46–54, trained example is item 45),
+    43 (stochastic action sampling — `deterministic_inference`/`inference_seed` on controllers,
+    discrete softmax-sample via seedable RNG in core).
     9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 21–24 (deploy-side inference gaps: continuous/multi-key

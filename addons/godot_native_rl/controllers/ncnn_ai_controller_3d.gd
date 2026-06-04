@@ -14,6 +14,8 @@ enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
 @export var output_blob_name: String = "out0"
 @export_file("*.json") var obs_norm_stats_path: String = ""
 @export var policy_name: String = "shared_policy"  # multi-policy routing (PettingZoo/RLlib)
+@export var deterministic_inference: bool = true  # false -> sample discrete actions from softmax(logits)
+@export var inference_seed: int = -1  # -1 = randomize each run; >= 0 = fixed seed (reproducible eval)
 
 var _core := NcnnControllerCore.new()
 var _ncnn_runner = null
@@ -57,6 +59,8 @@ func _ready() -> void:
 	if control_mode == ControlModes.NCNN_INFERENCE:
 		_setup_ncnn_runner()
 		_load_obs_norm_stats()
+		_core.deterministic_inference = deterministic_inference
+		_core.setup_rng(inference_seed)
 
 func _setup_ncnn_runner() -> void:
 	if model_param_path.is_empty() or model_bin_path.is_empty():
@@ -93,6 +97,10 @@ func _load_obs_norm_stats() -> void:
 
 func set_obs_norm_stats_for_test(stats: Dictionary) -> void:
 	_core.obs_norm_stats = stats
+
+func set_stochastic_for_test(deterministic: bool, seed_value: int) -> void:
+	_core.deterministic_inference = deterministic
+	_core.setup_rng(seed_value)
 
 func infer_and_act() -> void:
 	_core.choose_and_apply_action(self, _ncnn_runner)

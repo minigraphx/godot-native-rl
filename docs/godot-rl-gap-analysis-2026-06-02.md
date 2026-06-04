@@ -48,7 +48,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `get_action()` for demo recording | ✅ required when recording | ❌ | **Gap** (#13) |
 | `expert_demo_save_path` export | ✅ | ❌ | **Gap** (#13) |
 | `remove_last_episode_key` binding | ✅ undo bad demonstration | ❌ | **Gap** (#13) |
-| Stochastic action sampling | ✅ `deterministic_inference` flag (softmax vs argmax) | ❌ always deterministic argmax | **Gap** (#16) |
+| Stochastic action sampling | ✅ `deterministic_inference` flag (softmax vs argmax) | ✅ `deterministic_inference` + `inference_seed`; discrete softmax-sample (continuous follow-up #64) | ✅ done (#16) |
 | VecNormalize obs replay | ❌ upstream | ✅ `obs_norm_stats_path` | **Advantage** |
 
 ---
@@ -63,7 +63,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `terminated`/`truncated` split | ❌ TODO both sides | ❌ | Parity (#12) |
 | Connect / read timeouts | ❌ | ✅ | **Advantage** |
 | Per-agent `info` field | ❌ | ✅ | **Advantage** |
-| `deterministic_inference` export on Sync | ✅ | ❌ (goes with #16) | **Gap** |
+| `deterministic_inference` export on Sync | ✅ | ✅ on `NcnnAIController2D/3D` (per-agent) | ✅ done (#16) |
 
 ---
 
@@ -127,7 +127,6 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | ✅ Done | `INHERIT_FROM_SYNC` — already wired in `NcnnSync._get_agents()` | — |
 | ✅ Done | `RaycastSensor3D` (and 2D) multi-class detection mode (`class_sensor`) | #42 |
 | 🟠 P1 | `RECORD_EXPERT_DEMOS` + demo infra | #13 |
-| 🟠 P1 | Stochastic action sampling (`deterministic_inference`) | #16 |
 | 🟠 P1 | Recurrent / LSTM deploy | #33 |
 | 🟡 P2 | RLlib + PettingZoo multi-policy trained example | #26 |
 | 🟡 P2 | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
