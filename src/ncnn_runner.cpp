@@ -20,6 +20,7 @@ void NcnnRunner::_bind_methods() {
     ClassDB::bind_method(D_METHOD("load_model", "param_path", "bin_path"), &NcnnRunner::load_model);
     ClassDB::bind_method(D_METHOD("run_inference", "input"), &NcnnRunner::run_inference);
     ClassDB::bind_method(D_METHOD("run_inference_image", "image", "normalize_to_zero_one"), &NcnnRunner::run_inference_image, DEFVAL(true));
+    ClassDB::bind_method(D_METHOD("run_inference_multi", "inputs", "output_names"), &NcnnRunner::run_inference_multi);
     ClassDB::bind_method(D_METHOD("run_discrete_action", "input"), &NcnnRunner::run_discrete_action);
     ClassDB::bind_method(D_METHOD("is_model_loaded"), &NcnnRunner::is_model_loaded);
     ClassDB::bind_method(D_METHOD("set_input_blob_name", "name"), &NcnnRunner::set_input_blob_name);
@@ -122,6 +123,53 @@ PackedFloat32Array NcnnRunner::run_inference_image(const Ref<Image> &p_image, bo
     return output_mat_to_packed_float_array(output_mat);
 }
 
+Dictionary NcnnRunner::run_inference_multi(const Array &p_inputs, const PackedStringArray &p_output_names) {
+    Dictionary result;
+    if (!model_loaded_ || !net_) {
+        UtilityFunctions::push_error("NcnnRunner.run_inference_multi: model is not loaded.");
+        return result;
+    }
+    if (p_inputs.is_empty() || p_output_names.is_empty()) {
+        UtilityFunctions::push_error("NcnnRunner.run_inference_multi: inputs and output_names must be non-empty.");
+        return result;
+    }
+
+    ncnn::Extractor extractor = net_->create_extractor();
+
+    for (int i = 0; i < p_inputs.size(); ++i) {
+        const Dictionary spec = p_inputs[i];
+        if (!spec.has("name") || !spec.has("data") || !spec.has("shape")) {
+            UtilityFunctions::push_error("NcnnRunner.run_inference_multi: each input needs name/data/shape.");
+            return Dictionary();
+        }
+        const String name = spec["name"];
+        const PackedFloat32Array data = spec["data"];
+        const PackedInt32Array shape = spec["shape"];
+        ncnn::Mat mat;
+        if (!build_mat_from_shape(data, shape, mat)) {
+            return Dictionary();
+        }
+        const CharString name_utf8 = name.utf8();
+        if (extractor.input(name_utf8.get_data(), mat) != 0) {
+            UtilityFunctions::push_error("NcnnRunner.run_inference_multi: failed to bind input blob: ", name);
+            return Dictionary();
+        }
+    }
+
+    for (int i = 0; i < p_output_names.size(); ++i) {
+        const String name = p_output_names[i];
+        const CharString name_utf8 = name.utf8();
+        ncnn::Mat out;
+        if (extractor.extract(name_utf8.get_data(), out) != 0) {
+            UtilityFunctions::push_error("NcnnRunner.run_inference_multi: failed to extract output blob: ", name);
+            return Dictionary();
+        }
+        result[name] = output_mat_to_packed_float_array(out);
+    }
+
+    return result;
+}
+
 int NcnnRunner::run_discrete_action(const PackedFloat32Array &p_input) {
     ncnn::Mat input_mat;
     if (!create_input_mat_from_array(p_input, input_mat)) {
@@ -171,39 +219,40 @@ bool NcnnRunner::create_input_mat_from_array(const PackedFloat32Array &p_input, 
         return true;
     }
 
-    if (input_shape_.size() < 1 || input_shape_.size() > 3) {
-        UtilityFunctions::push_error("NcnnRunner.input_shape must have 1 to 3 dimensions.");
+    return build_mat_from_shape(p_input, input_shape_, r_input);
+}
+
+bool NcnnRunner::build_mat_from_shape(const PackedFloat32Array &p_data, const PackedInt32Array &p_shape, ncnn::Mat &r_mat) const {
+    if (p_data.is_empty()) {
+        UtilityFunctions::push_error("NcnnRunner: input array is empty.");
         return false;
     }
-
+    if (p_shape.size() < 1 || p_shape.size() > 3) {
+        UtilityFunctions::push_error("NcnnRunner: input shape must have 1 to 3 dimensions.");
+        return false;
+    }
     int64_t expected_count = 1;
-    for (int i = 0; i < input_shape_.size(); ++i) {
-        const int32_t dim = input_shape_[i];
+    for (int i = 0; i < p_shape.size(); ++i) {
+        const int32_t dim = p_shape[i];
         if (dim <= 0) {
-            UtilityFunctions::push_error("NcnnRunner.input_shape dimensions must all be > 0.");
+            UtilityFunctions::push_error("NcnnRunner: input shape dimensions must all be > 0.");
             return false;
         }
         expected_count *= dim;
     }
-
-    if (expected_count != static_cast<int64_t>(p_input.size())) {
-        UtilityFunctions::push_error(
-            "NcnnRunner.run_inference: input size does not match input_shape product. input_size=",
-            p_input.size(),
-            ", expected=",
-            static_cast<int>(expected_count)
-        );
+    if (expected_count != static_cast<int64_t>(p_data.size())) {
+        UtilityFunctions::push_error("NcnnRunner: input size does not match shape product. input_size=",
+            p_data.size(), ", expected=", static_cast<int>(expected_count));
         return false;
     }
-
-    if (input_shape_.size() == 1) {
-        r_input = ncnn::Mat(input_shape_[0]);
-    } else if (input_shape_.size() == 2) {
-        r_input = ncnn::Mat(input_shape_[0], input_shape_[1]);
+    if (p_shape.size() == 1) {
+        r_mat = ncnn::Mat(p_shape[0]);
+    } else if (p_shape.size() == 2) {
+        r_mat = ncnn::Mat(p_shape[0], p_shape[1]);
     } else {
-        r_input = ncnn::Mat(input_shape_[0], input_shape_[1], input_shape_[2]);
+        r_mat = ncnn::Mat(p_shape[0], p_shape[1], p_shape[2]);
     }
-    std::memcpy(r_input.data, p_input.ptr(), static_cast<size_t>(p_input.size()) * sizeof(float));
+    std::memcpy(r_mat.data, p_data.ptr(), static_cast<size_t>(p_data.size()) * sizeof(float));
     return true;
 }
 

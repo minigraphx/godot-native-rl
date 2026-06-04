@@ -6,6 +6,9 @@
 #include <godot_cpp/variant/packed_float32_array.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
 #include <godot_cpp/variant/string.hpp>
+#include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/variant/packed_string_array.hpp>
 
 #include <memory>
 
@@ -29,6 +32,7 @@ public:
     bool load_model(const String &p_param_path, const String &p_bin_path);
     PackedFloat32Array run_inference(const PackedFloat32Array &p_input);
     PackedFloat32Array run_inference_image(const Ref<Image> &p_image, bool p_normalize_to_zero_one = true);
+    Dictionary run_inference_multi(const Array &p_inputs, const PackedStringArray &p_output_names);
     int run_discrete_action(const PackedFloat32Array &p_input);
     bool is_model_loaded() const;
 
@@ -42,6 +46,7 @@ public:
 
 private:
     bool create_input_mat_from_array(const PackedFloat32Array &p_input, ncnn::Mat &r_input) const;
+    bool build_mat_from_shape(const PackedFloat32Array &p_data, const PackedInt32Array &p_shape, ncnn::Mat &r_mat) const;
     bool run_inference_internal(const ncnn::Mat &p_input, ncnn::Mat &r_output) const;
     static PackedFloat32Array output_mat_to_packed_float_array(const ncnn::Mat &p_output);
 
