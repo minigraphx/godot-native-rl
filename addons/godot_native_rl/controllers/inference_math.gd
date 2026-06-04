@@ -14,3 +14,25 @@ static func argmax(values: PackedFloat32Array) -> int:
 			best_value = values[i]
 			best_index = i
 	return best_index
+
+# Numerically stable softmax: subtract the max logit before exp so large logits don't overflow.
+# Empty input -> empty output. A degenerate zero sum returns the (zero) exps rather than dividing.
+static func softmax(logits: PackedFloat32Array) -> PackedFloat32Array:
+	if logits.is_empty():
+		return PackedFloat32Array()
+	var max_logit := logits[0]
+	for v in logits:
+		if v > max_logit:
+			max_logit = v
+	var exps := PackedFloat32Array()
+	exps.resize(logits.size())
+	var total := 0.0
+	for i in range(logits.size()):
+		var e := exp(logits[i] - max_logit)
+		exps[i] = e
+		total += e
+	if total <= 0.0:
+		return exps
+	for i in range(exps.size()):
+		exps[i] = exps[i] / total
+	return exps
