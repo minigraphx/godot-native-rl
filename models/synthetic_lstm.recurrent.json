@@ -1,0 +1,23 @@
+{
+  "obs_input": "in0",
+  "obs_shape": [
+    5
+  ],
+  "action_output": "out0",
+  "state_pairs": [
+    {
+      "in": "in1",
+      "out": "out1",
+      "shape": [
+        8
+      ]
+    },
+    {
+      "in": "in2",
+      "out": "out2",
+      "shape": [
+        8
+      ]
+    }
+  ]
+}
