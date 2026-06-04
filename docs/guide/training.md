@@ -59,3 +59,38 @@ single-agent scene.
 
 After training produces a checkpoint/ONNX, convert to ncnn and deploy — see
 [deploying.md](deploying.md).
+
+## 4. Imitation learning (expert demos + behavior cloning)
+
+Instead of RL, you can record an expert (scripted or human-played) and clone its behavior — no
+Python trainer or socket needed for the recording step. `NcnnSync` has a `RECORD_EXPERT_DEMOS`
+control mode that writes trajectories to disk.
+
+**Record demos** (headless, chase scripted-expert example):
+
+```bash
+godot --headless --path . \
+  res://examples/chase_the_target/record_chase_demos.tscn \
+  -- --demo-out=examples/chase_the_target/demos/my_demos.json --demo-trajectories=20
+```
+
+Trajectories save as `gnrl_v1` (default) or the legacy `godot_rl` bare-array format (set
+`demo_format = "godot_rl"` on the `NcnnSync` node for drop-in compatibility with upstream godot_rl
+BC/GAIL tooling). A committed sample lives at
+`examples/chase_the_target/demos/chase_expert_demos.json` (a small illustrative fixture, not a
+balanced training set).
+
+**Clone and deploy** — behavior cloning trains a policy from the demos, then converts through the
+normal ncnn pipeline:
+
+```bash
+# Behavior cloning → TorchScript
+.venv-train/bin/python scripts/train_bc.py \
+  --demos examples/chase_the_target/demos/chase_expert_demos.json --out models/bc.pt
+
+# Convert to ncnn (same as any other policy) — see deploying.md
+.venv-train/bin/python scripts/export_to_ncnn.py models/bc.pt
+```
+
+The resulting `bc.pt.ncnn.{param,bin}` deploy via `NcnnRunner` like any RL-trained model.
+`scripts/load_expert_demos.py` is a version-aware loader (reads both formats) for downstream tooling.

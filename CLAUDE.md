@@ -78,6 +78,10 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   `.venv-train/bin/python scripts/export_int8.py models/m.ncnn.param models/m.ncnn.bin
   --width W --height H --channels C --outdir models` (optimize → KL-calibrate → ncnn2int8 →
   argmax-parity). Produces `m_int8.ncnn.{param,bin}`; deploy via `NcnnRunner` like fp32.
+- **Record expert demos:** `godot --headless --path . res://examples/chase_the_target/record_chase_demos.tscn -- --demo-out=PATH --demo-trajectories=N`
+  (offline — no trainer/socket; `gnrl_v1` default format; set `demo_format="godot_rl"` on the `NcnnSync` node for stock-tooling interop).
+- **Behavior cloning:** `.venv-train/bin/python scripts/train_bc.py --demos PATH --out models/bc.pt`
+  then `.venv-train/bin/python scripts/export_to_ncnn.py models/bc.pt` (deploys via the normal ncnn pipeline).
 
 ## Operational gotchas
 
@@ -144,7 +148,10 @@ daily:
     discrete softmax-sample via seedable RNG in core),
     22 (recurrent/LSTM deploy — `NcnnRunner.run_inference_multi` multi-IO + `NcnnControllerCore`
     hidden-state carry + `recurrent.json` sidecar; synthetic-LSTM golden; real RecurrentPPO
-    train/export deferred).
+    train/export deferred),
+    10 (expert-demo recording — pure `DemoRecorder` + `NcnnSync` `RECORD_EXPERT_DEMOS` mode,
+    `gnrl_v1`/`godot_rl` formats, Python loader + `train_bc.py` BC trainer, chase scripted-expert
+    example + committed sample + headless smoke).
     9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 23 (deploy-side inference gap: batched multi-agent

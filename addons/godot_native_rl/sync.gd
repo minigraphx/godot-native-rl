@@ -1,10 +1,11 @@
 class_name NcnnSync
 extends Node
 
-enum ControlModes { HUMAN, TRAINING, NCNN_INFERENCE }
+enum ControlModes { HUMAN, TRAINING, NCNN_INFERENCE, RECORD_EXPERT_DEMOS }
 const SocketTimeout = preload("res://addons/godot_native_rl/net/socket_timeout.gd")
 const PolicyNames = preload("res://addons/godot_native_rl/policy_names.gd")
 const StepProfiler = preload("res://addons/godot_native_rl/net/step_profiler.gd")
+const DemoRecorder = preload("res://addons/godot_native_rl/training/demo_recorder.gd")
 
 var agents_training: Array[Node] = []
 var _action_space: Dictionary = {}
@@ -52,6 +53,14 @@ func extract_action_dict(action_array: Array, action_space: Dictionary) -> Dicti
 @export var connect_timeout_sec := 10.0
 @export var read_timeout_sec := 60.0
 
+# --- Expert-demo recording (control_mode == RECORD_EXPERT_DEMOS) ---
+@export_global_file("*.json") var expert_demo_save_path: String = ""
+@export_enum("gnrl_v1", "godot_rl") var demo_format: String = "gnrl_v1"  # default native; "godot_rl" = legacy/interop
+# InputMap action that pops the last recorded episode (undo a bad demo). Acted on only if mapped.
+@export var remove_last_episode_action: StringName = &"remove_last_demo_episode"
+# Headless bound: after this many recorded actions, save + quit. 0 = unlimited (editor/human play).
+@export var max_record_steps: int = 0
+
 # godot_rl WIRE-PROTOCOL version (the handshake `major_version`/`minor_version`), NOT the
 # godot_rl_agents pip PACKAGE version. These track godot_env.py's MAJOR_VERSION/MINOR_VERSION
 # (currently "0"/"7" in package v0.8.2) and must match it to avoid handshake mismatch warnings.
@@ -74,6 +83,10 @@ var n_action_steps := 0
 # Opt-in step-phase profiler (cmdline `profile=true`); null = disabled (zero overhead).
 var _profiler = null
 var _profile_interval := 1000
+var _recorder = null
+var _record_agent = null
+var _record_action_space: Dictionary = {}
+var _demos_saved := false
 
 func _ready() -> void:
 	# The Sync node must keep ticking while the SceneTree is paused.
@@ -92,7 +105,10 @@ func _initialize() -> void:
 	Engine.physics_ticks_per_second = int(_get_speedup() * 60)
 	Engine.time_scale = _get_speedup() * 1.0
 	_set_heuristic("human", all_agents)
-	_initialize_training_agents()
+	if control_mode == ControlModes.RECORD_EXPERT_DEMOS:
+		_initialize_demo_recording()
+	else:
+		_initialize_training_agents()
 	_set_seed()
 	_set_action_repeat()
 	initialized = true
@@ -109,6 +125,69 @@ func _initialize_training_agents() -> void:
 		else:
 			push_warning("NcnnSync: couldn't connect to Python server; using human controls. Start training with `gdrl`.")
 
+func _initialize_demo_recording() -> void:
+	# godot_rl parity: a single agent is recorded. RECORD mode is OFFLINE — it never opens
+	# the TCP socket, so the "training scene without a trainer hangs" gotcha does not apply.
+	assert(all_agents.size() == 1,
+		"RECORD_EXPERT_DEMOS records a single agent (got %d)" % all_agents.size())
+	_record_agent = all_agents[0]
+	# The agent was routed to agents_heuristic by _get_agents(); take it back so
+	# _heuristic_process() doesn't also reset it — the agent's own _physics_process does.
+	agents_heuristic.erase(_record_agent)
+	_record_action_space = _record_agent.get_action_space()
+	_recorder = DemoRecorder.new()
+
+func _demo_record_process() -> void:
+	if _recorder == null:
+		return
+	# NOTE: on the terminal step this obs reflects the post-reset world (the agent's own
+	# _physics_process runs first in tree order and resets on done). That's fine: the demo
+	# loader drops the terminal obs (obs[:-1]) and no terminal action is recorded, so this
+	# frame is don't-care. Do not rely on it being the true episode-ending observation.
+	var obs_dict: Dictionary = _record_agent.get_obs()
+	if not obs_dict.has("obs"):
+		push_error("NcnnSync: recording agent get_obs() has no 'obs' key; image-obs demo recording is unsupported.")
+		return
+	var obs: Array = obs_dict["obs"]
+	var action: Array = _record_agent.get_action()
+	var done: bool = _record_agent.get_done()
+	_recorder.record_step(obs, action, done)
+	if done:
+		_record_agent.set_done_false()
+	if _remove_last_episode_pressed():
+		_recorder.remove_last_episode()
+	if max_record_steps > 0 and _recorder.step_count() >= max_record_steps:
+		save_expert_demos()
+		get_tree().quit()
+
+func _remove_last_episode_pressed() -> bool:
+	if String(remove_last_episode_action).is_empty():
+		return false
+	if not InputMap.has_action(remove_last_episode_action):
+		return false
+	return Input.is_action_just_pressed(remove_last_episode_action)
+
+func save_expert_demos() -> void:
+	if _recorder == null:
+		return
+	if expert_demo_save_path.is_empty():
+		push_error("NcnnSync: expert_demo_save_path is empty; cannot save demos.")
+		return
+	var abs_path := ProjectSettings.globalize_path(expert_demo_save_path)
+	DirAccess.make_dir_recursive_absolute(abs_path.get_base_dir())
+	var f := FileAccess.open(abs_path, FileAccess.WRITE)
+	if f == null:
+		push_error("NcnnSync: cannot open expert_demo_save_path '%s'." % expert_demo_save_path)
+		return
+	f.store_line(_recorder.to_json(demo_format, _record_action_space))
+	f.close()
+	_demos_saved = true
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		if _recorder != null and not _demos_saved and not expert_demo_save_path.is_empty():
+			save_expert_demos()
+
 func _physics_process(_delta) -> void:
 	if n_action_steps % action_repeat != 0:
 		n_action_steps += 1
@@ -118,6 +197,7 @@ func _physics_process(_delta) -> void:
 	_training_process()
 	_inference_process()
 	_heuristic_process()
+	_demo_record_process()
 
 func _training_process() -> void:
 	if not connected:
