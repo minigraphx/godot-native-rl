@@ -234,7 +234,7 @@ the same change. New items → GitHub issue only.
     `RelativePositionSensor2D/3D` takes a single `target_path`. Extend to accept an
     `Array[NodePath]` of targets; encode each as `[dir_x, dir_y, (dir_z,) dist_norm]` and
     concatenate. Update `obs_size()` accordingly. Missing targets remain zero-filled.
-43. ⬜ **Stochastic action sampling (`deterministic_inference` flag)** — upstream `Sync` and
+43. ✅ **Stochastic action sampling (`deterministic_inference` flag)** — upstream `Sync` and
     `AIController` expose a `deterministic_inference` export (default `true`); when `false`,
     discrete actions are sampled from `softmax(logits)` rather than `argmax`. This allows
     exploration during eval or human-in-the-loop play without retraining. Add the flag to
