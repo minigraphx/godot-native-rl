@@ -33,6 +33,7 @@ static func decode_actions(output: PackedFloat32Array, action_space: Dictionary,
 				result[key] = InferenceMath.argmax(segment)
 			else:
 				var probs := InferenceMath.softmax(segment)
+				# rng=null falls back to Godot's global RNG; pass an explicit RNG for reproducible eval.
 				var u: float = rng.randf() if rng != null else randf()
 				result[key] = InferenceMath.sample_categorical(probs, u)
 		elif action_type == "continuous":
