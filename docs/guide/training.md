@@ -16,7 +16,7 @@ reused). Override interpreters with `PYTHON_TRAIN=` / `PYTHON_CONVERT=`. Validat
 installing: `./scripts/setup_training.sh --check`.
 
 **conda alternative:** create two envs and `pip install -r` the same files; see
-[../dev/DEVELOPMENT.md](../dev/DEVELOPMENT.md) for the two-env rationale.
+[../dev/gotchas.md](../dev/gotchas.md) ("Two venvs") for why the split exists.
 
 ## 2. Train
 

@@ -40,10 +40,13 @@ fi
 
 create_venv() {
 	# $1 = interpreter, $2 = venv dir, $3 = requirements file
-	if [ -d "$2" ]; then
+	# Reuse only a *healthy* venv (has bin/python); a half-created/corrupt dir is recreated
+	# (python -m venv repopulates an existing dir) rather than blindly trusted.
+	if [ -x "$2/bin/python" ]; then
 		echo "  $2 already exists — reusing."
 	else
 		command -v "$1" >/dev/null 2>&1 || { echo "ERROR: $1 not found (override with the matching PYTHON_ env var)." >&2; exit 1; }
+		[ -d "$2" ] && echo "  $2 exists but has no bin/python — recreating."
 		echo "  creating $2 with $1 ..."
 		"$1" -m venv "$2"
 	fi

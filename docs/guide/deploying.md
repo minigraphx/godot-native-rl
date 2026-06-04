@@ -163,7 +163,7 @@ only.
 > Deploy plumbing — the synthetic-LSTM fixture proves the round-trip; real `RecurrentPPO` training +
 > general export tooling are follow-ups. The C++ multi-IO method changed the extension ABI, so
 > **rebuild `NcnnRunner` after pulling** (see [../dev/building.md](../dev/building.md)). Full
-> contract: [../dev/DEVELOPMENT.md](../dev/DEVELOPMENT.md) "The recurrent deploy contract".
+> contract: [The recurrent deploy contract](../dev/DEVELOPMENT.md#the-recurrent-deploy-contract-lstm).
 
 ## Platform targets (the moat)
 

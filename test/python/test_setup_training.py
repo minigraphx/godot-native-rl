@@ -13,6 +13,11 @@ class TestSetupTraining(unittest.TestCase):
 
     def test_check_mode_runs_and_names_next_step(self):
         # --check must not create venvs or pip-install; it validates and prints guidance.
+        venv_train = os.path.join(REPO_ROOT, ".venv-train")
+        venv_convert = os.path.join(REPO_ROOT, ".venv")
+        # Snapshot beforehand so the assertion holds whether or not the dev already has venvs
+        # (the test must verify --check changes nothing, not that the dirs are absent).
+        before = (os.path.isdir(venv_train), os.path.isdir(venv_convert))
         result = subprocess.run(
             [SCRIPT, "--check"],
             cwd=REPO_ROOT,
@@ -24,9 +29,9 @@ class TestSetupTraining(unittest.TestCase):
         self.assertIn("requirements-train.txt", out)
         self.assertIn("requirements-convert.txt", out)
         self.assertIn("train_chase.sh", out)  # points at the next command
-        # --check is non-destructive: it must not have created the venvs.
-        self.assertFalse(os.path.isdir(os.path.join(REPO_ROOT, ".venv-train")))
-        self.assertFalse(os.path.isdir(os.path.join(REPO_ROOT, ".venv")))
+        # --check is non-destructive: it must neither create nor remove the venvs.
+        after = (os.path.isdir(venv_train), os.path.isdir(venv_convert))
+        self.assertEqual(before, after, "--check must not create or remove venvs")
 
 
 if __name__ == "__main__":
