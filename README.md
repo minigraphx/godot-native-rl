@@ -744,6 +744,45 @@ node, set `world_scene` to it, and pick `count` / `spacing` (spacing must exceed
 
 - **Hide & Seek** (`examples/hide_and_seek/`) — 2D 1v1 self-play (parameter sharing): a seeker vs a hider trained by one shared PPO policy, with line-of-sight-gated vision and occluding walls. See `examples/hide_and_seek/README.md`.
 
+## Imitation Learning (Expert Demos + Behavior Cloning)
+
+`NcnnSync` supports a `RECORD_EXPERT_DEMOS` control mode for offline demo recording — no Python
+trainer or socket required. A scripted (or human-played) expert drives the scene; trajectories are
+written to disk in two optional formats:
+
+- **`gnrl_v1`** (default) — `{"format_version", "action_space", "demo_trajectories"}` envelope.
+  Each trajectory is `[obs_list, acts_list]` with `len(obs) == len(acts) + 1`.
+- **`godot_rl`** — legacy bare-array format, drop-in compatible with the upstream godot_rl BC/GAIL
+  tooling. Set `demo_format = "godot_rl"` on the `NcnnSync` node to switch.
+
+**Record demos** (headless, chase scripted-expert example):
+
+```bash
+godot --headless --path . \
+  res://examples/chase_the_target/record_chase_demos.tscn \
+  -- --demo-out=examples/chase_the_target/demos/my_demos.json --demo-trajectories=20
+```
+
+A committed sample lives at `examples/chase_the_target/demos/chase_expert_demos.json`.
+
+**Clone and deploy** — behavior cloning trains a policy from the recorded demos and exports it
+through the normal ncnn pipeline:
+
+```bash
+# Behavior cloning → TorchScript
+.venv-train/bin/python scripts/train_bc.py \
+  --demos examples/chase_the_target/demos/chase_expert_demos.json \
+  --out models/bc.pt
+
+# Convert to ncnn (same as any other policy)
+.venv-train/bin/python scripts/export_to_ncnn.py models/bc.pt
+```
+
+The resulting `bc.pt.ncnn.{param,bin}` deploy via `NcnnRunner` like any RL-trained model.
+
+`scripts/load_expert_demos.py` provides a version-aware loader that reads both `gnrl_v1` and
+`godot_rl` formats — useful for downstream tooling (BC, GAIL, data analysis).
+
 ## Notes
 
 - If `input_shape` is empty, `run_inference` maps input to a 1D `ncnn::Mat`.
