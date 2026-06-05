@@ -5,7 +5,7 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-import export_sf_to_onnx as ex  # noqa: E402
+import export_sf_to_torchscript as ex  # noqa: E402
 
 
 class TestActorLogitLayout(unittest.TestCase):
