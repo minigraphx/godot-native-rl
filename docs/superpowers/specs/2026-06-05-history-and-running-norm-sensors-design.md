@@ -37,8 +37,14 @@ static func _gather_sensor_obs(node: Node, out: Array) -> void:
 ```
 
 This lets a wrapper own its inner sensor as a child without the inner being counted twice. No
-existing sensor nests sensors under another sensor, so nothing breaks today. A regression test
-(`test/unit/test_collect_sensors_leaf.gd`) locks this exact semantic.
+**production** code nests sensors under another sensor, so no example/runtime behavior changes.
+
+**One existing test changes:** `test/unit/test_collect_sensors.gd` has a deliberate
+sensor-nested-under-sensor case that currently asserts *both* are collected
+(`[10.0, 11.0, 12.0]`, "pre-order: parent sensor before its child sensor"). The new leaf semantic
+redefines that contract — a parent sensor is now a leaf, so its child sensor is **not** separately
+collected. That assertion is updated to the new expected value (`[10.0, 12.0]`), and a focused
+regression test (`test/unit/test_collect_sensors_leaf.gd`) locks the new semantic explicitly.
 
 Nodes that have `get_observation()` but **not** `obs_size()` (e.g. `CameraSensor`, which returns a
 hex string under its own obs key) still don't match the condition and are handled as before.
