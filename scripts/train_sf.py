@@ -2,10 +2,13 @@
 """Train the Chase The Target agent with SampleFactory (async PPO) over the godot-rl bridge.
 
 Third training backend, alongside scripts/train_chase.py (SB3) and scripts/train_cleanrl.py
-(CleanRL). It drives godot_rl's supported SampleFactory entry point
-(`godot_rl.wrappers.sample_factory_wrapper.sample_factory_training`) with macOS-safe and
-parity-safe overrides, then scripts/export_sf_to_onnx.py turns the SF checkpoint into ONNX that
-flows unchanged into scripts/export_to_ncnn.py -> native ncnn deploy.
+(CleanRL). It bypasses godot_rl's `sample_factory_training()` and instead registers a
+module-level, picklable env factory via SF's `register_env`, then calls `run_rl` directly
+(this works around godot_rl-0.8.2 / SF-2.1.1 incompatibilities: the single-key discrete-action
+scalar crash and the is_multiagent double-wrap — see below) with macOS-safe and parity-safe
+overrides. The trained checkpoint is exported to TorchScript via scripts/export_sf_to_torchscript.py
+(the .venv-sf venv can't onnx-export), which flows unchanged into scripts/export_to_ncnn.py ->
+native ncnn deploy.
 
 Runs in the isolated .venv-sf (SF pins gymnasium<1.0). Heavy imports (sample_factory / godot_rl /
 torch) are LAZY inside main() so the pure helpers below stay unit-testable without those deps.
