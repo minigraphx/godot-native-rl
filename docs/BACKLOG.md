@@ -318,11 +318,23 @@ the same change. New items → GitHub issue only.
     `value_loss` print. **Deferred:** continuous / `n_parallel>1` variants.
 18. ⬜ **SampleFactory backend** — async high-throughput training. *v-next, after CameraSensor.*
 19. ⬜ **SKRL backend** — multi-agent + JAX. *v-next, when multi-agent/JAX becomes priority.*
-45. ⬜ **Multi-policy trained example (PettingZoo/RLlib)** — the trainer + example that *uses* the
-    `agent_policy_names` wire field (shipped 2026-06-03, item 20 slice). Add a PettingZoo or RLlib
-    multi-policy training script, a 2-policy example scene (two `AGENT`-group controllers with
-    distinct `policy_name`s), and a behavioral regression. Pulls in a new backend dependency
-    (RLlib/PettingZoo) — sits with the multi-agent backend track (items 18/19, SKRL).
+45. ✅ **Multi-policy trained example** — the trainer + example that *uses* the `agent_policy_names`
+    wire field (shipped 2026-06-03, item 20 slice).
+    **Done 2026-06-05** — spec `docs/superpowers/specs/2026-06-05-multi-policy-trained-example-design.md`,
+    plan `docs/superpowers/plans/2026-06-05-multi-policy-hide-seek.md`. *Chose a custom single-file
+    multi-policy PPO over RLlib/PettingZoo* (keeps the native-deploy moat, avoids the heavy
+    `ray[rllib]` dep, mirrors the CleanRL backend #17). Reuses Hide & Seek: seeker + hider learn two
+    distinct networks. `scripts/train_hide_seek_multipolicy.py` drives `CleanRLGodotEnv`, reads
+    `agent_policy_names`, routes each agent to its policy (`policy_index_map`/`split_by_policy`/
+    `stitch_actions`, unit-tested), runs one PPO learner per role, exports each actor to TorchScript →
+    ncnn (`--via torchscript`; not ONNX — torch 2.12's onnx export needs onnxscript/numpy≥2, colliding
+    with sb3's numpy<2). Distinct `policy_name`s come from a `--multi-policy` cmdline gate in
+    `HideSeekAgent` (single world scene serves both shared- and multi-policy runs; shared run unchanged).
+    Shipped: two trained ncnn models (`examples/hide_and_seek/models/hide_seek_{seeker,hider}.ncnn.*`,
+    300k-step parallel self-play), a golden-inference regression, a deterministic behavioral floor
+    (seeker LOS ≥ 8%, reproducibly 22.6%), a `--multi-policy` wire smoke test, and an `--atol` override
+    on `export_to_ncnn.py` (trained logits drift slightly past 1e-2 while argmax stays exact). Follow-up
+    **#73**: a cleaner per-agent identity mechanism than the cmdline gate.
 51. ⬜ **Intrinsic reward (Curiosity/ICM + RND)** — a pluggable intrinsic-reward signal addable to any
     training script, for sparse-reward games (most real games). Ship RND (Random Network Distillation —
     simpler) first, then ICM. Python-side; composes with the existing reward path. *(from item 20;

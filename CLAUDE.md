@@ -41,6 +41,11 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 - **Train (hide & seek self-play):** `./scripts/train_hide_seek.sh` (one shared PPO policy over a
   seeker+hider AGENT group; `SCENE=res://examples/hide_and_seek/hide_and_seek_train_parallel.tscn`
   for 8 tiled worlds via `ParallelArena2D`).
+- **Train (hide & seek, two distinct policies):** `./scripts/train_hide_seek_multipolicy.sh` — custom
+  single-file multi-policy PPO; seeker + hider learn separate networks (distinct `policy_name`s via the
+  `--multi-policy` cmdline gate read by `HideSeekAgent`), each exported to ncnn via
+  `export_to_ncnn.py --via torchscript`. `SCENE=`/`TIMESTEPS=` overrides; the trained example for the
+  `agent_policy_names` wire field. Deploy/regress in `hide_and_seek_multipolicy_eval.tscn`.
 - **Train (chase, CleanRL backend):** `./scripts/train_cleanrl.sh` — single-file CleanRL-style PPO over
   godot_rl's `CleanRLGodotEnv` (same chase scene + port 11008; `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`
   overrides). Exports ONNX (`models/chase_cleanrl_policy.onnx`) consumable unchanged by `export_to_ncnn.py`.
@@ -144,6 +149,10 @@ daily:
     44 (`INHERIT_FROM_SYNC` per-agent control mode — already present in `NcnnSync._get_agents()`),
     20 (multi-policy `policy_name` wire field — `agent_policy_names` in env_info; the rest of the
     old item-20 catalog line was split 2026-06-03 into items 46–54, trained example is item 45),
+    45 (multi-policy trained example — Hide & Seek seeker+hider as two distinct policies via a custom
+    single-file multi-policy PPO over `CleanRLGodotEnv`, `--multi-policy` cmdline identity gate,
+    TorchScript→ncnn export, golden-inference + deterministic LOS behavioral regression; #73 tracks a
+    cleaner identity mechanism),
     43 (stochastic action sampling — `deterministic_inference`/`inference_seed` on controllers,
     discrete softmax-sample via seedable RNG in core),
     22 (recurrent/LSTM deploy — `NcnnRunner.run_inference_multi` multi-IO + `NcnnControllerCore`
