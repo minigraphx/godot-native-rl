@@ -66,9 +66,11 @@ pre-tanh — SAC squashes at deploy, not in the network). Real-pipeline export. 
 ### 3. `test/unit/test_algorithm_agnostic_golden_inference.gd`
 One test file, both fixtures, mirrors `test_recurrent_golden_inference.gd`. Loads each fixture via
 `NcnnRunner`, runs the fixed obs:
-- **DQN:** ncnn output ≈ golden Q-values (atol = 1e-2) **and**
-  `ActionDecode.decode_actions(out, {"move": {"size": N, "action_type": "discrete"}})` == golden
-  argmax → unbounded-Q argmax survives fp32 end-to-end.
+- **DQN:** `ActionDecode.decode_actions(out, {"move": {"size": N, "action_type": "discrete"}})` ==
+  golden argmax (asserted **exactly**) → unbounded-Q argmax survives fp32 end-to-end. Raw-value
+  parity held to a **relative** tolerance (`|out[i] - golden[i]| <= rtol * |golden[i]| + atol_floor`,
+  `rtol = 1e-2`, small `atol_floor = 1e-3` for near-zero entries) rather than a blanket loosened
+  absolute atol — so large-magnitude Q-values stay tightly (proportionally) checked.
 - **SAC:** ncnn output ≈ golden raw means (atol = 1e-2) **and**
   `ActionDecode.decode_actions(out, {"steer": {"size": D, "action_type": "continuous",
   "squash": true}})` ≈ golden `tanh(mean)` (atol = 1e-2) → squash path over a real ncnn round-trip.
@@ -104,9 +106,11 @@ One test file, both fixtures, mirrors `test_recurrent_golden_inference.gd`. Load
 
 ## Risks / notes
 
-- **fp32 conversion drift on unbounded Q-values:** large-magnitude outputs could amplify atol; if
-  1e-2 is too tight, assert *argmax equality* (the behaviorally-meaningful invariant) strictly and
-  the raw-value closeness at a looser atol. Argmax preservation is the real guarantee.
+- **fp32 conversion drift on unbounded Q-values:** large-magnitude outputs make a flat absolute
+  atol meaningless. Assert **argmax equality exactly** (the behaviorally-meaningful invariant) and
+  hold raw-value closeness to a **relative** tolerance (`rtol = 1e-2` + a small `atol_floor` for
+  near-zero entries) — more precise than loosening atol, since each entry is checked proportionally
+  to its own magnitude. SAC means are tanh-bounded and small, so they keep the standard atol = 1e-2.
 - **Fixture determinism:** seed torch + use a fixed obs vector (as `make_synthetic_*` already do) so
   the golden JSON is reproducible across machines.
 - **Branch/doc ordering:** the `TESTING_OPEN_ISSUES.md` §4 #45 removal depends on PR #72 (which
