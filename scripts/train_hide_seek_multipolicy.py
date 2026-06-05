@@ -4,14 +4,15 @@
 A custom single-file multi-policy PPO (sibling of scripts/train_cleanrl.py). CleanRLGodotEnv
 vectorizes over the N Godot agents as N parallel envs; this trainer reads agent_policy_names, routes
 each agent index to its policy, maintains one PPO learner per distinct name, and exports each actor
-to ONNX (obs/state_ins -> output/state_outs) for scripts/export_to_ncnn.py -> native ncnn.
+to TorchScript (+ a shape sidecar) for scripts/export_to_ncnn.py --via torchscript -> native ncnn.
 
 Run this FIRST (opens the server on 11008, waits), THEN launch the Godot scene with --multi-policy.
 See scripts/train_hide_seek_multipolicy.sh. Design:
 docs/superpowers/specs/2026-06-05-multi-policy-trained-example-design.md
 
-Heavy imports (torch/numpy/godot_rl) are LAZY so the pure helpers stay unit-testable. Pure PPO
-helpers (compute_gae, num_updates, layer_init) + the ONNX exporter are reused from train_cleanrl.
+Heavy imports (torch/numpy/godot_rl) are LAZY so the pure helpers stay unit-testable. The pure PPO
+helpers (compute_gae, num_updates, layer_init, _build_agent) are reused from train_cleanrl; export is
+TorchScript (not ONNX) so it stays in the numpy<2 world stable-baselines3 requires.
 """
 from __future__ import annotations
 
@@ -47,6 +48,39 @@ def stitch_actions(per_policy_actions, index_map: Dict[str, List[int]], n_agents
     for name, idx in index_map.items():
         out[idx] = np.asarray(per_policy_actions[name])
     return out
+
+
+def export_actor_as_torchscript(agent, observation_dim: int, pt_path) -> None:
+    """Trace a CleanRL-style agent's deterministic actor (obs -> raw action logits) to TorchScript
+    and write the `<pt>.shape.json` sidecar so `export_to_ncnn.py <pt>` auto-derives the inputshape.
+
+    ONNX-free on purpose: torch 2.x's `torch.onnx.export` pulls in onnxscript/onnx, which require
+    numpy>=2 and collide with stable-baselines3 (numpy<2); the pnnx TorchScript path avoids that
+    entirely. Output is the raw logits (length sum(nvec)); the deploy-side ActionDecode argmaxes per
+    segment, exactly as the ONNX path would. Lazy torch import keeps the module unit-test-light.
+    """
+    import pathlib
+
+    import torch
+
+    from export_to_ncnn import write_shape_sidecar  # import-light (no torch/onnx at module load)
+
+    class TracedActor(torch.nn.Module):
+        def __init__(self, inner) -> None:
+            super().__init__()
+            self.inner = inner
+
+        def forward(self, obs):
+            return self.inner.logits(obs)
+
+    actor = TracedActor(agent).to("cpu").eval()
+    shape = [1, observation_dim]
+    with torch.no_grad():
+        scripted = torch.jit.trace(actor, torch.zeros(*shape, dtype=torch.float32))
+    pt_path = pathlib.Path(pt_path)
+    pt_path.parent.mkdir(parents=True, exist_ok=True)
+    scripted.save(str(pt_path))
+    write_shape_sidecar(pt_path, shape)
 
 
 class MultiPolicyConfig(NamedTuple):
@@ -242,14 +276,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         msg = " ".join(f"{name}_rew={float(bufs[name]['rewards'].mean()):.3f}" for name in index_map)
         print(f"update {update + 1}/{updates} {msg}")
 
-    # Export each policy's actor to ONNX for the ncnn pipeline.
+    # Export each policy's actor to TorchScript (+ shape sidecar) for the ncnn pipeline.
+    # TorchScript (not ONNX) so the export stays in the numpy<2 world stable-baselines3 needs.
     outdir = pathlib.Path(cfg.onnx_export_dir)
     outdir.mkdir(parents=True, exist_ok=True)
     for name in index_map:
-        onnx_path = outdir / f"hide_seek_{name}.onnx"
-        tc.export_actor_as_onnx(agents[name], observation_dim, str(onnx_path))
-        torch.save(agents[name].state_dict(), outdir / f"hide_seek_{name}.pt")
-        print("Exported ONNX to:", onnx_path)
+        pt_path = outdir / f"hide_seek_{name}.pt"
+        export_actor_as_torchscript(agents[name], observation_dim, pt_path)
+        print("Exported TorchScript to:", pt_path)
 
     env.close()
 
