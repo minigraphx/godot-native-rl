@@ -16,7 +16,12 @@ models → behavioral + golden-inference regression wired into `run_tests.sh`.
 - **Backend:** a custom, single-file multi-policy PPO (approach A) — *not* RLlib/PettingZoo and not
   SB3. Keeps the native-deploy moat (full control of the ONNX→ncnn export), avoids the heavy,
   version-finicky `ray[rllib]` dependency, and mirrors the proven `scripts/train_cleanrl.py`
-  precedent (#17): one file, heavy imports lazy inside `main()`, pure unit-tested helpers.
+  precedent (#17): one file, heavy imports lazy inside `main()`, pure unit-tested helpers. It drives
+  `CleanRLGodotEnv` (which vectorizes the N Godot agents as N parallel envs — the exact `reset`/`step`
+  / stacked-array contract `train_cleanrl.py` already exercises) and reads the per-agent
+  `agent_policy_names` off the underlying env to build the routing table. (Chosen over the raw
+  `GodotEnv` purely to reuse that proven env contract and minimise API risk; the routing logic is
+  identical either way.)
 - **Scenario:** reuse the existing **Hide & Seek** game, sensors, and `HideSeekAgent` **unchanged**.
   Asymmetric seeker/hider roles genuinely benefit from distinct policies, and reusing the env gives a
   clean teaching contrast (one-shared-policy vs two-distinct-policies on the *same* env). Upstream
@@ -56,10 +61,11 @@ if "--multi-policy" in OS.get_cmdline_args():
 
 ### Trainer — `scripts/train_hide_seek_multipolicy.py`
 
-Single-file CleanRL-style PPO driving the **raw `GodotEnv`** (not the SB3/CleanRL wrappers — we need
-per-agent routing). Reads `agent_policy_names` at handshake, maintains **one PPO learner instance per
-distinct policy name** (here: `seeker`, `hider`), each with its own network, optimizer, and rollout
-buffer.
+Single-file CleanRL-style PPO driving **`CleanRLGodotEnv`** (which vectorizes the N Godot agents as N
+parallel envs, returning stacked `(n_agents, obs_dim)` arrays — the same contract `train_cleanrl.py`
+uses). Reads the per-agent `agent_policy_names` off the underlying env, maintains **one PPO learner
+instance per distinct policy name** (here: `seeker`, `hider`), each with its own network, optimizer,
+and rollout buffer, and routes the stacked batch per policy by agent index.
 
 **Pure helpers** (module-level, no torch import — stdlib-`unittest`-testable, mirroring
 `train_cleanrl.py`):
@@ -103,7 +109,7 @@ two model paths explicitly (that's deploy config, not policy identity).
 
 ## Data flow
 
-1. Trainer opens `GodotEnv` on 11008, waits.
+1. Trainer opens `CleanRLGodotEnv` on 11008, waits.
 2. Godot multipolicy train scene connects (launched with `--multi-policy`), sends `env_info` with
    `agent_policy_names = ["seeker","hider", …]`.
 3. Trainer builds the index→policy map once; instantiates one PPO learner per distinct name.
@@ -144,8 +150,9 @@ The role flag stays in the observation (each policy always sees its constant), s
 - **Self-play non-stationarity** — policies co-adapt and can oscillate. Mitigation: manual
   best-checkpoint selection (as for rover's 225k), with deterministic golden-inference as the hard
   regression. Frozen-opponent / league play is explicitly out of scope (#29/#53).
-- **Exact `GodotEnv` API** — confirm obs/action shapes and the `agent_policy_names` attribute name
-  against the installed package first thing in TDD; the design doesn't hinge on specifics.
+- **Exact `CleanRLGodotEnv` API** — the `reset`/`step`/stacked-obs contract is already proven by
+  `train_cleanrl.py`; the one thing to confirm in TDD is the attribute path for `agent_policy_names`
+  on the underlying env. The design doesn't hinge on specifics.
 - **Environment setup** — neither `.venv-train` nor a `godot_env` conda env currently exists in this
   checkout; `scripts/setup_training.sh` (creates both venvs) is a prerequisite before the training
   run.
