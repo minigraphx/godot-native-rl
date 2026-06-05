@@ -73,7 +73,6 @@ def main(argv=None) -> int:
     from gymnasium import spaces
 
     from sample_factory.model.actor_critic import create_actor_critic
-    from sample_factory.algo.learning.learner import Learner
     from sample_factory.cfg.arguments import load_from_checkpoint
     from sample_factory.algo.utils.context import sf_global_context  # noqa: F401  (registry init)
 
@@ -95,7 +94,13 @@ def main(argv=None) -> int:
 
     ckpt_path = _latest_checkpoint(args.train_dir, args.experiment)
     print("loading SF checkpoint:", ckpt_path)
-    ckpt = Learner.load_checkpoint([ckpt_path], device)
+    # Load the SF checkpoint directly with weights_only=False. SampleFactory 2.1.1's
+    # Learner.load_checkpoint relies on torch.load's old default (weights_only=False), but PyTorch
+    # >=2.6 flipped that default to True, which rejects the numpy scalars SF pickles into the
+    # checkpoint (UnpicklingError: numpy.core.multiarray.scalar not allowlisted). load_checkpoint
+    # then silently returns None -> ckpt["model"] crashes. The checkpoint is produced locally by our
+    # own training run (trusted), so full unpickling is safe here.
+    ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
     actor_critic.load_state_dict(ckpt["model"])
 
     class ScriptableActor(nn.Module):
