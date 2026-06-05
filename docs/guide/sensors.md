@@ -67,5 +67,31 @@ func get_obs() -> Dictionary:
 ```
 
 `collect_sensors()` walks the agent's child sensors depth-first in scene-tree order (so reordering
-sensor nodes changes the obs layout). `CameraSensor` returns image obs under its own key and is
+sensor nodes changes the obs layout), treating any obs-producing node as a **leaf** — its own
+children are not separately collected (this is what enables sensor wrappers to own their inner
+sensor without double-counting). `CameraSensor` returns image obs under its own key and is
 composed separately.
+
+## Sensor wrappers (dimension-agnostic)
+
+Two sensors *wrap* another sensor instead of reading geometry. Because they only touch the inner
+sensor's flat float array, they have **no `2D`/`3D` split** (unlike the geometry sensors above) and
+extend plain `Node`. Place the sensor you want to wrap as their **single child**; the inner child
+carries the dimensionality.
+
+- **`ObsHistoryBuffer`** (`sensors/obs_history_buffer.gd`, `history_length`) — frame-stacking. Emits
+  the last `history_length` observations of its inner sensor concatenated, oldest-first / newest-last,
+  zero-filled until the window fills. `obs_size() == history_length × inner.obs_size()`. Gives a
+  feed-forward policy short-term memory (the deploy-friendly analogue of an RNN). The window re-zeros
+  on episode reset. Pure ring logic lives in `sensors/frame_ring.gd` (headless-unit-tested).
+- **`RunningNormSensor`** (`sensors/running_norm_sensor.gd`, `update_stats`, `epsilon`, `clip_obs`,
+  `stats_path`) — normalizes its inner sensor online with a running mean/variance (Welford), matching
+  SB3 `VecNormalize`: `(x - mean) / sqrt(var + epsilon)`, clipped to ±`clip_obs`. Train with
+  `update_stats = true`; call `save_stats(path)` at the end of training; at deploy set `stats_path`
+  to that file and `update_stats = false`. No Python `VecNormalize` needed at deploy (game-side
+  complement to the SB3-stats-replay path). Stats persist across episodes. Pure Welford logic lives
+  in `sensors/running_stats.gd` (headless-unit-tested).
+
+Because `collect_sensors()` treats any obs-producing node as a leaf, a wrapper owns its inner sensor
+child (no double-count) and the two compose: `ObsHistoryBuffer → RunningNormSensor → RaycastSensor3D`
+stacks normalized frames.

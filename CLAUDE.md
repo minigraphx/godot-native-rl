@@ -160,7 +160,16 @@ daily:
     train/export deferred),
     10 (expert-demo recording — pure `DemoRecorder` + `NcnnSync` `RECORD_EXPERT_DEMOS` mode,
     `gnrl_v1`/`godot_rl` formats, Python loader + `train_bc.py` BC trainer, chase scripted-expert
-    example + committed sample + headless smoke).
+    example + committed sample + headless smoke),
+    46 (ObsHistoryBuffer — frame-stacking sensor wrapper, #17; pure FrameRing + dimension-agnostic
+    Node, zero-filled window, per-episode reset),
+    47 (RunningNormSensor — online VecNormalize-parity normalization, #18; pure RunningStats Welford,
+    freeze + JSON sidecar persistence, game-side so no Python at deploy).
+    GitHub #45 (algorithm-agnostic train/deploy contract — note: GitHub issue #45, **not** internal
+    item 45 which is the multi-policy trained example/#26; proven for non-PPO by synthetic DQN
+    unbounded-Q argmax + SAC tanh-squash fixtures through the real ncnn pipeline,
+    `test_algorithm_agnostic_golden_inference.gd`; live-trained SB3 SAC regression filed as
+    follow-up #74).
     9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 23 (deploy-side inference gap: batched multi-agent
