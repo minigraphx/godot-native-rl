@@ -113,9 +113,11 @@ obs vector ──(optional ObsNormalize)──► policy network (ncnn) ──�
   which pnnx **prunes at conversion** → inert at deploy.
 
 **Guarded by** `test/unit/test_algorithm_agnostic_decode.gd` (DQN Q-values / SAC / TD3 / hybrid heads
-all decode through the same path). That's a decode/runtime guard needing no training run; the full
-trained non-PPO regression (SB3 SAC/DQN end-to-end → ncnn → behavioral check) is the separate
-`needs-training-run` slice of issue #45.
+all decode through the same path) **and** `test/unit/test_algorithm_agnostic_golden_inference.gd`
+(synthetic DQN unbounded-Q-value argmax + SAC tanh-squash actor, each through the *real* ncnn export
+pipeline). Those are decode/runtime guards needing no training run; the full **live-trained** non-PPO
+regression (SB3 SAC end-to-end → ncnn → behavioral check) is tracked as a separate
+`needs-training-run` follow-up (issue #74, filed from #45).
 
 **Recurrent (LSTM) policies** carry hidden state across frames — the runtime-feature extension
 of the contract, not a violation; see the next subsection. Feed-forward policies of every algorithm

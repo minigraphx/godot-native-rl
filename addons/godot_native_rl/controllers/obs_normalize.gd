@@ -8,6 +8,8 @@ extends RefCounted
 #   normalized[i] = clamp((obs[i] - mean[i]) / sqrt(var[i] + epsilon), -clip_obs, +clip_obs)
 # Size mismatch (a train/deploy shape error) -> empty array (controller skips the action; no silent
 # garbage forward pass). Mirrors stable_baselines3.common.vec_env.VecNormalize._normalize_obs.
+# Algorithm-agnostic (#45): VecNormalize is a VecEnv wrapper, not an RL-algorithm feature, so this
+# replay is identical for PPO/A2C/SAC/DQN/… — no PPO-specific assumptions here.
 
 static func normalize(obs: PackedFloat32Array, mean: PackedFloat32Array,
 		var_: PackedFloat32Array, epsilon: float, clip_obs: float) -> PackedFloat32Array:
