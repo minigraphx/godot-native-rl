@@ -96,9 +96,162 @@ def parse_args(argv: Sequence[str] | None = None) -> "MultiPolicyConfig":
     )
 
 
+def _policy_names_from_env(env) -> list:
+    """Per-agent policy names from CleanRLGodotEnv's underlying GodotEnv(s). With n_parallel=1 the
+    names live on env.envs[0].agent_policy_names (confirmed against godot_rl 0.8.2)."""
+    for inner in getattr(env, "envs", []) or []:
+        names = getattr(inner, "agent_policy_names", None)
+        if names:
+            return list(names)
+    raise RuntimeError("could not read agent_policy_names from CleanRLGodotEnv.envs")
+
+
 def main(argv: Sequence[str] | None = None) -> None:
-    """Training loop — to be implemented in a later task."""
-    raise NotImplementedError("main() training loop not yet implemented")
+    import pathlib
+
+    import numpy as np
+    import torch
+    import torch.nn as nn
+
+    from godot_rl.wrappers.clean_rl_wrapper import CleanRLGodotEnv
+
+    import train_cleanrl as tc  # reuse compute_gae, num_updates, layer_init, _build_agent, etc.
+
+    cfg = parse_args(argv)
+    torch.manual_seed(cfg.seed)
+    np.random.seed(cfg.seed)
+    device = torch.device("cpu")
+
+    env = CleanRLGodotEnv(
+        env_path=None, show_window=False, seed=cfg.seed, n_parallel=1,
+        speedup=cfg.speedup, action_repeat=cfg.action_repeat,
+    )
+    n_agents = env.num_envs
+    observation_dim = tc.obs_dim(env.single_observation_space)
+    total_logits, nvec = tc.act_layout(env.single_action_space)
+
+    names = _policy_names_from_env(env)
+    index_map = policy_index_map(names)
+    print(f"obs_dim={observation_dim} logits={total_logits} nvec={nvec} "
+          f"n_agents={n_agents} policies={ {k: len(v) for k, v in index_map.items()} }")
+    for expected in cfg.policy_names:
+        if expected not in index_map:
+            raise RuntimeError(f"expected policy '{expected}' not on the wire (got {list(index_map)})")
+
+    # Per-policy learners + rollout storage (one set per distinct policy name).
+    agents, opts, bufs = {}, {}, {}
+    num_steps = cfg.num_steps
+    for name, idx in index_map.items():
+        np_ = len(idx)
+        ag = tc._build_agent(observation_dim, total_logits).to(device)
+        agents[name] = ag
+        opts[name] = torch.optim.Adam(ag.parameters(), lr=cfg.learning_rate, eps=1e-5)
+        bufs[name] = dict(
+            obs=torch.zeros((num_steps, np_, observation_dim), device=device),
+            actions=torch.zeros((num_steps, np_, len(nvec)), dtype=torch.long, device=device),
+            logprobs=torch.zeros((num_steps, np_), device=device),
+            rewards=torch.zeros((num_steps, np_), device=device),
+            dones=torch.zeros((num_steps, np_), device=device),
+            values=torch.zeros((num_steps, np_), device=device),
+        )
+
+    updates = tc.num_updates(cfg.timesteps, num_steps, n_agents)
+    print(f"running {updates} updates over {n_agents} agents")
+
+    next_obs_np, _ = env.reset(cfg.seed)
+    next_obs = torch.tensor(np.asarray(next_obs_np, dtype=np.float32), device=device)
+    next_done = torch.zeros(n_agents, device=device)
+
+    def split_t(t):  # split a (n_agents, ...) torch tensor per policy
+        return {name: t[idx] for name, idx in index_map.items()}
+
+    for update in range(updates):
+        for step in range(num_steps):
+            no_split = split_t(next_obs)
+            nd_split = split_t(next_done)
+            per_policy_action = {}
+            for name, idx in index_map.items():
+                ag = agents[name]
+                b = bufs[name]
+                ob = no_split[name]
+                b["obs"][step] = ob
+                b["dones"][step] = nd_split[name]
+                with torch.no_grad():
+                    logits = ag.logits(ob)
+                    value = ag.value(ob)
+                dists = tc._split_categoricals(logits, nvec)
+                sampled = [d.sample() for d in dists]
+                action = torch.stack(sampled, dim=1)
+                b["actions"][step] = action
+                b["logprobs"][step] = sum(d.log_prob(a) for d, a in zip(dists, sampled))
+                b["values"][step] = value
+                per_policy_action[name] = action.cpu().numpy().astype(np.int64)
+            full_action = stitch_actions(per_policy_action, index_map, n_agents)
+
+            next_obs_np, reward, terminations, truncations, _ = env.step(full_action)
+            done = np.logical_or(np.asarray(terminations), np.asarray(truncations)).astype(np.float32)
+            reward_t = torch.tensor(np.asarray(reward, dtype=np.float32), device=device)
+            for name, idx in index_map.items():
+                bufs[name]["rewards"][step] = reward_t[idx]
+            next_obs = torch.tensor(np.asarray(next_obs_np, dtype=np.float32), device=device)
+            next_done = torch.tensor(done, device=device)
+
+        # Per-policy PPO update (mirrors train_cleanrl, independently per learner).
+        for name, idx in index_map.items():
+            ag, opt, b = agents[name], opts[name], bufs[name]
+            np_ = len(idx)
+            with torch.no_grad():
+                next_value = ag.value(next_obs[idx])
+            adv_np, ret_np = tc.compute_gae(
+                b["rewards"].cpu().numpy(), b["values"].cpu().numpy(), b["dones"].cpu().numpy(),
+                next_value.cpu().numpy(), next_done[idx].cpu().numpy(), cfg.gamma, cfg.gae_lambda)
+            advantages = torch.tensor(adv_np, device=device)
+            returns = torch.tensor(ret_np, device=device)
+
+            b_obs = b["obs"].reshape(-1, observation_dim)
+            b_actions = b["actions"].reshape(-1, len(nvec))
+            b_logprobs = b["logprobs"].reshape(-1)
+            b_advantages = advantages.reshape(-1)
+            b_returns = returns.reshape(-1)
+            batch_size = num_steps * np_
+            minibatch_size = max(1, batch_size // cfg.num_minibatches)
+            b_inds = np.arange(batch_size)
+            for _ in range(cfg.update_epochs):
+                np.random.shuffle(b_inds)
+                for start in range(0, batch_size, minibatch_size):
+                    mb = b_inds[start:start + minibatch_size]
+                    logits = ag.logits(b_obs[mb])
+                    dists = tc._split_categoricals(logits, nvec)
+                    mb_actions = b_actions[mb]
+                    new_logprob = sum(d.log_prob(mb_actions[:, i]) for i, d in enumerate(dists))
+                    entropy = sum(d.entropy() for d in dists)
+                    new_value = ag.value(b_obs[mb])
+                    logratio = new_logprob - b_logprobs[mb]
+                    ratio = logratio.exp()
+                    mb_adv = b_advantages[mb]
+                    mb_adv = (mb_adv - mb_adv.mean()) / (mb_adv.std() + 1e-8)
+                    pg_loss = torch.max(-mb_adv * ratio,
+                                        -mb_adv * torch.clamp(ratio, 1 - cfg.clip_coef, 1 + cfg.clip_coef)).mean()
+                    v_loss = 0.5 * ((new_value - b_returns[mb]) ** 2).mean()
+                    loss = pg_loss - cfg.ent_coef * entropy.mean() + cfg.vf_coef * v_loss
+                    opt.zero_grad()
+                    loss.backward()
+                    nn.utils.clip_grad_norm_(ag.parameters(), cfg.max_grad_norm)
+                    opt.step()
+
+        msg = " ".join(f"{name}_rew={float(bufs[name]['rewards'].mean()):.3f}" for name in index_map)
+        print(f"update {update + 1}/{updates} {msg}")
+
+    # Export each policy's actor to ONNX for the ncnn pipeline.
+    outdir = pathlib.Path(cfg.onnx_export_dir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    for name in index_map:
+        onnx_path = outdir / f"hide_seek_{name}.onnx"
+        tc.export_actor_as_onnx(agents[name], observation_dim, str(onnx_path))
+        torch.save(agents[name].state_dict(), outdir / f"hide_seek_{name}.pt")
+        print("Exported ONNX to:", onnx_path)
+
+    env.close()
 
 
 if __name__ == "__main__":
