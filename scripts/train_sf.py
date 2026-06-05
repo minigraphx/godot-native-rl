@@ -83,3 +83,40 @@ def build_sf_argv(cfg: SFConfig) -> list[str]:
         "--use_rnn=False",
         "--device=cpu",
     ]
+
+
+def _build_args_namespace(cfg: SFConfig) -> argparse.Namespace:
+    """Build the `args` namespace godot_rl's sample_factory_training expects.
+
+    register_gdrl_env reads args.env_path / args.speedup / args.seed / args.viz;
+    parse_gdrl_args reads args.experiment_dir / args.experiment_name / args.eval.
+    env_path=None => in-editor training: SF opens the server and waits for the Godot client.
+    """
+    return argparse.Namespace(
+        env_path=None,
+        experiment_dir=cfg.train_dir,
+        experiment_name=cfg.experiment,
+        speedup=cfg.speedup,
+        seed=cfg.seed,
+        viz=False,
+        eval=False,
+    )
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    # Heavy import is lazy: only when actually training (keeps the pure helpers import-light).
+    from godot_rl.wrappers.sample_factory_wrapper import sample_factory_training
+
+    cfg = parse_args(argv)
+    args = _build_args_namespace(cfg)
+    extras = build_sf_argv(cfg)
+    print(f"SampleFactory training: experiment={cfg.experiment} timesteps={cfg.timesteps} "
+          f"base_port={cfg.base_port} client_port={client_port(cfg.base_port)} env_agents={cfg.env_agents}")
+    status = sample_factory_training(args, extras)
+    print(f"SampleFactory finished with status={status}")
+    # SF status is an enum; treat the normal-termination value as success (0).
+    return int(getattr(status, "value", status) or 0)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
