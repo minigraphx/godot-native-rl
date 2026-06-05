@@ -41,5 +41,18 @@ class TestSplitStitch(unittest.TestCase):
         np.testing.assert_array_equal(stitched, actions)
 
 
+class TestParseArgs(unittest.TestCase):
+    def test_defaults(self):
+        cfg = mp.parse_args([])
+        self.assertEqual(cfg.timesteps, 800_000)
+        self.assertEqual(cfg.onnx_export_dir, "models")
+        self.assertEqual(cfg.policy_names, ("seeker", "hider"))
+
+    def test_overrides(self):
+        cfg = mp.parse_args(["--timesteps", "1234", "--speedup", "4"])
+        self.assertEqual(cfg.timesteps, 1234)
+        self.assertEqual(cfg.speedup, 4)
+
+
 if __name__ == "__main__":
     unittest.main()
