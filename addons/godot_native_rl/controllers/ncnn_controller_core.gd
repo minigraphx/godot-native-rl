@@ -144,6 +144,20 @@ static func _gather_sensor_obs(node: Node, out: Array) -> void:
 			continue  # leaf: an obs-producing node owns its subtree (wrappers hold an inner sensor)
 		_gather_sensor_obs(child, out)
 
+# Discover the obs-producing leaf sensor NODES under `root` (same leaf rule as collect_sensors).
+# Used to propagate lifecycle calls (e.g. reset()) to stateful sensor wrappers.
+static func collect_sensors_nodes(root: Node) -> Array:
+	var out: Array = []
+	_gather_sensor_nodes(root, out)
+	return out
+
+static func _gather_sensor_nodes(node: Node, out: Array) -> void:
+	for child in node.get_children():
+		if child.has_method("get_observation") and child.has_method("obs_size"):
+			out.append(child)
+			continue  # leaf: owns its subtree
+		_gather_sensor_nodes(child, out)
+
 # Recurrent inference: feed obs + the carried state blobs into run_inference_multi, store the
 # returned next-state blobs for the following frame, and return the action_output blob to decode.
 # On any failure (empty result, or a result missing an expected blob) it push_errors and returns
