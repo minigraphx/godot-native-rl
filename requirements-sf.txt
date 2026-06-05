@@ -1,0 +1,5 @@
+# SampleFactory training backend — isolated venv (.venv-sf).
+# SF pins gymnasium<1.0, which would downgrade the SB3/CleanRL stack in .venv-train,
+# so it lives in its own venv. See docs/superpowers/specs/2026-06-05-sample-factory-backend-design.md
+godot-rl==0.8.2
+sample_factory==2.1.1

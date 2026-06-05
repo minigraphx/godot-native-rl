@@ -34,5 +34,15 @@ class TestSetupTraining(unittest.TestCase):
         self.assertEqual(before, after, "--check must not create or remove venvs")
 
 
+    def test_check_mode_names_sf_requirements(self):
+        # The SF backend lives in a third venv (.venv-sf); --check must name its requirements file.
+        result = subprocess.run(
+            [SCRIPT, "--check"], cwd=REPO_ROOT, capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = result.stdout + result.stderr
+        self.assertIn("requirements-sf.txt", out)
+
+
 if __name__ == "__main__":
     unittest.main()
