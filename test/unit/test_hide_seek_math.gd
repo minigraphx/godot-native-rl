@@ -111,6 +111,13 @@ func _initialize() -> void:
 	_approx(h, _v2a(agent.action_to_velocity(4, 300.0)), [300.0, 0.0], "action 4 -> right")
 	agent.free()
 
+	# policy_name_for: cmdline gate for multi-policy identity
+	h.assert_eq(HideSeekMath.policy_name_for(true, ["res://x.tscn"]), "shared_policy", "no flag -> shared (seeker)")
+	h.assert_eq(HideSeekMath.policy_name_for(false, ["res://x.tscn"]), "shared_policy", "no flag -> shared (hider)")
+	h.assert_eq(HideSeekMath.policy_name_for(true, ["--multi-policy"]), "seeker", "flag + seeker -> seeker")
+	h.assert_eq(HideSeekMath.policy_name_for(false, ["--multi-policy"]), "hider", "flag + hider -> hider")
+	h.assert_eq(HideSeekMath.policy_name_for(true, ["speedup=8", "--multi-policy", "action_repeat=8"]), "seeker", "flag among other args")
+
 	h.finish(self)
 
 func _v2a(v: Vector2) -> Array:
