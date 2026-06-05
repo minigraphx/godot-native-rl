@@ -63,6 +63,12 @@ pre-tanh — SAC squashes at deploy, not in the network). Real-pipeline export. 
 - `models/synthetic_sac_golden.json` — `{ "obs": [...], "output": [...raw means...],
   "squashed": [...tanh(mean)...] }`
 
+> **Note (intentional overlap):** the existing `synthetic_continuous` golden test
+> (`test_action_decode_golden.gd`) *already* guards the `squash: true` (tanh) decode over a real
+> ncnn round-trip. This SAC fixture is therefore mechanically similar, but is kept as a **separate,
+> SAC-named, self-contained** per-algorithm guard (decision 2026-06-05) so the algorithm-agnostic
+> contract is explicitly asserted for SAC by name rather than implied by the generic continuous test.
+
 ### 3. `test/unit/test_algorithm_agnostic_golden_inference.gd`
 One test file, both fixtures, mirrors `test_recurrent_golden_inference.gd`. Loads each fixture via
 `NcnnRunner`, runs the fixed obs:
