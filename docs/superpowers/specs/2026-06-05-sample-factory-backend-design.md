@@ -1,7 +1,17 @@
 # SampleFactory Backend — Design
 
 **Date:** 2026-06-05
-**Status:** Approved design — ready for implementation
+**Status:** Implemented — with one pivot from this design (see note below).
+
+> **Implementation note (post-build):** §3–§5 below specify an **ONNX** intermediate. During
+> implementation we found `.venv-sf` cannot `torch.onnx.export` (broken onnx/ml_dtypes; onnxscript
+> needs numpy≥2, colliding with SampleFactory's gymnasium<1.0 / numpy<2 pin). Since the
+> checkpoint→intermediate step must run in `.venv-sf`, the shipped exporter emits **TorchScript**
+> (`scripts/export_sf_to_torchscript.py` → `.pt` + `.pt.shape.json` sidecar → `export_to_ncnn.py`
+> torchscript path). The deploy contract (raw per-segment action logits) is unchanged. Also: SF 2.1.1
+> has no MultiDiscrete support (action space is `Tuple([Discrete…])`), and `train_sf.py` calls
+> `run_rl` with a module-level picklable env factory rather than `sample_factory_training()` to work
+> around godot_rl-0.8.2/SF-2.1.1 incompatibilities. See the commit history on `feat/sample-factory-backend`.
 **Backlog item:** 18 (SampleFactory backend — async high-throughput training backend)
 **GitHub issue:** #24 (the closing PR should `Closes #24` and tick `docs/BACKLOG.md` item 18 in the same change)
 

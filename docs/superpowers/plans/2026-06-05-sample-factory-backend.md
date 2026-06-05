@@ -10,6 +10,13 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-05-sample-factory-backend-design.md`
 
+> **Post-implementation note:** Tasks 4–8 below describe an **ONNX** exporter (`export_sf_to_onnx.py`).
+> The shipped backend instead emits **TorchScript** (`scripts/export_sf_to_torchscript.py`) because
+> `.venv-sf` can't onnx-export — see the design spec's implementation note. Task 7 also fixed several
+> godot_rl-0.8.2/SF-2.1.1 integration bugs (run_rl + picklable env factory, `--env=gdrl`,
+> `is_multiagent`, scalar-action nesting, checkpoint-budget knobs) discovered by running the smoke for
+> real. The committed code is the source of truth.
+
 ---
 
 ## File Structure
