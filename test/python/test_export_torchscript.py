@@ -105,9 +105,10 @@ class _CaptureTs:
         self.called = False
         self.inputshape = None
 
-    def __call__(self, pt, param, bin_, in_blob, out_blob, inputshape):
+    def __call__(self, pt, param, bin_, in_blob, out_blob, inputshape, *, atol=1e-2):
         self.called = True
         self.inputshape = inputshape
+        self.atol = atol
         return types.SimpleNamespace(ok=True, summary="ok")
 
 

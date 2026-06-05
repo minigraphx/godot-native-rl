@@ -36,10 +36,33 @@ godot --path . res://examples/hide_and_seek/hide_and_seek.tscn
 - **Reward (per step, role-signed):** seeker +1 / hider −1 when the seeker sees the hider, reversed
   when blocked; a terminal catch bonus on capture (seeker within `catch_radius` **and** has LOS),
   which ends the episode. Timeout at `max_steps` also ends it.
-- **Self-play caveat:** both roles co-adapt inside one policy (parameter sharing) → non-stationarity.
-  Fine for a symmetric demo; true multi-policy / league self-play is roadmap item 20.
+- **Self-play caveat:** in the shared-policy run both roles co-adapt inside one policy (parameter
+  sharing) → non-stationarity. Fine for a symmetric demo. For *two distinct* policies (one network
+  per role), see the multi-policy variant below.
+
+## Multi-policy variant (two distinct policies)
+
+The same arena, but the seeker and hider each learn their **own** network instead of sharing one —
+the trained example for the `agent_policy_names` wire field. Train it:
+
+```bash
+GODOT=… caffeinate -is ./scripts/train_hide_seek_multipolicy.sh   # parallel scene by default
+```
+
+The agents get distinct `policy_name`s (`seeker` / `hider`) **only** when Godot is launched with
+`--multi-policy` (a process-global gate read by `HideSeekAgent`; the shared-policy run above keeps
+`shared_policy`, so its handshake is unchanged). The custom single-file trainer
+(`scripts/train_hide_seek_multipolicy.py`, a multi-policy sibling of the CleanRL backend) reads
+`agent_policy_names`, routes each agent to its policy, runs one PPO learner per role, and exports
+each actor to ncnn via `export_to_ncnn.py --via torchscript` (TorchScript rather than ONNX, to stay
+in stable-baselines3's numpy<2 world). Deploy both in `hide_and_seek_multipolicy_eval.tscn` (each
+agent loads its own `models/hide_seek_{seeker,hider}.ncnn.*`). A cleaner per-agent identity mechanism
+than the cmdline gate is tracked in issue #73.
 
 ## Status
 
-Scaffold + headless self-play smoke test (in `./test/run_tests.sh`). A trained ncnn model +
-behavioral regression is a follow-up (see `docs/BACKLOG.md`).
+Shared-policy: scaffold + headless self-play smoke test. Multi-policy: trained seeker + hider ncnn
+models shipped, with a golden-inference regression
+(`test/unit/test_hide_seek_multipolicy_golden_inference.gd`) and a deterministic behavioral floor
+(`hide_and_seek_multipolicy_eval.tscn`: seeker keeps LOS ≥ 8% of a seeded run — reproducibly 22.6%).
+Both wired into `./test/run_tests.sh`.

@@ -59,6 +59,7 @@ def verify_torchscript_parity(
     *,
     n_samples: int = 50,
     seed: int = 0,
+    atol: float = 1e-2,
 ) -> VerifyResult:
     import numpy as np
     import torch
@@ -95,12 +96,12 @@ def verify_torchscript_parity(
 
             if torch_arg != ncnn_arg:
                 argmax_mismatches += 1
-            if not np.allclose(torch_logits, ncnn_logits, atol=1e-2):
+            if not np.allclose(torch_logits, ncnn_logits, atol=atol):
                 value_mismatches += 1
             seen_actions.add(ncnn_arg)
 
     distinct = len(seen_actions)
-    ok, summary = parity_summary(argmax_mismatches, value_mismatches, distinct, n_samples)
+    ok, summary = parity_summary(argmax_mismatches, value_mismatches, distinct, n_samples, atol)
     return VerifyResult(ok, argmax_mismatches, value_mismatches, distinct, n_samples, summary)
 
 

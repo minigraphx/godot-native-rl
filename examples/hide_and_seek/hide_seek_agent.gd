@@ -38,6 +38,8 @@ func _ready() -> void:
 	_game = get_node_or_null(game_path)
 	if _game == null:
 		push_warning("HideSeekAgent: game_path not set or invalid — producing zero observations.")
+	# Distinct policy names only when launched with --multi-policy (see hide_seek_math.gd).
+	policy_name = HideSeekMath.policy_name_for(is_seeker, OS.get_cmdline_args())
 
 # --- godot_rl contract ---
 func get_action_space() -> Dictionary:

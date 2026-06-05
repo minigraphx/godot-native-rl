@@ -316,6 +316,7 @@ def run_export(
     skip_verify: bool = False,
     keep_intermediates: bool = False,
     via: str = "auto",
+    atol: float = 1e-2,
     pnnx: str = str(DEFAULT_PNNX),
     runner: Callable = subprocess.run,
     verifier: Callable | None = None,
@@ -364,7 +365,7 @@ def run_export(
                         f"cannot import verify_parity ({e}); is scripts/ on sys.path?"
                     ) from e
                 v = verify_parity
-            return v(str(input_path), str(param_path), str(bin_path), in_blob, out_blob)
+            return v(str(input_path), str(param_path), str(bin_path), in_blob, out_blob, atol=atol)
 
         verify = None if skip_verify else _onnx_verify
     else:  # torchscript
@@ -393,7 +394,7 @@ def run_export(
                 v = verify_torchscript_parity
             return v(
                 str(input_path), str(param_path), str(bin_path),
-                in_blob, out_blob, inputshape,
+                in_blob, out_blob, inputshape, atol=atol,
             )
 
         verify = None if skip_verify else _ts_verify
@@ -439,6 +440,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--in-blob", default="in0", help="ncnn input blob name (default in0)")
     p.add_argument("--out-blob", default="out0", help="ncnn output blob name (default out0)")
     p.add_argument("--skip-verify", action="store_true", help="skip the parity check")
+    p.add_argument(
+        "--atol", type=float, default=1e-2,
+        help="logit closeness tolerance for the parity check (default 1e-2; argmax must always "
+             "match regardless). Raise for larger-magnitude logits where argmax is still exact.",
+    )
     p.add_argument("--keep-intermediates", action="store_true", help="retain pnnx debris")
     p.add_argument("--pnnx", default=str(DEFAULT_PNNX), help="pnnx binary path")
     a = p.parse_args(argv)
@@ -451,6 +457,7 @@ def main(argv: list[str] | None = None) -> int:
         skip_verify=a.skip_verify,
         keep_intermediates=a.keep_intermediates,
         via=a.via,
+        atol=a.atol,
         pnnx=a.pnnx,
     )
 
