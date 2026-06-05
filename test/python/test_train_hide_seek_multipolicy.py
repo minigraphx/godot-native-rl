@@ -25,5 +25,21 @@ class TestPolicyIndexMap(unittest.TestCase):
                          ["hider", "seeker"])
 
 
+class TestSplitStitch(unittest.TestCase):
+    def test_split_by_policy(self):
+        index_map = {"seeker": [0, 2], "hider": [1, 3]}
+        batched = np.array([[10.0], [11.0], [12.0], [13.0]])
+        out = mp.split_by_policy(batched, index_map)
+        np.testing.assert_array_equal(out["seeker"], np.array([[10.0], [12.0]]))
+        np.testing.assert_array_equal(out["hider"], np.array([[11.0], [13.0]]))
+
+    def test_stitch_is_inverse_of_split(self):
+        index_map = {"seeker": [0, 2], "hider": [1, 3]}
+        actions = np.array([[1], [2], [3], [4]], dtype=np.int64)  # (n_agents, action_dim)
+        per_policy = mp.split_by_policy(actions, index_map)
+        stitched = mp.stitch_actions(per_policy, index_map, n_agents=4)
+        np.testing.assert_array_equal(stitched, actions)
+
+
 if __name__ == "__main__":
     unittest.main()
