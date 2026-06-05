@@ -33,7 +33,6 @@ class TestSetupTraining(unittest.TestCase):
         after = (os.path.isdir(venv_train), os.path.isdir(venv_convert))
         self.assertEqual(before, after, "--check must not create or remove venvs")
 
-
     def test_check_mode_names_sf_requirements(self):
         # The SF backend lives in a third venv (.venv-sf); --check must name its requirements file.
         result = subprocess.run(

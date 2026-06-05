@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Create the two Python venvs for training + conversion and install their deps.
+# Create the three Python venvs for training + conversion + SampleFactory and install their deps.
 # Plain venvs are the primary path; conda is documented as an alternative in
 # docs/guide/training.md. Idempotent: existing venvs are reused.
 #
 #   ./scripts/setup_training.sh           # create + install
 #   ./scripts/setup_training.sh --check   # validate only, no venv creation, no install
 #
-# Overrides: PYTHON_TRAIN (default python3.13), PYTHON_CONVERT (default python3.14).
+# Overrides: PYTHON_TRAIN (default python3.13), PYTHON_CONVERT (default python3.14),
+#            PYTHON_SF (default python3.13).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
