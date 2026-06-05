@@ -45,7 +45,7 @@ class TestParseArgs(unittest.TestCase):
     def test_defaults(self):
         cfg = mp.parse_args([])
         self.assertEqual(cfg.timesteps, 800_000)
-        self.assertEqual(cfg.onnx_export_dir, "models")
+        self.assertEqual(cfg.export_dir, "models")
         self.assertEqual(cfg.policy_names, ("seeker", "hider"))
 
     def test_overrides(self):

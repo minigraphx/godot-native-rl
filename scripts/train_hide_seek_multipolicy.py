@@ -13,6 +13,11 @@ docs/superpowers/specs/2026-06-05-multi-policy-trained-example-design.md
 Heavy imports (torch/numpy/godot_rl) are LAZY so the pure helpers stay unit-testable. The pure PPO
 helpers (compute_gae, num_updates, layer_init, _build_agent) are reused from train_cleanrl; export is
 TorchScript (not ONNX) so it stays in the numpy<2 world stable-baselines3 requires.
+
+ASSUMPTION: all policies share one observation and action shape (every learner is built from
+env.single_observation_space / single_action_space, i.e. agent 0's). True for Hide & Seek (seeker and
+hider have identical 15-float obs + a 5-way discrete `move`). For heterogeneous policies, build each
+learner from its own role's spaces instead.
 """
 from __future__ import annotations
 
@@ -98,7 +103,7 @@ class MultiPolicyConfig(NamedTuple):
     ent_coef: float
     vf_coef: float
     max_grad_norm: float
-    onnx_export_dir: str
+    export_dir: str
     policy_names: tuple  # expected names, for a fail-fast sanity check against the wire
 
 
@@ -118,14 +123,14 @@ def parse_args(argv: Sequence[str] | None = None) -> "MultiPolicyConfig":
     p.add_argument("--ent_coef", type=float, default=0.01)
     p.add_argument("--vf_coef", type=float, default=0.5)
     p.add_argument("--max_grad_norm", type=float, default=0.5)
-    p.add_argument("--onnx_export_dir", type=str, default="models")
+    p.add_argument("--export_dir", type=str, default="models")
     a = p.parse_args(argv)
     return MultiPolicyConfig(
         timesteps=a.timesteps, speedup=a.speedup, action_repeat=a.action_repeat, seed=a.seed,
         num_steps=a.num_steps, learning_rate=a.learning_rate, gamma=a.gamma,
         gae_lambda=a.gae_lambda, update_epochs=a.update_epochs, num_minibatches=a.num_minibatches,
         clip_coef=a.clip_coef, ent_coef=a.ent_coef, vf_coef=a.vf_coef,
-        max_grad_norm=a.max_grad_norm, onnx_export_dir=a.onnx_export_dir,
+        max_grad_norm=a.max_grad_norm, export_dir=a.export_dir,
         policy_names=("seeker", "hider"),
     )
 
@@ -278,7 +283,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     # Export each policy's actor to TorchScript (+ shape sidecar) for the ncnn pipeline.
     # TorchScript (not ONNX) so the export stays in the numpy<2 world stable-baselines3 needs.
-    outdir = pathlib.Path(cfg.onnx_export_dir)
+    outdir = pathlib.Path(cfg.export_dir)
     outdir.mkdir(parents=True, exist_ok=True)
     for name in index_map:
         pt_path = outdir / f"hide_seek_{name}.pt"
