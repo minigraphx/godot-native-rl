@@ -847,17 +847,19 @@ git commit -m "feat: orchestrator for multi-policy hide&seek training (#26)"
 
 - [ ] **Step 1: Train** (start short to sanity-check convergence, then full)
 
-Run: `caffeinate -is ./scripts/train_hide_seek_multipolicy.sh` (override `TIMESTEPS=` as needed)
-Expected: per-update lines printing `seeker_rew=… hider_rew=…`; on finish, `models/hide_seek_seeker.onnx` and `models/hide_seek_hider.onnx` written. Watch the role-signed rewards diverge/co-adapt; pick a healthy stopping point (re-run with a higher/lower `TIMESTEPS`, manual best-checkpoint selection — rover precedent).
+Run: `GODOT=/opt/homebrew/bin/godot-mono caffeinate -is ./scripts/train_hide_seek_multipolicy.sh` (override `TIMESTEPS=` as needed)
+Expected: per-update lines printing `seeker_rew=… hider_rew=…` (role-signed mirror images); on finish, `models/hide_seek_seeker.pt`(+`.shape.json`) and `models/hide_seek_hider.pt`(+`.shape.json`) written. Watch the role-signed rewards co-adapt; pick a healthy stopping point (re-run with a different `TIMESTEPS`, manual best-checkpoint selection — rover precedent).
 
-- [ ] **Step 2: Convert both ONNX → ncnn (with parity check)**
+> NOTE: export is **TorchScript**, not ONNX (torch 2.12's `torch.onnx.export` needs onnxscript/onnx which require numpy≥2, colliding with sb3's numpy<2). The trainer writes `.pt` + `.shape.json`; conversion uses `--via torchscript`.
+
+- [ ] **Step 2: Convert both TorchScript → ncnn (with parity check)**
 
 Run:
 ```bash
-.venv-train/bin/python scripts/export_to_ncnn.py models/hide_seek_seeker.onnx --outdir examples/hide_and_seek/models
-.venv-train/bin/python scripts/export_to_ncnn.py models/hide_seek_hider.onnx --outdir examples/hide_and_seek/models
+.venv-train/bin/python scripts/export_to_ncnn.py models/hide_seek_seeker.pt --via torchscript --outdir examples/hide_and_seek/models
+.venv-train/bin/python scripts/export_to_ncnn.py models/hide_seek_hider.pt --via torchscript --outdir examples/hide_and_seek/models
 ```
-Expected: each prints `PARITY OK: N/N` (ncnn↔ONNX, atol 1e-2) and writes `hide_seek_{seeker,hider}.ncnn.{param,bin}`.
+Expected: each prints `PARITY OK: N/N` (ncnn↔torch.jit, atol 1e-2) and writes `hide_seek_{seeker,hider}.ncnn.{param,bin}`. (`inputshape` auto-derives from the `.shape.json` sidecar.)
 
 - [ ] **Step 3: Commit the trained artifacts**
 

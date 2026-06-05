@@ -79,8 +79,10 @@ and rollout buffer, and routes the stacked batch per policy by agent index.
 Keyed on `policy_name` (not hardcoded to 2), so generalizing to N policies later (#29/#53/#54) needs
 no new abstraction — but no N-policy *framework* is built now (YAGNI).
 
-**Export:** each policy's deterministic actor → ONNX with `obs`→`output` naming (consumable
-unchanged by `export_to_ncnn.py`): `models/hide_seek_seeker.onnx`, `models/hide_seek_hider.onnx`.
+**Export:** each policy's deterministic actor → **TorchScript** `.pt` + `.shape.json` sidecar (not
+ONNX: torch 2.12's `torch.onnx.export` pulls onnxscript/onnx requiring numpy≥2, which collides with
+stable-baselines3's numpy<2). `export_to_ncnn.py --via torchscript` converts each to ncnn:
+`models/hide_seek_{seeker,hider}.pt` → `hide_seek_{seeker,hider}.ncnn.{param,bin}`.
 
 ### Orchestrator — `scripts/train_hide_seek_multipolicy.sh`
 
