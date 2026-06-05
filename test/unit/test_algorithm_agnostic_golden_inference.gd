@@ -32,11 +32,11 @@ func _obs_of(data: Dictionary) -> PackedFloat32Array:
 		obs.append(float(v))
 	return obs
 
-func _run(param: String, bin: String, obs: PackedFloat32Array, h, label: String) -> PackedFloat32Array:
+func _run(param: String, bin_path: String, obs: PackedFloat32Array, h, label: String) -> PackedFloat32Array:
 	var runner := NcnnRunner.new()
 	runner.input_blob_name = "in0"
 	runner.output_blob_name = "out0"
-	var ok := runner.load_model(ProjectSettings.globalize_path(param), ProjectSettings.globalize_path(bin))
+	var ok := runner.load_model(ProjectSettings.globalize_path(param), ProjectSettings.globalize_path(bin_path))
 	h.assert_true(ok, "%s model loads" % label)
 	if not ok:
 		return PackedFloat32Array()

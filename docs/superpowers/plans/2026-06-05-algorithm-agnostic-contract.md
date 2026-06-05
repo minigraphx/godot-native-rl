@@ -487,7 +487,7 @@ regression (SB3 SAC end-to-end → ncnn → behavioral check) is tracked as a se
 `needs-training-run` follow-up issue (filed from #45).
 ```
 
-- [ ] **Step 2: Flip the item-45 checkbox in BACKLOG.md**
+- [ ] **Step 2: Flip the item-45 checkbox in BACKLOG.md** — **SUPERSEDED (not done): this step is a no-op.** GitHub issue #45 is a GitHub-only item; internal BACKLOG **item 45** is the *multi-policy trained example* (#26), which is unrelated and still open. So there is no BACKLOG line to flip; the CLAUDE.md Done entry was keyed explicitly as `GitHub #45` to avoid the collision. Kept here for provenance.
 
 In `docs/BACKLOG.md`, locate the item-45 entry (search for "45" / "algorithm-agnostic"). Change its status marker from `⬜` to `✅` and append a one-line done note:
 
