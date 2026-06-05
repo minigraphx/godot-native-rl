@@ -63,21 +63,12 @@ godot --headless --path . --script res://test/unit/test_<foo>.gd
 > issue closes, delete its subsection — don't leave it as a tombstone. Items already shipped are
 > tracked in `CLAUDE.md`'s Done list and `docs/BACKLOG.md`.
 >
-> Recently graduated off this list (now closed): #33 Recurrent/LSTM deploy (item 22), #18 Running
-> Normalization Sensor (item 47), #17 Observation History Buffer (item 46), #13 Expert-demo
-> recording (item 10).
+> Recently graduated off this list (now closed): #45 Algorithm-agnostic train/deploy contract,
+> #33 Recurrent/LSTM deploy (item 22), #18 Running Normalization Sensor (item 47), #17 Observation
+> History Buffer (item 46), #13 Expert-demo recording (item 10).
 
-### #45 — Algorithm-agnostic training/deploy contract `priority:2`
-
-Plan: none yet — write the spec first (`docs/superpowers/specs/<date>-algorithm-agnostic-contract-design.md`).
-
-`test/unit/test_algorithm_agnostic_decode.gd` already exists — start by auditing its current
-coverage before adding new paths.
-
-Expected tests (once specced):
-- Extend `test/unit/test_algorithm_agnostic_decode.gd` with non-PPO decode paths
-- Add DQN / SAC golden paths to that file
-- Smoke test with a synthetic DQN fixture (argmax over Q-values)
+_No worked-on-but-open issues right now — every issue with a committed spec + plan has shipped.
+Add a subsection here when the next issue lands a spec under `docs/superpowers/specs/`._
 
 ---
 
