@@ -24,7 +24,12 @@ class TestParitySummary(unittest.TestCase):
         ok, summary = vp.parity_summary(0, 2, 3, 50)
         self.assertFalse(ok)
         self.assertIn("2/50", summary)
-        self.assertIn("atol=1e-2", summary)
+        self.assertIn("atol=", summary)
+
+    def test_value_mismatch_message_custom_atol(self):
+        ok, summary = vp.parity_summary(0, 2, 3, 50, atol=0.05)
+        self.assertFalse(ok)
+        self.assertIn("atol=0.05", summary)
 
     def test_degenerate_single_action(self):
         ok, summary = vp.parity_summary(0, 0, 1, 50)

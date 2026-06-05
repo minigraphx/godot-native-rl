@@ -29,16 +29,17 @@ def parity_summary(
     value_mismatches: int,
     distinct_actions: int,
     n_samples: int,
+    atol: float = 1e-2,
 ) -> tuple[bool, str]:
     """Pure decision: given the counts, return (ok, human-readable summary)."""
     if argmax_mismatches:
         return False, f"{argmax_mismatches}/{n_samples} argmax mismatches"
     if value_mismatches:
-        return False, f"{value_mismatches}/{n_samples} samples exceed atol=1e-2 logit tolerance"
+        return False, f"{value_mismatches}/{n_samples} samples exceed atol={atol:g} logit tolerance"
     if distinct_actions < 2:
         return False, f"only {distinct_actions} distinct action(s) seen — model may be degenerate"
     return True, (
-        f"{n_samples}/{n_samples} argmax match, logits within atol=1e-2, "
+        f"{n_samples}/{n_samples} argmax match, logits within atol={atol:g}, "
         f"{distinct_actions} distinct actions seen"
     )
 
@@ -52,6 +53,7 @@ def verify_parity(
     *,
     n_samples: int = 50,
     seed: int = 0,
+    atol: float = 1e-2,
 ) -> VerifyResult:
     import numpy as np
     import onnxruntime as ort
@@ -86,12 +88,12 @@ def verify_parity(
 
         if onnx_arg != ncnn_arg:
             argmax_mismatches += 1
-        if not np.allclose(onnx_logits, ncnn_logits, atol=1e-2):
+        if not np.allclose(onnx_logits, ncnn_logits, atol=atol):
             value_mismatches += 1
         seen_actions.add(ncnn_arg)
 
     distinct = len(seen_actions)
-    ok, summary = parity_summary(argmax_mismatches, value_mismatches, distinct, n_samples)
+    ok, summary = parity_summary(argmax_mismatches, value_mismatches, distinct, n_samples, atol)
     return VerifyResult(ok, argmax_mismatches, value_mismatches, distinct, n_samples, summary)
 
 
