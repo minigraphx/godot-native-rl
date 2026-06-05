@@ -30,6 +30,7 @@ func _ready() -> void:
 		var f := FileAccess.open(stats_path, FileAccess.READ)
 		if f != null:
 			var parsed = JSON.parse_string(f.get_as_text())
+			f.close()
 			if typeof(parsed) == TYPE_DICTIONARY:
 				_stats.from_dict(parsed)
 			else:
@@ -56,6 +57,7 @@ func save_stats(path: String) -> void:
 		push_error("RunningNormSensor.save_stats: cannot open %s for write." % path)
 		return
 	f.store_string(JSON.stringify(_stats.to_dict()))
+	f.close()
 
 func stats_count() -> int:
 	_ensure_stats()
