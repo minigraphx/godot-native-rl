@@ -127,9 +127,11 @@ static func obs_space_from_obs(obs: Dictionary) -> Dictionary:
 	return space
 
 # Recursively gather flat sensors under `root` (duck-typed) in stable scene-tree order and
-# concatenate their observations into one flat Array. Nodes without obs_size() (e.g.
-# CameraSensor, which returns a hex String under its own obs key) are skipped — compose
-# those manually. Depth-first pre-order over get_children() -> deterministic obs layout.
+# concatenate their observations into one flat Array. An obs-producing node (has both
+# get_observation() and obs_size()) is treated as a LEAF: its subtree is NOT recursed, so
+# wrapper sensors can hold an inner sensor child without double-counting. Nodes that have
+# get_observation() but NO obs_size() (e.g. CameraSensor, hex String obs) are skipped —
+# compose those manually. Depth-first pre-order over get_children() -> deterministic obs layout.
 static func collect_sensors(root: Node) -> Array:
 	var out: Array = []
 	_gather_sensor_obs(root, out)
@@ -139,6 +141,7 @@ static func _gather_sensor_obs(node: Node, out: Array) -> void:
 	for child in node.get_children():
 		if child.has_method("get_observation") and child.has_method("obs_size"):
 			out.append_array(child.get_observation())
+			continue  # leaf: an obs-producing node owns its subtree (wrappers hold an inner sensor)
 		_gather_sensor_obs(child, out)
 
 # Recurrent inference: feed obs + the carried state blobs into run_inference_multi, store the

@@ -51,15 +51,16 @@ func _initialize() -> void:
 	h.assert_eq(obs, [1.0, 2.0, 3.0, 4.0, 5.0], "depth-first tree order, camera+plain skipped")
 	root.free()
 
-	# Pre-order is load-bearing: a sensor that is ITSELF the parent of another sensor.
-	# Depth-first PRE-order yields parent-before-child [10, 11]; a post-order traversal
-	# would yield [11, 10], so this assertion distinguishes the two strategies.
-	var po_root := Node.new()
+	# Leaf semantics: an obs-producing node OWNS its subtree. A sensor nested under another
+	# sensor is NOT separately collected (this is what lets wrappers hold an inner sensor child
+	# without double-counting). The parent emits [10]; its child [11] is skipped; sibling [12] is
+	# collected. (Pre-existing pre-order behavior was changed deliberately — see spec #17/#18.)
+	var leaf_root := Node.new()
 	var parent_sensor := _make_sensor([10.0])
-	parent_sensor.add_child(_make_sensor([11.0]))     # sensor nested under a sensor
-	po_root.add_child(parent_sensor)
-	po_root.add_child(_make_sensor([12.0]))
-	h.assert_eq(NcnnControllerCore.collect_sensors(po_root), [10.0, 11.0, 12.0], "pre-order: parent sensor before its child sensor")
-	po_root.free()
+	parent_sensor.add_child(_make_sensor([11.0]))     # inner sensor, owned by the parent
+	leaf_root.add_child(parent_sensor)
+	leaf_root.add_child(_make_sensor([12.0]))
+	h.assert_eq(NcnnControllerCore.collect_sensors(leaf_root), [10.0, 12.0], "obs-producing node is a leaf: inner child not double-counted")
+	leaf_root.free()
 
 	h.finish(self)
