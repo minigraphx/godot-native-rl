@@ -29,6 +29,8 @@ web/WASM, console, mobile, desktop, and edge.
   `run_discrete_action`, `run_inference_multi` (recurrent/LSTM state-carry).
 - `NcnnAIController2D` / `NcnnAIController3D` + auto-discovered sensors + a Signal→Reward builder.
 - godot_rl v0.8.2-compatible training bridge (`NcnnSync`) incl. multi-policy + parallel arenas.
+  Training backends: SB3 (`train_chase.sh`), CleanRL (`train_cleanrl.sh`), SampleFactory async PPO
+  (`train_sf.sh`, isolated `.venv-sf`, exports via TorchScript→ncnn).
 - Convert (`scripts/export_to_ncnn.py`) and INT8 quantize for deployment.
 
 ## The moat

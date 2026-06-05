@@ -49,6 +49,11 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 - **Train (chase, CleanRL backend):** `./scripts/train_cleanrl.sh` — single-file CleanRL-style PPO over
   godot_rl's `CleanRLGodotEnv` (same chase scene + port 11008; `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`
   overrides). Exports ONNX (`models/chase_cleanrl_policy.onnx`) consumable unchanged by `export_to_ncnn.py`.
+- **Train (chase, SampleFactory backend):** `./scripts/train_sf.sh` — SampleFactory async PPO over
+  godot_rl's bridge (same chase scene; serial/sync + `normalize_input=False` so the actor is a plain
+  MLP). Runs in the isolated **`.venv-sf`** (SF pins `gymnasium<1.0`); exports the SF checkpoint to
+  **TorchScript** via `export_sf_to_torchscript.py` → ncnn (`.venv-sf` can't onnx-export).
+  `TIMESTEPS`/`BASE_PORT`/`EXPERIMENT`/`OUTDIR` overrides.
 - **Throughput check:** `./scripts/throughput_compare.sh` — short fresh runs of the parallel vs
   single-agent scene into temp dirs (never touches `models/`); prints samples/sec + speedup **plus a
   per-step phase breakdown** (`collect_obs` / `serialize_send` / `await_action`) so you can see whether
@@ -93,8 +98,9 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 Full list (learned the hard way): **[docs/dev/gotchas.md](docs/dev/gotchas.md)**. The few that bite
 daily:
 - **`class_name` is unreliable headless** — prefer path-based `extends "res://addons/..."`.
-- **Two venvs** — `.venv` (3.14, pnnx+torch) convert; `.venv-train` (3.13, godot-rl) train. Create
-  both with `./scripts/setup_training.sh`.
+- **Three venvs** — `.venv` (3.14, pnnx+torch) convert; `.venv-train` (3.13, godot-rl+SB3) train
+  (also runs `export_to_ncnn.py`); `.venv-sf` (3.13, SampleFactory — pins `gymnasium<1.0`, so
+  isolated) for the SF backend only. Create all three with `./scripts/setup_training.sh`.
 - **macOS: never sleep during training** — wrap in `caffeinate -is`.
 - **Rebuild the extension on a fresh clone** — `bin/` is gitignored.
 
@@ -170,6 +176,8 @@ daily:
     unbounded-Q argmax + SAC tanh-squash fixtures through the real ncnn pipeline,
     `test_algorithm_agnostic_golden_inference.gd`; live-trained SB3 SAC regression filed as
     follow-up #74).
+    18 (SampleFactory training backend — async PPO, chase example, TorchScript→ncnn export,
+    headless smoke).
     9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 23 (deploy-side inference gap: batched multi-agent
