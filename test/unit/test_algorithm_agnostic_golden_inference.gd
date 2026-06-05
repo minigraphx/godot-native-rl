@@ -48,6 +48,7 @@ func _initialize() -> void:
 	# --- DQN: unbounded Q-values -> argmax preserved through real fp32 ncnn. ---
 	# (Distinct variable names per block — headless GDScript treats locals as function-scoped.)
 	var dqn: Dictionary = _load_golden(DQN_GOLDEN, h)
+	h.assert_true(not dqn.is_empty(), "DQN golden parses non-empty (loud fail on corrupt fixture)")
 	if not dqn.is_empty():
 		var dqn_obs := _obs_of(dqn)
 		var dqn_out := _run(DQN_PARAM, DQN_BIN, dqn_obs, h, "synthetic DQN")
@@ -73,6 +74,7 @@ func _initialize() -> void:
 
 	# --- SAC: continuous actor raw means -> tanh(mean) via squash, through real ncnn. ---
 	var sac: Dictionary = _load_golden(SAC_GOLDEN, h)
+	h.assert_true(not sac.is_empty(), "SAC golden parses non-empty (loud fail on corrupt fixture)")
 	if not sac.is_empty():
 		var sac_obs := _obs_of(sac)
 		var sac_out := _run(SAC_PARAM, SAC_BIN, sac_obs, h, "synthetic SAC")
