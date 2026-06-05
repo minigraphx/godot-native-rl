@@ -178,6 +178,9 @@ func collect_sensors() -> Array:
 
 func reset() -> void:
 	_core.reset()
+	for sensor in NcnnControllerCore.collect_sensors_nodes(self):
+		if sensor.has_method("reset"):
+			sensor.reset()
 
 func reset_if_done() -> void:
 	_core.reset_if_done()

@@ -263,15 +263,17 @@ the same change. New items → GitHub issue only.
     it defers *to*, so it never holds that value itself.
     **Deferred:** a dedicated mixed-mode regression test (the path is exercised indirectly by every
     training/inference scene, which relies on the INHERIT default resolving correctly).
-46. ⬜ **Observation History Buffer (frame-stacking sensor wrapper)** — an `ISensor2D/3D`-conforming
+46. ✅ **Observation History Buffer (frame-stacking sensor wrapper)** — an `ISensor2D/3D`-conforming
     wrapper around any flat sensor that keeps a sliding window of the last N observations and emits
     them concatenated (memory without RNNs; the feed-forward analogue of the blocked item 22). Pure
     ring-buffer helper + thin wrapper; `obs_size() == N × inner.obs_size()`; auto-discovered by
     `collect_sensors()`. *(from item 20; novel-addons spec §3 B2)*
-47. ⬜ **Running Normalization Sensor** — an `ISensor2D/3D` wrapper that tracks rolling mean/variance
+    **Done 2026-06-05** — `addons/godot_native_rl/sensors/{frame_ring,obs_history_buffer}.gd`; dimension-agnostic `Node` (not ISensor2D/3D — it wraps a flat-float child, no geometry), zero-filled window, per-episode reset propagated from the controller; `collect_sensors` now treats obs-producing nodes as leaves so the wrapper isn't double-counted. (Closes #17)
+47. ✅ **Running Normalization Sensor** — an `ISensor2D/3D` wrapper that tracks rolling mean/variance
     (Welford) and normalizes its inner sensor's output online, during training AND inference, so no
     Python `VecNormalize` is needed at deploy (game-side, unlike item 24 which replays SB3 stats).
     Pure running-stats helper + thin wrapper. *(from item 20; novel-addons spec §3 B1)*
+    **Done 2026-06-05** — `addons/godot_native_rl/sensors/{running_stats,running_norm_sensor}.gd`; dimension-agnostic `Node`, SB3 VecNormalize-parity (`epsilon`/`clip_obs`), `update_stats` freeze + `save_stats`/`stats_path` JSON sidecar so no Python at deploy. (Closes #18)
 
 ## Novel addons (neither godot_rl nor Unity — the moat)
 
