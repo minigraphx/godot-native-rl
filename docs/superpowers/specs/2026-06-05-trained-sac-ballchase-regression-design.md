@@ -168,3 +168,20 @@ nondeterminism (mirroring how trained-rover's `min_reaches=3` was set).
   exists if needed later).
 - VecNormalize on this env (obs are already normalized in `get_obs`).
 - Generalizing the trainer into a shared PPO/SAC entrypoint — kept as a separate focused script.
+
+## 10. Implementation notes (post-build, 2026-06-06)
+
+Two deviations from the design above, recorded for traceability:
+
+1. **Export is TorchScript, not ONNX.** §1 verified godot_rl's `export_model_as_onnx` supports
+   SAC, but under torch 2.x `torch.onnx.export` routes through the dynamo/`torch.export` path,
+   which fails constructing the action `Normal(mean, std)` (`GuardOnDataDependentSymNode`). The
+   trainer instead `torch.jit.trace`s the deterministic actor `tanh(mu(latent_pi(features)))` (no
+   distribution built → no guard fires) and converts via the existing `export_to_ncnn.py
+   --via torchscript` pnnx path. Output is identical (`tanh(mean)`); the no-double-tanh rule and
+   `verify_ncnn_parity.py` guard are unchanged. Surfaced by the §6 pipeline smoke before the long run.
+
+2. **Obs is the 5-dim `[pos.x, pos.y, dir.x, dir.y, dist]` (no raycast).** §3.1 listed a
+   `RaycastSensor2D` in the obs. The minimal env has no obstacles, so raycasts would be constant,
+   useless features that only slow convergence; dropped. Obs is consistent at 5 dims end to end
+   (agent → trainer → `.pt` sidecar `[1,5]` → ncnn). 200k-step SAC converged to ~13.6 ep_rew_mean.

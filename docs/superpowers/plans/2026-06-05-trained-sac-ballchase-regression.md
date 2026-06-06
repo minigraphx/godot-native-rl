@@ -8,6 +8,8 @@
 
 **Tech Stack:** GDScript (Godot 4.5+, TAB indent), Python 3.13 (`.venv-train`: SB3 + godot_rl), Python 3.14 (`.venv`: pnnx/torch for conversion), ncnn GDExtension, headless test harness `test/harness.gd`.
 
+> **POST-BUILD NOTE (2026-06-06):** Tasks 4/5/8 below describe an **ONNX** export (`export_model_as_onnx`). The implementation pivoted to a **TorchScript** export (`torch.jit.trace` of the deterministic actor) because godot_rl's SAC ONNX export breaks under torch 2.x (dynamo `GuardOnDataDependentSymNode` on the action `Normal`). Where these tasks say "ONNX", read "TorchScript `.pt` → `export_to_ncnn.py --via torchscript`". See the design spec §10 for the full rationale. Output and parity guarantees are unchanged.
+
 **Parity-critical invariant (do not violate):** SAC's exported actor *already applies `tanh`*. The deploy-side continuous decode (`ActionDecode.decode_actions`) only applies `tanh` when the action_space entry sets `"squash": true`. Therefore the BallChase action_space MUST NOT set `squash` (it defaults to `false` → raw pass-through). Task 2 asserts this explicitly.
 
 ---
