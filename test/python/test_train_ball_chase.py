@@ -50,7 +50,7 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(a.action_repeat, 8)
         self.assertEqual(a.seed, 0)
         self.assertEqual(a.save_model_path, "models/ball_chase_sac.zip")
-        self.assertEqual(a.onnx_export_path, "models/ball_chase_sac.onnx")
+        self.assertEqual(a.pt_export_path, "models/ball_chase_sac.pt")
         self.assertEqual(a.checkpoint_freq, 25_000)
         self.assertEqual(a.checkpoint_dir, "models/ball_chase_checkpoints")
         self.assertFalse(a.fresh)

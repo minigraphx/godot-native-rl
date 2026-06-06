@@ -4,13 +4,23 @@
 Run this FIRST (opens the server on port 11008 and waits), THEN launch the Godot training
 scene which connects as the client. See scripts/train_ball_chase.sh for orchestration.
 
-SAC requires a flat Box obs and an MlpPolicy, so we use godot_rl's SBGSingleObsEnv (obs["obs"])
-and export with use_obs_array=True. The exported deterministic actor is tanh(mean); the deploy
-side must NOT squash again (see examples/ball_chase/ball_chase_agent.gd).
+SAC requires a flat Box obs and an MlpPolicy, so we use godot_rl's SBGSingleObsEnv (obs["obs"]).
+
+Export uses TorchScript, NOT godot_rl's export_model_as_onnx: under torch>=2.x, torch.onnx.export
+routes SAC's actor through the dynamo/torch.export path, which fails constructing the action
+Normal(mean, std) (GuardOnDataDependentSymNode). We instead torch.jit.trace the deterministic
+actor `tanh(mu(latent_pi(features)))` directly — no distribution is built, so no guard fires — and
+feed the `.pt` (+ shape sidecar) to export_to_ncnn.py's existing `--via torchscript` pnnx path.
+The exported actor is tanh(mean); the deploy side must NOT squash again (see ball_chase_agent.gd).
 """
 import argparse
 import pathlib
 import re
+import sys
+
+# Reuse the sidecar writer from the converter (import-light: no torch at module load).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from export_to_ncnn import write_shape_sidecar  # noqa: E402
 
 _CKPT_RE = re.compile(r"^ball_chase_ckpt_(\d+)_steps\.zip$")
 
@@ -47,11 +57,42 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--action_repeat", type=int, default=8)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--save_model_path", type=str, default="models/ball_chase_sac.zip")
-    p.add_argument("--onnx_export_path", type=str, default="models/ball_chase_sac.onnx")
+    p.add_argument("--pt_export_path", type=str, default="models/ball_chase_sac.pt")
     p.add_argument("--checkpoint_freq", type=int, default=25_000)
     p.add_argument("--checkpoint_dir", type=str, default="models/ball_chase_checkpoints")
     p.add_argument("--fresh", action="store_true", help="ignore any checkpoint and start over")
     return p.parse_args(argv)
+
+
+def export_sac_actor_as_torchscript(model, pt_path: pathlib.Path):
+    """Trace SAC's deterministic actor `tanh(mu(latent_pi(features)))` to `pt_path` + sidecar.
+
+    Returns (pt_path, sidecar_path). Equivalent to actor(obs, deterministic=True) but built
+    without the action distribution, so torch.jit.trace stays on the legacy path (avoids the
+    dynamo GuardOnDataDependentSymNode that breaks torch.onnx.export for SAC).
+    """
+    import torch
+
+    actor = model.policy.actor.to("cpu")
+    actor.eval()
+
+    class DeterministicSacActor(torch.nn.Module):
+        def __init__(self, actor):
+            super().__init__()
+            self.actor = actor
+
+        def forward(self, obs):
+            features = self.actor.extract_features(obs, self.actor.features_extractor)
+            return torch.tanh(self.actor.mu(self.actor.latent_pi(features)))
+
+    shape = (1, *model.observation_space.shape)
+    dummy = torch.zeros(*shape, dtype=torch.float32)
+    with torch.no_grad():
+        scripted = torch.jit.trace(DeterministicSacActor(actor).eval(), dummy)
+    pt_path.parent.mkdir(parents=True, exist_ok=True)
+    scripted.save(str(pt_path))
+    sidecar = write_shape_sidecar(pt_path, list(shape))
+    return pt_path, sidecar
 
 
 def main() -> None:
@@ -59,7 +100,6 @@ def main() -> None:
     from stable_baselines3.common.callbacks import CheckpointCallback
     from stable_baselines3.common.vec_env.vec_monitor import VecMonitor
     from godot_rl.wrappers.sbg_single_obs_wrapper import SBGSingleObsEnv
-    from godot_rl.wrappers.onnx.stable_baselines_export import export_model_as_onnx
 
     args = parse_args()
 
@@ -116,10 +156,10 @@ def main() -> None:
     model.save(zip_path)
     print("Saved SB3 model to:", zip_path)
 
-    onnx_path = pathlib.Path(args.onnx_export_path).with_suffix(".onnx")
-    # SAC export requires use_obs_array=True (flat Box obs, MlpPolicy).
-    export_model_as_onnx(model, str(onnx_path), use_obs_array=True)
-    print("Exported ONNX (deterministic actor = tanh(mean)) to:", onnx_path)
+    pt_path = pathlib.Path(args.pt_export_path).with_suffix(".pt")
+    export_sac_actor_as_torchscript(model, pt_path)
+    print("Exported TorchScript (deterministic actor = tanh(mean)) to:", pt_path)
+    print("Convert to ncnn with: export_to_ncnn.py %s --via torchscript" % pt_path)
 
     env.close()
 
