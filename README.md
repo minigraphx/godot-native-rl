@@ -1,5 +1,7 @@
 # Godot Native RL (ncnn GDExtension)
 
+[![CI](https://github.com/minigraphx/godot-native-rl/actions/workflows/ci.yml/badge.svg)](https://github.com/minigraphx/godot-native-rl/actions/workflows/ci.yml)
+
 Reinforcement learning for **Godot 4.5+** with **native ncnn inference** — statically linked C++,
 no C#/.NET, no external runtime. Train with the standard `godot-rl` Python stack; deploy native on
 web/WASM, console, mobile, desktop, and edge.
