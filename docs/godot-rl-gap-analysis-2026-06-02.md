@@ -9,6 +9,12 @@
 tracked as issue #26)
 (2026-06-04 refresh: expert-demo recording shipped — `RECORD_EXPERT_DEMOS` mode + `gnrl_v1`/`godot_rl`
 formats + Python loader + `train_bc.py` BC trainer + chase scripted-expert example; item 10 done)
+(2026-06-06 refresh: continuous BallChase example added — 2D SAC-trained agent ported from
+`edbeeching/godot_rl_agents_examples`, logic reimplemented against this addon (NcnnSync, RewardBuilder),
+upstream plugin not vendored. Trains with SB3 SAC via `SBGSingleObsEnv`; exports deterministic actor
+(tanh(mean)) as TorchScript (godot_rl's SAC ONNX export breaks under torch 2.x dynamo); converts to
+ncnn via `export_to_ncnn.py --via torchscript`. Behavioral regression in CI. Closes #74 — live-trained
+non-PPO follow-up to #45.)
 
 ---
 
@@ -74,7 +80,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | Wrapper | Upstream | This repo | Status |
 |---|---|---|---|
 | `StableBaselinesGodotEnv` (SB3 VecEnv, n_parallel) | ✅ | ✅ proven | — |
-| `SBGSingleObsEnv` (SB3 + `MlpPolicy` compat) | ✅ | ❌ | Minor |
+| `SBGSingleObsEnv` (SB3 + `MlpPolicy` compat) | ✅ | ✅ used by `train_ball_chase.py` (SAC) | ✅ done (#74) |
 | `CleanRLGodotEnv` | ✅ | ✅ item 17 done | — |
 | `RayVectorGodotEnv` (RLlib) | ✅ | ❌ no training script | **Gap** (#26 — `policy_name` now shipped) |
 | `GDRLPettingZooEnv` (PettingZoo, multi-policy) | ✅ | ❌ | **Gap** (#26 — `policy_name` shipped; needs trainer/example) |
@@ -131,6 +137,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | ✅ Done | `RaycastSensor3D` (and 2D) multi-class detection mode (`class_sensor`) | #42 |
 | ✅ Done | `RECORD_EXPERT_DEMOS` + demo infra — `gnrl_v1`/`godot_rl` formats, Python loader + `train_bc.py`, chase scripted-expert | #13 |
 | ✅ Done | Recurrent / LSTM **deploy** (hidden-state carry; training/export still pending) | #33 |
+| ✅ Done | `SBGSingleObsEnv` + SB3 SAC continuous training — BallChase example, live-trained non-PPO regression | #74 |
 | 🟡 P2 | RLlib + PettingZoo multi-policy trained example | #26 |
 | 🟡 P2 | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
 | 🔵 P3 | Batched multi-agent inference | #34 |
