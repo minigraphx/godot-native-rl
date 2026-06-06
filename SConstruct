@@ -88,6 +88,13 @@ if env["platform"] == "macos":
 # Link ncnn statically into the extension.
 env.Append(LIBS=[File(ncnn_static_lib)])
 
+# ncnn is built with OpenMP enabled by default, so libncnn.a references the GNU OpenMP runtime
+# (GOMP_parallel) and pthreads. These must be linked AFTER libncnn.a — so the linker's default
+# --as-needed keeps libgomp in DT_NEEDED — or the extension fails to load on Linux with
+# "undefined symbol: GOMP_parallel". (macOS resolves its own OpenMP runtime, so scope to Linux.)
+if env["platform"] == "linux":
+    env.Append(LIBS=["gomp", "pthread"])
+
 library = env.SharedLibrary(
     target=os.path.join("bin", "libncnn_runner{}{}".format(env["suffix"], env["SHLIBSUFFIX"])),
     source=sources,
