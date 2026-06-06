@@ -108,8 +108,9 @@ obs vector ──(optional ObsNormalize)──► policy network (ncnn) ──�
   `VecNormalize` running mean/var (it lives in a side `.pkl`, not the network), used by PPO/A2C/SAC/…
   alike — so it's algorithm-independent too.
 - **Training is backend-agnostic via the godot_rl wire protocol.** Anything that speaks it works:
-  SB3 (PPO + A2C/DQN/SAC/TD3), the shipped CleanRL backend (`scripts/train_cleanrl.py`), and later
-  SampleFactory/SKRL/RLlib. The only PPO/godot_rl-flavored vestige is the `state_ins` wire input,
+  SB3 (PPO + A2C/DQN/SAC/TD3), the shipped CleanRL backend (`scripts/train_cleanrl.py`), the shipped
+  SampleFactory backend (`scripts/train_sf.py`), and later SKRL/RLlib. The only PPO/godot_rl-flavored
+  vestige is the `state_ins` wire input,
   which pnnx **prunes at conversion** → inert at deploy.
 
 **Guarded by** `test/unit/test_algorithm_agnostic_decode.gd` (DQN Q-values / SAC / TD3 / hybrid heads

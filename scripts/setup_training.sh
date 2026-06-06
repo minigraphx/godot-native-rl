@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Create the two Python venvs for training + conversion and install their deps.
+# Create the three Python venvs for training + conversion + SampleFactory and install their deps.
 # Plain venvs are the primary path; conda is documented as an alternative in
 # docs/guide/training.md. Idempotent: existing venvs are reused.
 #
 #   ./scripts/setup_training.sh           # create + install
 #   ./scripts/setup_training.sh --check   # validate only, no venv creation, no install
 #
-# Overrides: PYTHON_TRAIN (default python3.13), PYTHON_CONVERT (default python3.14).
+# Overrides: PYTHON_TRAIN (default python3.13), PYTHON_CONVERT (default python3.14),
+#            PYTHON_SF (default python3.13).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,16 +15,19 @@ cd "$REPO_ROOT"
 
 PYTHON_TRAIN="${PYTHON_TRAIN:-python3.13}"
 PYTHON_CONVERT="${PYTHON_CONVERT:-python3.14}"
+PYTHON_SF="${PYTHON_SF:-python3.13}"
 REQ_TRAIN="requirements-train.txt"
 REQ_CONVERT="requirements-convert.txt"
+REQ_SF="requirements-sf.txt"
 CHECK_ONLY=0
 [ "${1:-}" = "--check" ] && CHECK_ONLY=1
 
 echo "Training stack setup"
 echo "  train venv:   .venv-train  (interpreter: $PYTHON_TRAIN, deps: $REQ_TRAIN)"
 echo "  convert venv: .venv        (interpreter: $PYTHON_CONVERT, deps: $REQ_CONVERT)"
+echo "  sf venv:      .venv-sf     (interpreter: $PYTHON_SF, deps: $REQ_SF)"
 
-for f in "$REQ_TRAIN" "$REQ_CONVERT"; do
+for f in "$REQ_TRAIN" "$REQ_CONVERT" "$REQ_SF"; do
 	if [ ! -f "$f" ]; then
 		echo "ERROR: missing $f" >&2
 		exit 1
@@ -34,6 +38,7 @@ if [ "$CHECK_ONLY" -eq 1 ]; then
 	echo "--check: requirements files present."
 	command -v "$PYTHON_TRAIN" >/dev/null 2>&1 || echo "NOTE: $PYTHON_TRAIN not on PATH (needed for .venv-train; override with PYTHON_TRAIN=)."
 	command -v "$PYTHON_CONVERT" >/dev/null 2>&1 || echo "NOTE: $PYTHON_CONVERT not on PATH (needed for .venv; override with PYTHON_CONVERT=)."
+	command -v "$PYTHON_SF" >/dev/null 2>&1 || echo "NOTE: $PYTHON_SF not on PATH (needed for .venv-sf; override with PYTHON_SF=)."
 	echo "Next: ./scripts/setup_training.sh   then   ./scripts/train_chase.sh"
 	exit 0
 fi
@@ -56,5 +61,6 @@ create_venv() {
 
 create_venv "$PYTHON_TRAIN" ".venv-train" "$REQ_TRAIN"
 create_venv "$PYTHON_CONVERT" ".venv" "$REQ_CONVERT"
+create_venv "$PYTHON_SF" ".venv-sf" "$REQ_SF"
 
 echo "Done. Next: ./scripts/train_chase.sh   (see docs/guide/training.md)"

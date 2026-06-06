@@ -318,7 +318,11 @@ the same change. New items → GitHub issue only.
     captured from the real `NcnnRunner` deploy path; auto-discovered by `run_tests.sh`). Also added
     `PYTHONUNBUFFERED=1` to the orchestrator (live progress when logging to a file) and detached the
     `value_loss` print. **Deferred:** continuous / `n_parallel>1` variants.
-18. ⬜ **SampleFactory backend** — async high-throughput training. *v-next, after CameraSensor.*
+18. ✅ **SampleFactory backend** — async high-throughput training. *v-next, after CameraSensor.*
+    **Done 2026-06-05** — `scripts/train_sf.sh` orchestrates SampleFactory async PPO over the chase
+    example in isolated `.venv-sf` (SF pins `gymnasium<1.0`); exports SF checkpoint to TorchScript
+    via `scripts/export_sf_to_torchscript.py` → ncnn via `export_to_ncnn.py`. Headless smoke in
+    `test/run_tests.sh` (auto-skips if `.venv-sf` absent). (Closes #24)
 19. ⬜ **SKRL backend** — multi-agent + JAX. *v-next, when multi-agent/JAX becomes priority.*
 45. ✅ **Multi-policy trained example** — the trainer + example that *uses* the `agent_policy_names`
     wire field (shipped 2026-06-03, item 20 slice).

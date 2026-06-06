@@ -81,6 +81,10 @@ echo "== INT8 quantize tools (build if missing) =="
 
 echo "== INT8 export + parity (synthetic CNN, to temp dir) =="
 PY_TRAIN="${PY_TRAIN:-.venv-train/bin/python}"
+# Backstop cleanup: with `set -e`, a crash in export_int8.py / train_sf.sh aborts before the
+# inline `rm -rf` runs, so these temp dirs would leak. The EXIT trap reaps whichever are set.
+INT8_TMP="" SF_TMP=""
+trap 'rm -rf "${INT8_TMP:-}" "${SF_TMP:-}" 2>/dev/null || true' EXIT
 INT8_TMP="$(mktemp -d)"
 "$PY_TRAIN" scripts/export_int8.py models/synthetic_cnn.ncnn.param models/synthetic_cnn.ncnn.bin \
 	--width 8 --height 8 --channels 3 --samples 256 --n-verify 100 --outdir "$INT8_TMP"
@@ -89,5 +93,20 @@ rm -rf "$INT8_TMP"
 echo "== Python helper tests =="
 PY_TRAIN="${PY_TRAIN:-.venv-train/bin/python}"
 "$PY_TRAIN" -m unittest discover -s test/python -p 'test_*.py'
+
+echo "== SampleFactory backend smoke (skipped if .venv-sf absent) =="
+if [ -x .venv-sf/bin/python ]; then
+	SF_TMP="$(mktemp -d)"
+	# Tiny run: enough env steps to write one checkpoint; serial/sync mode keeps it deterministic.
+	TIMESTEPS="${SF_SMOKE_TIMESTEPS:-3000}" \
+	TRAIN_DIR="$SF_TMP/logs" OUTDIR="$SF_TMP/models" EXPERIMENT="chase_sf_smoke" \
+		./scripts/train_sf.sh
+	test -f "$SF_TMP/models/chase_sf_policy.ncnn.param" || { echo "FAIL: SF ncnn .param not produced" >&2; rm -rf "$SF_TMP"; exit 1; }
+	test -f "$SF_TMP/models/chase_sf_policy.ncnn.bin"   || { echo "FAIL: SF ncnn .bin not produced" >&2; rm -rf "$SF_TMP"; exit 1; }
+	rm -rf "$SF_TMP"
+	echo "SampleFactory smoke OK."
+else
+	echo "SKIP: .venv-sf not present (run scripts/setup_training.sh to enable the SF smoke)."
+fi
 
 echo "All tests passed."

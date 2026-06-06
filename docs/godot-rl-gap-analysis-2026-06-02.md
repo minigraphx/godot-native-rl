@@ -84,7 +84,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `CleanRLGodotEnv` | ✅ | ✅ item 17 done | — |
 | `RayVectorGodotEnv` (RLlib) | ✅ | ❌ no training script | **Gap** (#26 — `policy_name` now shipped) |
 | `GDRLPettingZooEnv` (PettingZoo, multi-policy) | ✅ | ❌ | **Gap** (#26 — `policy_name` shipped; needs trainer/example) |
-| `SampleFactoryEnvWrapper` (batched + non-batched) | ✅ | ❌ | **Gap** (#24) |
+| `SampleFactoryEnvWrapper` (batched + non-batched) | ✅ | ✅ done (#24) — `train_sf.sh`, async PPO, TorchScript→ncnn, isolated `.venv-sf` | — |
 | ONNX export helper (`OnnxablePolicy`) | ✅ SB3/SAC → ONNX | ✅ `export_to_ncnn.py` ONNX+TorchScript→ncnn | Different, covered |
 | Optuna HP tuning example | ✅ | ❌ | Nice-to-have |
 
@@ -139,7 +139,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | ✅ Done | Recurrent / LSTM **deploy** (hidden-state carry; training/export still pending) | #33 |
 | ✅ Done | `SBGSingleObsEnv` + SB3 SAC continuous training — BallChase example, live-trained non-PPO regression | #74 |
 | 🟡 P2 | RLlib + PettingZoo multi-policy trained example | #26 |
-| 🟡 P2 | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
+| ✅ Done | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
 | 🔵 P3 | Batched multi-agent inference | #34 |
 | ⚪ P4 | CameraSensor: configurable render res + downscale + RGBA | #36 |
 | ⚪ P4 | Grayscale camera deploy (C++ `PIXEL_GRAY` path) | #36 |
