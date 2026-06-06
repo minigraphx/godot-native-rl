@@ -3,3 +3,7 @@
 # so it lives in its own venv. See docs/superpowers/specs/2026-06-05-sample-factory-backend-design.md
 godot-rl==0.8.2
 sample_factory==2.1.1
+# Pin torch (else pulled transitively by SF, range torch>=1.9,<3.0): export_sf_to_torchscript.py
+# loads the checkpoint with weights_only=False (a torch>=2.6 behavior) and traces the actor — both
+# version-sensitive, so pin the validated version for reproducible TorchScript->ncnn parity.
+torch==2.12.0

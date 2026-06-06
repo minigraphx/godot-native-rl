@@ -15,13 +15,16 @@ This creates `.venv-train` (godot-rl + verify deps) and `.venv` (pnnx + torch) f
 reused). Override interpreters with `PYTHON_TRAIN=` / `PYTHON_CONVERT=`. Validate without
 installing: `./scripts/setup_training.sh --check`.
 
-**conda alternative:** create two envs and `pip install -r` the same files; see
-[../dev/gotchas.md](../dev/gotchas.md) ("Two venvs") for why the split exists.
+The SampleFactory backend additionally needs an isolated `.venv-sf` (SF pins `gymnasium<1.0`);
+`setup_training.sh` creates it too.
+
+**conda alternative:** create the envs and `pip install -r` the same files; see
+[../dev/gotchas.md](../dev/gotchas.md) ("Three venvs") for why the split exists.
 
 ## 2. Train
 
 Training always requires two processes running simultaneously: the **Godot environment** (the scene)
-and the **Python trainer** (SB3/CleanRL). The training scripts start both for you.
+and the **Python trainer** (SB3/CleanRL/SampleFactory). The training scripts start both for you.
 
 The training scripts launch Godot headless and the Python trainer in one command:
 
@@ -40,6 +43,9 @@ SCENE=res://examples/rover_3d/rover_3d_train_parallel.tscn ./scripts/train_rover
 
 # Chase via CleanRL backend
 ./scripts/train_cleanrl.sh
+
+# Chase via SampleFactory backend (async PPO; needs .venv-sf)
+./scripts/train_sf.sh
 ```
 
 The rover trainer is **checkpoint/resume-capable**: it saves to `models/rover_checkpoints/` every
