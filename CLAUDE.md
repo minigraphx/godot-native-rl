@@ -189,7 +189,8 @@ daily:
     behavioral check; continuous BallChase env ported from godot_rl_agents_examples; the
     live-trained follow-up to #45. Note: GitHub issue #74.)
     18 (SampleFactory training backend — async PPO, chase example, TorchScript→ncnn export,
-    headless smoke).
+    headless smoke; committed golden-inference regression `test_chase_sf_golden_inference.gd` +
+    `models/chase_sf_policy.ncnn.*` fixture added in #79).
     9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 23 (deploy-side inference gap: batched multi-agent

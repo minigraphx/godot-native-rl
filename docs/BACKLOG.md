@@ -323,6 +323,11 @@ the same change. New items → GitHub issue only.
     example in isolated `.venv-sf` (SF pins `gymnasium<1.0`); exports SF checkpoint to TorchScript
     via `scripts/export_sf_to_torchscript.py` → ncnn via `export_to_ncnn.py`. Headless smoke in
     `test/run_tests.sh` (auto-skips if `.venv-sf` absent). (Closes #24)
+    **Golden regression added 2026-06-06 (#79):** committed a small SF-exported chase ncnn fixture
+    (`models/chase_sf_policy.ncnn.*`, from the smoke's TorchScript→ncnn export, parity 50/50) plus
+    `test/unit/test_chase_sf_golden_inference.gd` (5 fixed obs — same set as the SB3/CleanRL chase
+    goldens — captured from the real `NcnnRunner` deploy path; auto-discovered by `run_tests.sh`).
+    Pins SF deploy-side behavior against conversion/runtime regressions without re-training. (Closes #79)
 19. ⬜ **SKRL backend** — multi-agent + JAX. *v-next, when multi-agent/JAX becomes priority.*
 45. ✅ **Multi-policy trained example** — the trainer + example that *uses* the `agent_policy_names`
     wire field (shipped 2026-06-03, item 20 slice).

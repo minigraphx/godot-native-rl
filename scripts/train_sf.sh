@@ -54,6 +54,13 @@ cleanup() {
 	# does this explicitly (below), but the trap must also cover abnormal exits (Ctrl-C, SIGTERM,
 	# a set -e abort before `wait`), or those clients leak as orphans.
 	[ -n "${WATCHER_PID:-}" ] && pkill -P "$WATCHER_PID" 2>/dev/null
+	# The watcher's `tail -F` is a *pipeline* child, not a direct descendant -P can reap: killing
+	# WATCHER_PID first reparents tail to init (PPID 1), so `pkill -P` misses it. It then blocks on
+	# the log forever as an orphan AND keeps the write end of our stdout pipe open, so anything
+	# reading this script to EOF (e.g. `train_sf.sh | tail`) hangs. Kill it by the run's unique log
+	# path. Pattern is an ERE (macOS pkill), so use `.*` rather than the literal `-n +1` (`+` is a
+	# quantifier there); the path is metachar-free apart from `.` (harmless any-char superset).
+	pkill -f "tail.*-F.*$TRAINER_LOG" 2>/dev/null
 	[ -n "${TRAINER_PID:-}" ] && kill "$TRAINER_PID" 2>/dev/null
 	rm -f "$TRAINER_LOG"
 }
@@ -94,6 +101,9 @@ TRAINER_RC=$?
 kill "$WATCHER_PID" 2>/dev/null
 # Reap any Godot clients the watcher spawned (children of the watcher subshell).
 pkill -P "$WATCHER_PID" 2>/dev/null
+# Reap the watcher's orphaned `tail -F` (see cleanup() for why -P can't) so it doesn't linger
+# through the multi-minute convert step below or wedge a caller piping our stdout to EOF.
+pkill -f "tail.*-F.*$TRAINER_LOG" 2>/dev/null
 set -e
 echo "Trainer exited with code $TRAINER_RC"
 [ "$TRAINER_RC" -eq 0 ] || exit "$TRAINER_RC"
