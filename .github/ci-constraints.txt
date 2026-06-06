@@ -1,16 +1,9 @@
-# CI dependency lock (pip `-c`). The requirements-*.txt files are intentionally unpinned ("latest"),
-# but on a clean runner pip can backtrack to an ancient ml_dtypes whose source build pins a yanked
-# numpy RC (numpy==2.0.0rc1), breaking `.venv-train` creation. These pins mirror the versions the
-# maintainer's working local .venv / .venv-train resolve to (captured 2026-06-06) — all have Linux
-# cp313/cp314 wheels, so nothing builds from source. Bump alongside the requirements files.
-numpy==2.4.6
+# CI constraints for the .venv-train install ONLY (pip `-c`). The requirements files are unpinned,
+# but the train stack has a genuine version tension: stable-baselines3 (pulled by godot-rl) caps
+# numpy<2.0, while ml_dtypes (pulled by onnxscript/onnxruntime) caps numpy>=2.1 on Python 3.13 —
+# unsatisfiable. CI therefore builds .venv-train on Python 3.12, where ml_dtypes 0.5.4 needs only
+# numpy>=1.26, so numpy 1.26.4 satisfies BOTH. These two pins make that resolution deterministic
+# (both have cp312 Linux wheels, so nothing builds from source). The convert venv (.venv, py3.14)
+# is installed WITHOUT these constraints (it has no sb3/ml_dtypes; numpy resolves to 2.x there).
+numpy==1.26.4
 ml_dtypes==0.5.4
-onnx==1.19.0
-onnxruntime==1.26.0
-onnxscript==0.7.0
-protobuf==7.35.0
-torch==2.12.0
-gymnasium==1.0.0
-stable_baselines3==2.4.0
-godot-rl==0.8.2
-pnnx==20260526

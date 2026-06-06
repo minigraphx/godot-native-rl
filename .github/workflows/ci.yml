@@ -141,10 +141,12 @@ jobs:
           key: ncnn-${{ runner.os }}-${{ env.NCNN_TAG }}-${{ env.CACHE_VERSION }}
           fail-on-cache-miss: true
 
-      - name: Set up Python 3.13 (.venv-train)
+      # .venv-train runs on 3.12 (not the local 3.13): on 3.13, ml_dtypes needs numpy>=2.1 while
+      # stable-baselines3 needs numpy<2.0 — unsatisfiable. On 3.12 numpy 1.26.4 satisfies both.
+      - name: Set up Python 3.12 (.venv-train)
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.12"
 
       - name: Set up Python 3.14 (.venv convert)
         uses: actions/setup-python@v5
@@ -158,17 +160,18 @@ jobs:
           path: |
             .venv
             .venv-train
-          key: venvs-${{ runner.os }}-py314-py313-${{ hashFiles('requirements-convert.txt', 'requirements-train.txt', '.github/ci-constraints.txt') }}-${{ env.CACHE_VERSION }}
+          key: venvs-${{ runner.os }}-py314-py312-${{ hashFiles('requirements-convert.txt', 'requirements-train.txt', '.github/ci-constraints.txt') }}-${{ env.CACHE_VERSION }}
 
       - name: Create venvs
         if: steps.cache-venvs.outputs.cache-hit != 'true'
         run: |
-          # -c .github/ci-constraints.txt locks the dep graph to the maintainer's known-good versions
-          # so pip doesn't backtrack to an old ml_dtypes that builds from source (yanked numpy RC).
+          # Convert venv (3.14): no constraints — pnnx + torch only, numpy resolves to 2.x cleanly.
           python3.14 -m venv .venv
           .venv/bin/pip install --upgrade pip
-          .venv/bin/pip install -c .github/ci-constraints.txt -r requirements-convert.txt
-          python3.13 -m venv .venv-train
+          .venv/bin/pip install -r requirements-convert.txt
+          # Train venv (3.12): -c pins numpy 1.26.4 + ml_dtypes 0.5.4 so the sb3 (numpy<2) vs
+          # ml_dtypes (numpy>=1.26 on 3.12) tension resolves deterministically from wheels.
+          python3.12 -m venv .venv-train
           .venv-train/bin/pip install --upgrade pip
           .venv-train/bin/pip install -c .github/ci-constraints.txt -r requirements-train.txt
 
