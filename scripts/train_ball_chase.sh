@@ -2,7 +2,7 @@
 # Orchestrates SB3 SAC training over the godot-rl bridge:
 #   1. start the Python trainer (opens server on 11008, blocks until Godot connects)
 #   2. launch the headless Godot training scene (connects as client)
-#   3. wait for the trainer to finish (exports ONNX, closes env -> Godot quits)
+#   3. wait for the trainer to finish (exports TorchScript .pt, closes env -> Godot quits)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
