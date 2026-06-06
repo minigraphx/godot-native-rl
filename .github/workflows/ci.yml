@@ -165,14 +165,22 @@ jobs:
       - name: Create venvs
         if: steps.cache-venvs.outputs.cache-hit != 'true'
         run: |
+          # Install CPU-only torch FIRST in each venv. The default PyPI torch bundles multi-GB CUDA
+          # libs (cuda_bindings, nvidia-nvshmem, ...) and pulling it into BOTH venvs fills the
+          # runner's ~14 GB disk ([Errno 28] No space left). CI is CPU-only, so the CPU wheel is
+          # both correct and ~20x smaller; pre-installing it satisfies the `torch` dep so the
+          # subsequent requirements install never reaches for the CUDA build.
+          TORCH_CPU_INDEX="https://download.pytorch.org/whl/cpu"
           # Convert venv (3.14): no constraints — pnnx + torch only, numpy resolves to 2.x cleanly.
           python3.14 -m venv .venv
           .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install --index-url "$TORCH_CPU_INDEX" torch
           .venv/bin/pip install -r requirements-convert.txt
           # Train venv (3.12): -c pins numpy 1.26.4 + ml_dtypes 0.5.4 so the sb3 (numpy<2) vs
           # ml_dtypes (numpy>=1.26 on 3.12) tension resolves deterministically from wheels.
           python3.12 -m venv .venv-train
           .venv-train/bin/pip install --upgrade pip
+          .venv-train/bin/pip install --index-url "$TORCH_CPU_INDEX" torch
           .venv-train/bin/pip install -c .github/ci-constraints.txt -r requirements-train.txt
 
       - name: Download Godot ${{ matrix.godot.version }} (headless)
