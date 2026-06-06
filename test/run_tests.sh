@@ -73,6 +73,9 @@ echo "== Trained multi-policy hide&seek behavioral check (headless) =="
 echo "== Trained rover check (headless) =="
 "$GODOT" --headless --path . res://test/integration/trained_rover_scene.tscn
 
+echo "== Trained BallChase (SAC) behavioral check (headless) =="
+"$GODOT" --headless --path . res://test/integration/trained_ball_chase_scene.tscn
+
 echo "== INT8 quantize tools (build if missing) =="
 ./scripts/build_ncnn_tools.sh
 

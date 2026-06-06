@@ -18,11 +18,17 @@ web/WASM, console, mobile, desktop, and edge.
 
 ## Guides
 - [Getting started](docs/guide/getting-started.md) — install + enable the plugin
-- [Running the examples](docs/guide/running-examples.md) — chase / rover / hide & seek
+- [Running the examples](docs/guide/running-examples.md) — chase / rover / hide & seek / ball chase
 - [Training your own AI](docs/guide/training.md) — setup, train, the parallel-training fast path
 - [Deploying](docs/guide/deploying.md) — NcnnRunner, INT8, VecNormalize, platform targets
 - [Sensors](docs/guide/sensors.md) — raycast, relative-position, camera, grid
 - [Building an agent in your scene](docs/guide/building-your-agent.md)
+
+## Examples
+- `examples/chase_the_target` — 2D discrete-action agent, trained with SB3 PPO
+- `examples/rover_3d` — 3D continuous-control rover, trained with SB3 PPO
+- `examples/hide_and_seek` — 2D 1v1 parameter-sharing self-play
+- `examples/ball_chase` — 2D continuous-action agent trained with SB3 **SAC** (`./scripts/train_ball_chase.sh`); exports the deterministic actor via TorchScript → ncnn (godot_rl's SAC ONNX export is incompatible with torch 2.x dynamo)
 
 ## What you get
 - `NcnnRunner` C++ node: `load_model`, `run_inference`, `run_inference_image`,

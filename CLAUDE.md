@@ -16,7 +16,7 @@ complement to godot_rl, grow toward full replacement.
 Full train → convert → deploy loop works end-to-end (headless CI tests). Reusable library in
 `addons/godot_native_rl/` (`sync.gd`/`NcnnSync`, `controllers/`, `reward/`, `sensors/`,
 `training/`, `net/`); C++ GDExtension at repo root (`src/ncnn_runner.{h,cpp}`). Examples:
-`chase_the_target` (2D), `rover_3d` (3D), `hide_and_seek` (2D self-play). Wire protocol is
+`chase_the_target` (2D), `rover_3d` (3D), `hide_and_seek` (2D self-play), `ball_chase` (2D continuous-control / SAC). Wire protocol is
 godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 [docs/dev/DEVELOPMENT.md](docs/dev/DEVELOPMENT.md).**
 
@@ -46,6 +46,10 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   `--multi-policy` cmdline gate read by `HideSeekAgent`), each exported to ncnn via
   `export_to_ncnn.py --via torchscript`. `SCENE=`/`TIMESTEPS=` overrides; the trained example for the
   `agent_policy_names` wire field. Deploy/regress in `hide_and_seek_multipolicy_eval.tscn`.
+- **Train (BallChase, SAC):** `./scripts/train_ball_chase.sh` — SB3 SAC (continuous-control) over the
+  BallChase env (port 11008). Exports the deterministic actor (tanh(mean)) as **TorchScript** (godot_rl's
+  SAC ONNX export breaks under torch 2.x dynamo), then `scripts/export_to_ncnn.py models/ball_chase_sac.pt
+  --via torchscript`.
 - **Train (chase, CleanRL backend):** `./scripts/train_cleanrl.sh` — single-file CleanRL-style PPO over
   godot_rl's `CleanRLGodotEnv` (same chase scene + port 11008; `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`
   overrides). Exports ONNX (`models/chase_cleanrl_policy.onnx`) consumable unchanged by `export_to_ncnn.py`.
@@ -176,6 +180,9 @@ daily:
     unbounded-Q argmax + SAC tanh-squash fixtures through the real ncnn pipeline,
     `test_algorithm_agnostic_golden_inference.gd`; live-trained SB3 SAC regression filed as
     follow-up #74).
+    GitHub #74 (trained SB3 SAC non-PPO regression — live train → TorchScript export → ncnn →
+    behavioral check; continuous BallChase env ported from godot_rl_agents_examples; the
+    live-trained follow-up to #45. Note: GitHub issue #74.)
     18 (SampleFactory training backend — async PPO, chase example, TorchScript→ncnn export,
     headless smoke).
     9 partial (socket
