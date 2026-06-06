@@ -1,0 +1,198 @@
+name: CI
+
+# Builds the native GDExtension (godot-cpp + statically-linked ncnn) once, then runs the full
+# headless test suite (test/run_tests.sh) under both supported Godot versions.
+#
+# Why the extension is built only once: a GDExtension built against godot-cpp 4.5 is
+# forward-compatible, so the same bin/ runs under both Godot 4.5 and 4.6 — we test the one
+# artifact on both engines instead of rebuilding per version.
+#
+# The SampleFactory smoke (run_tests.sh) auto-skips when .venv-sf is absent; CI intentionally
+# does NOT install .venv-sf (heavy deps + an in-CI socket training run would be slow/flaky).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# One in-flight run per branch/PR; newer pushes cancel older runs.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned dependency refs — also the cache keys. Bump CACHE_VERSION to force a cold rebuild.
+  GODOT_CPP_BRANCH: "4.5"   # build against the minimum supported Godot; runs on newer too
+  NCNN_TAG: "20260526"      # matches the locally-vendored ncnn (docs/dev/building.md)
+  CACHE_VERSION: "v1"
+  # Cap CMake build parallelism. ncnn's SIMD/INT8 translation units are memory-heavy; compiling
+  # at full -j(nproc) (4 on the standard runner) OOM-kills cc1plus on the 16 GB runner. 2 stays
+  # well under the limit. Governs both our `cmake --build` and build_ncnn_tools.sh's `--parallel`.
+  CMAKE_BUILD_PARALLEL_LEVEL: "2"
+
+jobs:
+  build:
+    name: Build extension (linux x86_64)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential scons cmake git
+
+      - name: Cache godot-cpp (built bindings)
+        id: cache-godot-cpp
+        uses: actions/cache@v4
+        with:
+          path: godot-cpp
+          key: godot-cpp-${{ runner.os }}-${{ env.GODOT_CPP_BRANCH }}-${{ env.CACHE_VERSION }}
+
+      - name: Build godot-cpp bindings
+        if: steps.cache-godot-cpp.outputs.cache-hit != 'true'
+        run: |
+          git clone -b "${GODOT_CPP_BRANCH}" --depth 1 https://github.com/godotengine/godot-cpp.git
+          scons -C godot-cpp platform=linux target=template_debug -j"$(nproc)"
+          scons -C godot-cpp platform=linux target=template_release -j"$(nproc)"
+
+      - name: Cache ncnn (static lib + INT8 tools)
+        id: cache-ncnn
+        uses: actions/cache@v4
+        with:
+          path: thirdparty/ncnn
+          key: ncnn-${{ runner.os }}-${{ env.NCNN_TAG }}-${{ env.CACHE_VERSION }}
+
+      - name: Build ncnn static lib + INT8 tools
+        if: steps.cache-ncnn.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p thirdparty
+          git clone -b "${NCNN_TAG}" --depth 1 https://github.com/Tencent/ncnn.git thirdparty/ncnn
+          # ONE capped build produces both the static lib (for the extension link) AND the INT8
+          # CLI tools. NOTE: we do NOT run scripts/build_ncnn_tools.sh here — it calls
+          # `cmake --build --parallel` with no job count, which makes Make run UNLIMITED jobs
+          # (CMAKE_BUILD_PARALLEL_LEVEL is ignored when --parallel is given) and OOM-kills cc1plus
+          # on ncnn's AVX512 TUs. Building once with TOOLS=ON + a capped `cmake --build` (no
+          # --parallel flag → honours CMAKE_BUILD_PARALLEL_LEVEL) avoids the second build entirely.
+          cmake -S thirdparty/ncnn -B thirdparty/ncnn/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNCNN_BUILD_TOOLS=ON \
+            -DNCNN_BUILD_EXAMPLES=OFF \
+            -DNCNN_BUILD_BENCHMARK=OFF \
+            -DNCNN_BUILD_TESTS=OFF \
+            -DNCNN_SIMPLEOCV=ON \
+            -DNCNN_INT8=ON \
+            -DBUILD_SHARED_LIBS=OFF
+          cmake --build thirdparty/ncnn/build --config Release   # parallelism via CMAKE_BUILD_PARALLEL_LEVEL
+          cmake --install thirdparty/ncnn/build --prefix thirdparty/ncnn/build/install
+          # Collect the three quantize tools into tools-bin/ (same layout build_ncnn_tools.sh
+          # produces) so run_tests.sh's invocation finds them and short-circuits — no rebuild.
+          mkdir -p thirdparty/ncnn/tools-bin
+          for tool in ncnn2table ncnn2int8 ncnnoptimize; do
+            src="$(find thirdparty/ncnn/build -type f -name "$tool" -perm -u+x | head -n1)"
+            if [ -z "$src" ]; then echo "ERROR: built tool not found: $tool" >&2; exit 1; fi
+            cp -f "$src" "thirdparty/ncnn/tools-bin/$tool"
+          done
+
+      - name: Build GDExtension
+        run: |
+          scons platform=linux target=template_debug -j"$(nproc)"
+          scons platform=linux target=template_release -j"$(nproc)"
+
+      - name: Upload extension binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-bin
+          path: bin/
+          if-no-files-found: error
+
+  test:
+    name: Test (Godot ${{ matrix.godot.version }})
+    needs: build
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        godot:
+          - { version: "4.5.2-stable", file: "Godot_v4.5.2-stable_linux.x86_64" }
+          - { version: "4.6.3-stable", file: "Godot_v4.6.3-stable_linux.x86_64" }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install runtime toolchain
+        # cmake/build-essential only needed if the ncnn-tools cache is cold; build_ncnn_tools.sh
+        # is idempotent and short-circuits when tools-bin/ is restored from cache.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake unzip curl
+
+      - name: Download extension binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: extension-bin
+          path: bin/
+
+      - name: Restore ncnn cache (source + INT8 tools)
+        uses: actions/cache/restore@v4
+        with:
+          path: thirdparty/ncnn
+          key: ncnn-${{ runner.os }}-${{ env.NCNN_TAG }}-${{ env.CACHE_VERSION }}
+          fail-on-cache-miss: true
+
+      # .venv-train runs on 3.12 (not the local 3.13): on 3.13, ml_dtypes needs numpy>=2.1 while
+      # stable-baselines3 needs numpy<2.0 — unsatisfiable. On 3.12 numpy 1.26.4 satisfies both.
+      - name: Set up Python 3.12 (.venv-train)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Python 3.14 (.venv convert)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Cache Python venvs
+        id: cache-venvs
+        uses: actions/cache@v4
+        with:
+          path: |
+            .venv
+            .venv-train
+          key: venvs-${{ runner.os }}-py314-py312-${{ hashFiles('requirements-convert.txt', 'requirements-train.txt', '.github/ci-constraints.txt') }}-${{ env.CACHE_VERSION }}
+
+      - name: Create venvs
+        if: steps.cache-venvs.outputs.cache-hit != 'true'
+        run: |
+          # Install CPU-only torch FIRST in each venv. The default PyPI torch bundles multi-GB CUDA
+          # libs (cuda_bindings, nvidia-nvshmem, ...) and pulling it into BOTH venvs fills the
+          # runner's ~14 GB disk ([Errno 28] No space left). CI is CPU-only, so the CPU wheel is
+          # both correct and ~20x smaller; pre-installing it satisfies the `torch` dep so the
+          # subsequent requirements install never reaches for the CUDA build.
+          TORCH_CPU_INDEX="https://download.pytorch.org/whl/cpu"
+          # Convert venv (3.14): no constraints — pnnx + torch only, numpy resolves to 2.x cleanly.
+          python3.14 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install --index-url "$TORCH_CPU_INDEX" torch
+          .venv/bin/pip install -r requirements-convert.txt
+          # Train venv (3.12): -c pins numpy 1.26.4 + ml_dtypes 0.5.4 so the sb3 (numpy<2) vs
+          # ml_dtypes (numpy>=1.26 on 3.12) tension resolves deterministically from wheels.
+          python3.12 -m venv .venv-train
+          .venv-train/bin/pip install --upgrade pip
+          .venv-train/bin/pip install --index-url "$TORCH_CPU_INDEX" torch
+          .venv-train/bin/pip install -c .github/ci-constraints.txt -r requirements-train.txt
+
+      - name: Download Godot ${{ matrix.godot.version }} (headless)
+        run: |
+          url="https://github.com/godotengine/godot/releases/download/${{ matrix.godot.version }}/${{ matrix.godot.file }}.zip"
+          curl -fL "$url" -o godot.zip
+          unzip -q godot.zip
+          chmod +x "${{ matrix.godot.file }}"
+          echo "GODOT=$PWD/${{ matrix.godot.file }}" >> "$GITHUB_ENV"
+
+      - name: Run test suite
+        # run_tests.sh regenerates the script-class cache (--headless --editor --quit), runs the
+        # GDScript unit tests, Python protocol/timeout/hide-seek tests, every headless integration
+        # scene, the golden behavioral regressions, INT8 export + parity, and the Python helpers.
+        run: ./test/run_tests.sh

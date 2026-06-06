@@ -1,0 +1,9 @@
+# CI constraints for the .venv-train install ONLY (pip `-c`). The requirements files are unpinned,
+# but the train stack has a genuine version tension: stable-baselines3 (pulled by godot-rl) caps
+# numpy<2.0, while ml_dtypes (pulled by onnxscript/onnxruntime) caps numpy>=2.1 on Python 3.13 —
+# unsatisfiable. CI therefore builds .venv-train on Python 3.12, where ml_dtypes 0.5.4 needs only
+# numpy>=1.26, so numpy 1.26.4 satisfies BOTH. These two pins make that resolution deterministic
+# (both have cp312 Linux wheels, so nothing builds from source). The convert venv (.venv, py3.14)
+# is installed WITHOUT these constraints (it has no sb3/ml_dtypes; numpy resolves to 2.x there).
+numpy==1.26.4
+ml_dtypes==0.5.4
