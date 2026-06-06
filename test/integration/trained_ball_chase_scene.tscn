@@ -1,0 +1,33 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://examples/ball_chase/ball_chase_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/ball_chase/ball_chase_agent.gd" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="3"]
+[ext_resource type="Script" path="res://test/integration/trained_ball_chase_checker.gd" id="4"]
+
+[node name="BallChaseGame" type="Node2D"]
+script = ExtResource("1")
+agent_body_path = NodePath("AgentBody")
+target_path = NodePath("Target")
+
+[node name="AgentBody" type="Node2D" parent="."]
+
+[node name="Target" type="Node2D" parent="."]
+
+[node name="BallChaseAgent" type="Node2D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+control_mode = 3
+model_param_path = "res://examples/ball_chase/models/ball_chase_sac.ncnn.param"
+model_bin_path = "res://examples/ball_chase/models/ball_chase_sac.ncnn.bin"
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("3")
+control_mode = 2
+
+[node name="TrainedBallChaseChecker" type="Node" parent="."]
+script = ExtResource("4")
+game_path = NodePath("..")
+agent_path = NodePath("../BallChaseAgent")
+frames_to_run = 1800
+min_reaches = 3
