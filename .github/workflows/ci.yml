@@ -70,18 +70,31 @@ jobs:
         run: |
           mkdir -p thirdparty
           git clone -b "${NCNN_TAG}" --depth 1 https://github.com/Tencent/ncnn.git thirdparty/ncnn
-          # Static lib for the extension link (NCNN_BUILD_TOOLS=OFF — see docs/dev/building.md).
+          # ONE capped build produces both the static lib (for the extension link) AND the INT8
+          # CLI tools. NOTE: we do NOT run scripts/build_ncnn_tools.sh here — it calls
+          # `cmake --build --parallel` with no job count, which makes Make run UNLIMITED jobs
+          # (CMAKE_BUILD_PARALLEL_LEVEL is ignored when --parallel is given) and OOM-kills cc1plus
+          # on ncnn's AVX512 TUs. Building once with TOOLS=ON + a capped `cmake --build` (no
+          # --parallel flag → honours CMAKE_BUILD_PARALLEL_LEVEL) avoids the second build entirely.
           cmake -S thirdparty/ncnn -B thirdparty/ncnn/build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DNCNN_BUILD_TOOLS=OFF \
+            -DNCNN_BUILD_TOOLS=ON \
             -DNCNN_BUILD_EXAMPLES=OFF \
             -DNCNN_BUILD_BENCHMARK=OFF \
+            -DNCNN_BUILD_TESTS=OFF \
+            -DNCNN_SIMPLEOCV=ON \
+            -DNCNN_INT8=ON \
             -DBUILD_SHARED_LIBS=OFF
           cmake --build thirdparty/ncnn/build --config Release   # parallelism via CMAKE_BUILD_PARALLEL_LEVEL
           cmake --install thirdparty/ncnn/build --prefix thirdparty/ncnn/build/install
-          # INT8 quantize CLI tools (ncnn2table/ncnn2int8/ncnnoptimize) into tools-bin/ so the
-          # test job's build_ncnn_tools.sh short-circuits and the cache carries them.
-          ./scripts/build_ncnn_tools.sh
+          # Collect the three quantize tools into tools-bin/ (same layout build_ncnn_tools.sh
+          # produces) so run_tests.sh's invocation finds them and short-circuits — no rebuild.
+          mkdir -p thirdparty/ncnn/tools-bin
+          for tool in ncnn2table ncnn2int8 ncnnoptimize; do
+            src="$(find thirdparty/ncnn/build -type f -name "$tool" -perm -u+x | head -n1)"
+            if [ -z "$src" ]; then echo "ERROR: built tool not found: $tool" >&2; exit 1; fi
+            cp -f "$src" "thirdparty/ncnn/tools-bin/$tool"
+          done
 
       - name: Build GDExtension
         run: |
