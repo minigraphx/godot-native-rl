@@ -53,7 +53,7 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   godot_rl's bridge (same chase scene; serial/sync + `normalize_input=False` so the actor is a plain
   MLP). Runs in the isolated **`.venv-sf`** (SF pins `gymnasium<1.0`); exports the SF checkpoint to
   **TorchScript** via `export_sf_to_torchscript.py` → ncnn (`.venv-sf` can't onnx-export).
-  `TIMESTEPS`/`BASE_PORT`/`EXPERIMENT`/`OUTDIR` overrides.
+  `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`/`BASE_PORT`/`EXPERIMENT`/`TRAIN_DIR`/`OUTDIR` overrides.
 - **Throughput check:** `./scripts/throughput_compare.sh` — short fresh runs of the parallel vs
   single-agent scene into temp dirs (never touches `models/`); prints samples/sec + speedup **plus a
   per-step phase breakdown** (`collect_obs` / `serialize_send` / `await_action`) so you can see whether

@@ -3,9 +3,11 @@
 > Long-form companion to `CLAUDE.md`. CLAUDE.md keeps only the few daily-biting items and links
 > here for the rest. Contributor-facing.
 
-- **Two venvs:** `.venv` (Python 3.14) has `pnnx`+torch for conversion. `.venv-train` (Python
-  **3.13** — torch wheels don't exist for 3.14) has `godot-rl onnxruntime ncnn onnxscript`. Keep
-  them separate. Both gitignored.
+- **Three venvs:** `.venv` (Python 3.14) has `pnnx`+torch for conversion. `.venv-train` (Python
+  **3.13** — torch wheels don't exist for 3.14) has `godot-rl onnxruntime ncnn onnxscript` for SB3 +
+  CleanRL training (and runs `export_to_ncnn.py`). `.venv-sf` (Python 3.13) has SampleFactory for the
+  SF backend only — isolated because SF pins `gymnasium<1.0`, which would downgrade the SB3/CleanRL
+  stack. Keep them separate. All gitignored.
 - **`onnxscript` is required** for ONNX export (torch 2.12 dynamo exporter needs it) — not pulled
   in by godot-rl automatically.
 - **Do NOT pass `seed=` to `PPO()`** — godot-rl's env wrapper raises `NotImplementedError` on

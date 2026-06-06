@@ -186,11 +186,12 @@ def _make_nested_godot_env(env_path, full_env_name, cfg=None, env_config=None, r
 
 
 def _build_args_namespace(cfg: SFConfig) -> argparse.Namespace:
-    """Build the `args` namespace godot_rl's sample_factory_training expects.
+    """Build the `args` namespace the godot_rl SF wrapper helpers expect.
 
-    register_gdrl_env reads args.env_path / args.speedup / args.seed / args.viz;
-    parse_gdrl_args reads args.experiment_dir / args.experiment_name / args.eval.
-    env_path=None => in-editor training: SF opens the server and waits for the Godot client.
+    main() does NOT call godot_rl's sample_factory_training(); it consumes these fields directly:
+    the `_make_nested_godot_env` factory (bound via partial) reads args.env_path / args.speedup /
+    args.seed / args.viz, and parse_gdrl_args reads args.experiment_dir / args.experiment_name /
+    args.eval. env_path=None => in-editor training: SF opens the server and waits for the Godot client.
     """
     return argparse.Namespace(
         env_path=None,

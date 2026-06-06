@@ -50,6 +50,10 @@ cleanup() {
 	for pid in "${GODOT_PIDS[@]:-}"; do
 		[ -n "$pid" ] && kill "$pid" 2>/dev/null
 	done
+	# The watcher spawns Godot clients as its own children; reap them too. The normal exit path
+	# does this explicitly (below), but the trap must also cover abnormal exits (Ctrl-C, SIGTERM,
+	# a set -e abort before `wait`), or those clients leak as orphans.
+	[ -n "${WATCHER_PID:-}" ] && pkill -P "$WATCHER_PID" 2>/dev/null
 	[ -n "${TRAINER_PID:-}" ] && kill "$TRAINER_PID" 2>/dev/null
 	rm -f "$TRAINER_LOG"
 }
