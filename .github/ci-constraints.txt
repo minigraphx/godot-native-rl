@@ -1,0 +1,16 @@
+# CI dependency lock (pip `-c`). The requirements-*.txt files are intentionally unpinned ("latest"),
+# but on a clean runner pip can backtrack to an ancient ml_dtypes whose source build pins a yanked
+# numpy RC (numpy==2.0.0rc1), breaking `.venv-train` creation. These pins mirror the versions the
+# maintainer's working local .venv / .venv-train resolve to (captured 2026-06-06) — all have Linux
+# cp313/cp314 wheels, so nothing builds from source. Bump alongside the requirements files.
+numpy==2.4.6
+ml_dtypes==0.5.4
+onnx==1.19.0
+onnxruntime==1.26.0
+onnxscript==0.7.0
+protobuf==7.35.0
+torch==2.12.0
+gymnasium==1.0.0
+stable_baselines3==2.4.0
+godot-rl==0.8.2
+pnnx==20260526

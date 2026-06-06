@@ -158,17 +158,19 @@ jobs:
           path: |
             .venv
             .venv-train
-          key: venvs-${{ runner.os }}-py314-py313-${{ hashFiles('requirements-convert.txt', 'requirements-train.txt') }}-${{ env.CACHE_VERSION }}
+          key: venvs-${{ runner.os }}-py314-py313-${{ hashFiles('requirements-convert.txt', 'requirements-train.txt', '.github/ci-constraints.txt') }}-${{ env.CACHE_VERSION }}
 
       - name: Create venvs
         if: steps.cache-venvs.outputs.cache-hit != 'true'
         run: |
+          # -c .github/ci-constraints.txt locks the dep graph to the maintainer's known-good versions
+          # so pip doesn't backtrack to an old ml_dtypes that builds from source (yanked numpy RC).
           python3.14 -m venv .venv
           .venv/bin/pip install --upgrade pip
-          .venv/bin/pip install -r requirements-convert.txt
+          .venv/bin/pip install -c .github/ci-constraints.txt -r requirements-convert.txt
           python3.13 -m venv .venv-train
           .venv-train/bin/pip install --upgrade pip
-          .venv-train/bin/pip install -r requirements-train.txt
+          .venv-train/bin/pip install -c .github/ci-constraints.txt -r requirements-train.txt
 
       - name: Download Godot ${{ matrix.godot.version }} (headless)
         run: |
