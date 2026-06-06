@@ -30,4 +30,4 @@ script = ExtResource("4")
 game_path = NodePath("..")
 agent_path = NodePath("../BallChaseAgent")
 frames_to_run = 1800
-min_reaches = 3
+min_reaches = 8
