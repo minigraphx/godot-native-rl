@@ -435,6 +435,18 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     The Asset Library entry uses the `Custom` download provider pointed at the release-asset addon
     zip (prebuilt binaries are never committed to git). Full release runbook in
     `docs/dev/RELEASING.md`. Closes #32
+    - **Web/WASM build — done 2026-06-07** (spec/plan
+      `docs/superpowers/specs/2026-06-07-web-wasm-gdextension-build-design.md` /
+      `docs/superpowers/plans/2026-06-07-web-wasm-gdextension-build.md`). The web platform the
+      release workflow above doesn't yet cover. Single-threaded (`NCNN_THREADS=OFF` +
+      `scons threads=no`) WASM GDExtension via `scripts/cross/build_web.sh` (emsdk 3.1.64);
+      `web.wasm32` manifest keys; compile-only web CI leg. Deploy-side model loading switched to
+      byte buffers (`NcnnRunner.load_model_from_buffers` + controllers via `FileAccess`) since ncnn
+      can't `fopen` inside Godot's web `.pck`. **Proven in-browser**: the `chase_the_target` policy
+      runs native ncnn inference served with **no COOP/COEP headers** (itch.io / GitHub Pages work
+      unmodified) — `docs/dev/img/web-chase-proof.png`. Recipe + the export include-filter gotcha in
+      `docs/dev/building.md`. Follow-up: add the web target to `release.yml` so release zips ship the
+      `.wasm` too.
 36. ✅ **Deploy-side image inference (CameraSensor)** — feed a live `SubViewport` frame to native
     ncnn and act on the argmax; closes the camera train→deploy loop for discrete RGB policies.
     **Done 2026-06-01** — spec `docs/superpowers/specs/2026-06-01-deploy-side-image-inference-design.md`,
