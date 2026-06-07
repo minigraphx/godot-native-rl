@@ -4,6 +4,7 @@
 # Local build artifacts
 bin/
 *.os
+*.o
 .sconsign.dblite
 
 # Local dependencies (built/managed outside this repo)
