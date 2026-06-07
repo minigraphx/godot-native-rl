@@ -37,3 +37,6 @@ thirdparty/ncnn/tools-bin/
 
 # Claude Code runtime state (machine-local; settings.json IS tracked, the lock is not)
 .claude/scheduled_tasks.lock
+
+# Editor export output
+/build/
