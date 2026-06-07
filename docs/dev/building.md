@@ -200,6 +200,150 @@ windows.debug.x86_64 = "res://bin/libncnn_runner.windows.template_debug.x86_64.d
 windows.debug.arm64 = "res://bin/libncnn_runner.windows.template_debug.arm64.dll"
 ```
 
+## Cross-Compiling From a macOS Host (Windows / Linux / Android / iOS)
+
+All four non-host platforms can be built from a macOS (Apple Silicon) host. Each needs **its own
+ncnn static lib** (built for the target) plus the extension; the toolchain differs per target:
+
+| Target | Toolchain | Install |
+| --- | --- | --- |
+| Windows x86_64 | **zig** (`zig cc`/`zig c++`) via gcc/mingw-named shims | `brew install zig` |
+| Linux x86_64 | **zig** via gcc-named shims | `brew install zig` |
+| iOS (device + simulator) | **Apple clang** (full Xcode, not just CLT) | Xcode.app |
+| Android (arm64-v8a, x86_64) | **Android NDK** clang | `brew install --cask android-ndk` (+ see trap) |
+
+`SConstruct` has three knobs that make this work (native macOS builds are unaffected):
+
+- It prefers a **per-target ncnn** at `thirdparty/ncnn/build-<platform>-<arch>/install` over the
+  host `build/install`, so each target links the right arch.
+- `ncnn_openmp=no` skips the libgomp link (cross ncnn is built `NCNN_OPENMP=OFF` — no GNU OpenMP
+  runtime exists for these toolchains).
+- For linux/windows/android it pins the shared-object suffix to `.o` (clang rejects SCons's default
+  `.os` extension) and the library suffix to `.so`/`.dll`.
+
+### Windows + Linux (zig)
+
+zig ships a full cross clang/lld but no Android/iOS system libs, so it covers **Windows and Linux
+only**. Create shims with the exact compiler names godot-cpp expects and have them inject the
+`-target` triple, pin zig's cache dir (SCons/CMake scrub `HOME`), and drop gcc/mingw-only flags
+clang rejects (`-static`, `-fno-gnu-unique`, `-m64`, `-march=x86-64`; translate `-Wl,-R,` →
+`-Wl,-rpath,`). Keep ncnn's per-file SIMD flags (`-mavx2`/`-msse2`/...).
+
+```bash
+# Shim driver (one file). Names: linux -> cc/c++/gcc/g++/ar/ranlib;
+# windows -> x86_64-w64-mingw32-{gcc,g++,gcc-ar,ranlib} + ar/ranlib.
+# Each compiler shim sets ZIG_LANG=cc|c++ and ZIG_TARGET=x86_64-linux-gnu|x86_64-windows-gnu
+# then execs the driver; ar/ranlib shims exec `zig ar`/`zig ranlib`.
+```
+
+ncnn (per target, via a CMake toolchain file pointing `CMAKE_C/CXX_COMPILER` at the shims and
+`CMAKE_SYSTEM_NAME=Linux|Windows`):
+
+```bash
+cmake -S thirdparty/ncnn -B thirdparty/ncnn/build-linux-x86_64 \
+  -DCMAKE_TOOLCHAIN_FILE=<toolchain-linux.cmake> -DCMAKE_BUILD_TYPE=Release \
+  -DNCNN_BUILD_TOOLS=OFF -DNCNN_BUILD_EXAMPLES=OFF -DNCNN_BUILD_BENCHMARK=OFF \
+  -DNCNN_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=OFF -DNCNN_SHARED_LIB=OFF \
+  -DNCNN_OPENMP=OFF -DNCNN_VULKAN=OFF -DNCNN_THREADS=ON
+cmake --build thirdparty/ncnn/build-linux-x86_64 -j8
+cmake --install thirdparty/ncnn/build-linux-x86_64 --prefix thirdparty/ncnn/build-linux-x86_64/install
+```
+
+Extension (shims on `PATH`):
+
+```bash
+PATH="<shims-linux>:$PATH"   scons platform=linux   arch=x86_64 target=template_debug ncnn_openmp=no
+PATH="<shims-windows>:$PATH" scons platform=windows arch=x86_64 target=template_debug ncnn_openmp=no
+```
+
+Result: a Linux `.so` depending only on libc/libm/libpthread/libdl (no libstdc++/libgomp), and a
+self-contained Windows `.dll` importing only UCRT + KERNEL32 (no mingw runtime DLLs).
+
+### iOS (device + simulator)
+
+Needs **full Xcode** (the iOS SDK ships only inside Xcode.app; the standalone Command Line Tools
+carry the macOS SDK only). No zig. Build ncnn for device arm64 and both simulator arches, then
+`lipo` the two simulator arches into one fat lib:
+
+```bash
+# device (iphoneos) and simulator (iphonesimulator) builds, per arch:
+cmake -S thirdparty/ncnn -B thirdparty/ncnn/build-ios-arm64 \
+  -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphoneos -DCMAKE_OSX_ARCHITECTURES=arm64 \
+  -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DNCNN_OPENMP=OFF -DNCNN_VULKAN=OFF <...static flags...>
+# repeat with SYSROOT=iphonesimulator for arm64 and x86_64, then:
+lipo -create <sim-arm64>/libncnn.a <sim-x86_64>/libncnn.a -output build-ios-universal/install/lib/libncnn.a
+cp -R <sim-arm64-install>/include build-ios-universal/install/include
+```
+
+Extension (device = arm64; simulator = universal):
+
+```bash
+scons platform=ios arch=arm64     target=template_debug                    # -> build-ios-arm64
+scons platform=ios arch=universal target=template_debug ios_simulator=yes  # -> build-ios-universal
+```
+
+godot-cpp appends `.simulator` to the simulator output's suffix, so device and simulator never
+collide (`...arm64.dylib` vs `...universal.simulator.dylib`). Bundle them into an `.xcframework`
+per config and reference that (no arch key) in the manifest:
+
+```bash
+xcodebuild -create-xcframework \
+  -library bin/libncnn_runner.ios.template_debug.arm64.dylib \
+  -library bin/libncnn_runner.ios.template_debug.universal.simulator.dylib \
+  -output  bin/libncnn_runner.ios.template_debug.xcframework
+```
+```ini
+ios.debug = "res://bin/libncnn_runner.ios.template_debug.xcframework"
+ios.release = "res://bin/libncnn_runner.ios.template_release.xcframework"
+```
+
+### Android (arm64-v8a + x86_64)
+
+Needs the **Android NDK** (zig can't target Android — no bionic libc).
+`brew install --cask android-ndk`.
+
+> **Gatekeeper trap.** The cask sets `com.apple.quarantine` and the NDK is a *code-signed `.app`
+> bundle* — every NDK clang call then hangs on a first-run Gatekeeper assessment, and the xattr
+> can't be stripped in place (sealed bundle → "Operation not permitted"; Homebrew has removed
+> `--no-quarantine`). Fix: copy the toolchain **out** of the bundle (detaches the seal):
+> ```bash
+> ditto --noqtn /opt/homebrew/Caskroom/android-ndk/*/AndroidNDK*.app/Contents/NDK ~/android-ndk-r29
+> xattr -cr ~/android-ndk-r29
+> ```
+> Use `~/android-ndk-r29` as the NDK root thereafter.
+
+ncnn (per ABI, via the NDK's CMake toolchain):
+
+```bash
+NDK=~/android-ndk-r29
+cmake -S thirdparty/ncnn -B thirdparty/ncnn/build-android-arm64 \
+  -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+  -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24 -DCMAKE_BUILD_TYPE=Release \
+  -DNCNN_OPENMP=OFF -DNCNN_VULKAN=OFF <...static flags...>   # repeat with ANDROID_ABI=x86_64
+```
+
+Extension — the **`ANDROID_HOME=` (empty) arg is required**: godot-cpp's `android.py` does
+`if env["ANDROID_HOME"]` but its default resolves to `None` so the key is never created
+(`KeyError`); passing empty makes it fall through to `ANDROID_NDK_ROOT`:
+
+```bash
+ANDROID_NDK_ROOT=~/android-ndk-r29 scons platform=android arch=arm64  target=template_debug ncnn_openmp=no ANDROID_HOME=
+ANDROID_NDK_ROOT=~/android-ndk-r29 scons platform=android arch=x86_64 target=template_debug ncnn_openmp=no ANDROID_HOME=
+```
+```ini
+android.debug.arm64 = "res://bin/libncnn_runner.android.template_debug.arm64.so"
+android.debug.x86_64 = "res://bin/libncnn_runner.android.template_debug.x86_64.so"
+```
+
+The Android `.so` depends on `libc++_shared.so`, which Godot's Android export template ships.
+arm64-v8a covers real devices and the Apple-Silicon emulator; x86_64 covers the emulator on x86
+hosts.
+
+> **Status:** these cross-builds are verified by binary inspection (correct ELF/PE/Mach-O, the
+> `ncnn_runner_library_init` entry symbol exported, clean dependencies) but have **not yet been
+> runtime-tested** on each target OS. The macOS arm64 build is the only one exercised by the test
+> suite today.
+
 ## Manual ONNX → ncnn conversion (internals)
 
 > The one-command path (`scripts/export_to_ncnn.py`) is documented for game developers in
