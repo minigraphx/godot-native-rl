@@ -15,7 +15,14 @@ if not os.path.isdir(ncnn_root):
     print("Error: ncnn root was not found at {}".format(ncnn_root))
     Exit(1)
 
+# Per-target cross/native build dir (e.g. build-linux-x86_64, build-windows-x86_64), so a
+# cross-compiled ncnn is preferred over the host build/install (which holds the host arch).
+_target_arch = requested_arch or str(env.get("arch", ""))
+ncnn_target_build = os.path.join(ncnn_root, "build-{}-{}".format(env["platform"], _target_arch))
+
 ncnn_include_candidates = [
+    os.path.join(ncnn_target_build, "install", "include"),
+    os.path.join(ncnn_target_build, "install", "include", "ncnn"),
     os.path.join(ncnn_root, "include"),
     os.path.join(ncnn_root, "src"),
     os.path.join(ncnn_root, "build", "src"),
@@ -41,11 +48,14 @@ env.Append(CPPPATH=ncnn_include_paths)
 
 if env["platform"] == "windows":
     ncnn_static_candidates = [
+        os.path.join(ncnn_target_build, "install", "lib", "ncnn.lib"),
+        os.path.join(ncnn_target_build, "install", "lib", "libncnn.a"),
         os.path.join(ncnn_root, "build", "install", "lib", "ncnn.lib"),
         os.path.join(ncnn_root, "build", "install", "lib", "libncnn.a"),
     ]
 else:
     ncnn_static_candidates = [
+        os.path.join(ncnn_target_build, "install", "lib", "libncnn.a"),
         os.path.join(ncnn_root, "build", "install", "lib", "libncnn.a"),
         os.path.join(ncnn_root, "build", "src", "libncnn.a"),
     ]
@@ -92,8 +102,26 @@ env.Append(LIBS=[File(ncnn_static_lib)])
 # (GOMP_parallel) and pthreads. These must be linked AFTER libncnn.a — so the linker's default
 # --as-needed keeps libgomp in DT_NEEDED — or the extension fails to load on Linux with
 # "undefined symbol: GOMP_parallel". (macOS resolves its own OpenMP runtime, so scope to Linux.)
+# ncnn built with OpenMP (the native default) needs libgomp; a build with NCNN_OPENMP=OFF
+# (e.g. the zig cross-compile, which has no libgomp) must not link it. Gate with ncnn_openmp=.
+_ncnn_openmp = str(ARGUMENTS.get("ncnn_openmp", "yes")).lower() not in ("0", "no", "false")
 if env["platform"] == "linux":
-    env.Append(LIBS=["gomp", "pthread"])
+    env.Append(LIBS=(["gomp", "pthread"] if _ncnn_openmp else ["pthread"]))
+
+# When cross-compiling from a macOS host, SCons keeps host-derived suffixes: the shared
+# library would be named ".dylib" (not ".so") and shared objects ".os" (which clang/zig
+# reject as an "unrecognized file extension"). Pin the target's own suffixes. godot-cpp's
+# own objects are already built at this point, so changing SHOBJSUFFIX is safe.
+if env["platform"] == "linux":
+    env["SHLIBSUFFIX"] = ".so"
+    env["SHOBJSUFFIX"] = ".o"
+elif env["platform"] == "windows":
+    env["SHLIBSUFFIX"] = ".dll"
+    env["SHOBJSUFFIX"] = ".o"
+elif env["platform"] == "android":
+    # SHLIBSUFFIX is already ".so" (set by godot-cpp's android tool); just fix the
+    # shared-object extension the NDK clang would otherwise reject on a macOS host.
+    env["SHOBJSUFFIX"] = ".o"
 
 library = env.SharedLibrary(
     target=os.path.join("bin", "libncnn_runner{}{}".format(env["suffix"], env["SHLIBSUFFIX"])),
