@@ -1,0 +1,178 @@
+name: Release
+
+# Tag-triggered. Push vX.Y.Z to build all platforms (debug+release), assemble the addon +
+# examples zips, smoke-test the packaged addon, and publish a GitHub Release. The addon zip's
+# sha256 is printed in the release notes for the Asset Library Custom-download entry.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write   # create the GitHub Release
+
+env:
+  GODOT_CPP_BRANCH: "4.5"
+  NCNN_TAG: "20260526"
+  NCNN_JOBS: "2"
+  ADDON_BIN: addons/godot_native_rl/bin
+
+jobs:
+  guard:
+    name: Version guard
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert tag matches plugin.cfg version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          cfg="$(sed -n 's/^version="\(.*\)"/\1/p' addons/godot_native_rl/plugin.cfg)"
+          echo "tag=$tag  plugin.cfg=$cfg"
+          if [ "$tag" != "$cfg" ]; then
+            echo "::error::tag v$tag does not match plugin.cfg version $cfg"; exit 1
+          fi
+
+  # Linux/Windows (zig) + Android (NDK) — one target per leg, on Linux runners.
+  build-unix:
+    name: build ${{ matrix.target }}
+    needs: guard
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [linux, windows, android-arm64, android-x86_64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential scons cmake git python3
+      - name: Install zig
+        if: matrix.target == 'linux' || matrix.target == 'windows'
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+      - name: Clone godot-cpp + ncnn
+        run: |
+          git clone -b "${GODOT_CPP_BRANCH}" --depth 1 https://github.com/godotengine/godot-cpp.git
+          mkdir -p thirdparty
+          git clone -b "${NCNN_TAG}" --depth 1 https://github.com/Tencent/ncnn.git thirdparty/ncnn
+      - name: Build
+        run: |
+          case "${{ matrix.target }}" in
+            linux|windows) scripts/cross/build_zig.sh "${{ matrix.target }}" ;;
+            android-arm64) ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME" scripts/cross/build_android.sh arm64 ;;
+            android-x86_64) ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME" scripts/cross/build_android.sh x86_64 ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.target }}
+          path: ${{ env.ADDON_BIN }}/
+          if-no-files-found: error
+
+  # macOS host (arm64) + iOS device/simulator — needs Xcode, so a macOS runner.
+  build-macos:
+    name: build macos+ios
+    needs: guard
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install scons
+        run: brew install scons
+      - name: Clone godot-cpp + ncnn
+        run: |
+          git clone -b "${GODOT_CPP_BRANCH}" --depth 1 https://github.com/godotengine/godot-cpp.git
+          mkdir -p thirdparty
+          git clone -b "${NCNN_TAG}" --depth 1 https://github.com/Tencent/ncnn.git thirdparty/ncnn
+      - name: Build macOS host (arm64, debug+release)
+        run: |
+          scons platform=macos arch=arm64 target=template_debug -j"$(sysctl -n hw.ncpu)"
+          scons platform=macos arch=arm64 target=template_release -j"$(sysctl -n hw.ncpu)"
+      - name: Build iOS (device + simulator)
+        run: scripts/cross/build_ios.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-macos-ios
+          path: ${{ env.ADDON_BIN }}/
+          if-no-files-found: error
+
+  package:
+    name: package + publish
+    needs: [build-unix, build-macos]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect all platform binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*
+          merge-multiple: true
+          path: ${{ env.ADDON_BIN }}
+      - name: Sanity-check the binary set
+        run: |
+          ls -la "$ADDON_BIN"
+          for f in \
+            libncnn_runner.macos.template_release.arm64.dylib \
+            libncnn_runner.windows.template_release.x86_64.dll \
+            libncnn_runner.linux.template_release.x86_64.so \
+            libncnn_runner.android.template_release.arm64.so \
+            libncnn_runner.ios.template_release.xcframework ; do
+            test -e "$ADDON_BIN/$f" || { echo "::error::missing $f"; exit 1; }
+          done
+      - name: Assemble zips
+        run: |
+          ver="${GITHUB_REF_NAME}"
+          mkdir -p dist
+          # Addon zip: the whole addon (GDScript + .gdextension + bin/), drop-in at a project root.
+          zip -r -q "dist/godot-native-rl-addon-${ver}.zip" addons/godot_native_rl
+          # Examples zip: lean — example scenes + a sample model + a short README. No binaries.
+          cp .github/release/examples-README.md examples/README_RELEASE.md
+          zip -r -q "dist/godot-native-rl-examples-${ver}.zip" examples models/chase_cleanrl_policy.ncnn.param models/chase_cleanrl_policy.ncnn.bin examples/README_RELEASE.md \
+            -x 'examples/**/*.import'
+          ( cd dist && sha256sum ./*.zip > SHA256SUMS.txt )
+          cat dist/SHA256SUMS.txt
+      - name: Drop-in smoke (extract addon zip into a clean project, load NcnnRunner)
+        run: |
+          GODOT_URL="https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_linux.x86_64.zip"
+          curl -fsSL "$GODOT_URL" -o godot.zip
+          unzip -q godot.zip
+          godot_bin="$(ls Godot_v4.5-stable_linux.x86_64)"
+          chmod +x "$godot_bin"
+          mkdir -p smoke/proj
+          ( cd smoke/proj && unzip -q "$GITHUB_WORKSPACE/dist/godot-native-rl-addon-${GITHUB_REF_NAME}.zip" )
+          printf '%s\n' 'config_version=5' '[application]' 'config/features=PackedStringArray("4.5")' > smoke/proj/project.godot
+          cat > smoke/proj/smoke.gd <<'EOF'
+          extends SceneTree
+          func _init() -> void:
+              var r := ClassDB.instantiate("NcnnRunner")
+              if r == null:
+                  push_error("NcnnRunner not registered — extension failed to load")
+                  quit(1)
+              else:
+                  print("OK: NcnnRunner loaded from packaged addon")
+                  quit(0)
+          EOF
+          "$GITHUB_WORKSPACE/$godot_bin" --headless --path smoke/proj --script res://smoke.gd
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ver="${GITHUB_REF_NAME}"
+          notes="$(mktemp)"
+          {
+            echo "## Install"
+            echo "- **Asset Library:** search \"Godot Native RL\" in the editor's AssetLib tab."
+            echo "- **Manual:** download \`godot-native-rl-addon-${ver}.zip\` and unzip at your project root."
+            echo "- Examples: also grab \`godot-native-rl-examples-${ver}.zip\` (needs the addon zip too)."
+            echo
+            echo "### addon zip sha256 (for the Asset Library Custom download)"
+            echo '```'
+            grep 'addon' dist/SHA256SUMS.txt
+            echo '```'
+          } > "$notes"
+          gh release create "$ver" \
+            dist/godot-native-rl-addon-${ver}.zip \
+            dist/godot-native-rl-examples-${ver}.zip \
+            dist/SHA256SUMS.txt \
+            --title "$ver" \
+            --notes-file "$notes" \
+            --generate-notes
