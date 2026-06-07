@@ -2,7 +2,7 @@
 .godot/
 
 # Local build artifacts
-bin/
+addons/godot_native_rl/bin/
 *.os
 *.o
 .sconsign.dblite
