@@ -5,9 +5,11 @@
 
 #include <mat.h>
 #include <net.h>
+#include <datareader.h>
 
 #include <cstring>
 #include <limits>
+#include <vector>
 
 using namespace godot;
 
@@ -18,6 +20,7 @@ NcnnRunner::~NcnnRunner() = default;
 
 void NcnnRunner::_bind_methods() {
     ClassDB::bind_method(D_METHOD("load_model", "param_path", "bin_path"), &NcnnRunner::load_model);
+    ClassDB::bind_method(D_METHOD("load_model_from_buffers", "param", "bin"), &NcnnRunner::load_model_from_buffers);
     ClassDB::bind_method(D_METHOD("run_inference", "input"), &NcnnRunner::run_inference);
     ClassDB::bind_method(D_METHOD("run_inference_image", "image", "normalize_to_zero_one"), &NcnnRunner::run_inference_image, DEFVAL(true));
     ClassDB::bind_method(D_METHOD("run_inference_multi", "inputs", "output_names"), &NcnnRunner::run_inference_multi);
@@ -58,6 +61,41 @@ bool NcnnRunner::load_model(const String &p_param_path, const String &p_bin_path
     const int bin_result = net_->load_model(bin_utf8.get_data());
     if (bin_result != 0) {
         UtilityFunctions::push_error("NcnnRunner.load_model: failed to load bin file: ", p_bin_path);
+        net_.reset();
+        return false;
+    }
+
+    model_loaded_ = true;
+    return true;
+}
+
+bool NcnnRunner::load_model_from_buffers(const PackedByteArray &p_param, const PackedByteArray &p_bin) {
+    if (p_param.is_empty() || p_bin.is_empty()) {
+        UtilityFunctions::push_error("NcnnRunner.load_model_from_buffers: param and bin buffers must be non-empty.");
+        return false;
+    }
+
+    net_ = std::make_unique<ncnn::Net>();
+    model_loaded_ = false;
+
+    // ncnn's load_param_mem() needs a NUL-terminated C string of the text .param.
+    std::vector<char> param_text(p_param.size() + 1);
+    std::memcpy(param_text.data(), p_param.ptr(), p_param.size());
+    param_text[p_param.size()] = '\0';
+
+    const int param_result = net_->load_param_mem(param_text.data());
+    if (param_result != 0) {
+        UtilityFunctions::push_error("NcnnRunner.load_model_from_buffers: failed to parse param buffer.");
+        net_.reset();
+        return false;
+    }
+
+    // The .bin weights load from an advancing memory cursor via DataReaderFromMemory.
+    const unsigned char *bin_cursor = reinterpret_cast<const unsigned char *>(p_bin.ptr());
+    ncnn::DataReaderFromMemory bin_reader(bin_cursor);
+    const int bin_result = net_->load_model(bin_reader);
+    if (bin_result != 0) {
+        UtilityFunctions::push_error("NcnnRunner.load_model_from_buffers: failed to load bin buffer.");
         net_.reset();
         return false;
     }
