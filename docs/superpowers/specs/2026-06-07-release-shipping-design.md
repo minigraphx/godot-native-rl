@@ -44,6 +44,28 @@ branch (they share one `.git`) bloats history permanently — ~1.7 GB after 10 r
   can inspect source. No dist repo needed (and none kept as fallback — the public source
   removes the only reason moderation would have balked at a custom download URL).
 
+## Verification (2026-06-07)
+
+The load-bearing assumption — AssetLib can point its *download* at a GitHub release-asset zip
+without committing binaries — was verified against current sources:
+
+- The AssetLib backend's download-provider enum includes **`Custom`** (alongside GitHub /
+  GitLab / Bitbucket / gogs / cgit). In `Custom` mode the "Download Commit" field holds the
+  **full download URL** instead of a git commit hash.
+- The canonical GDExtension publishing template
+  ([`nathanfranke/gdextension`](https://github.com/nathanfranke/gdextension), current through
+  Godot 4.3+) ships binary GDExtensions exactly this way: CI builds all platforms into a
+  gitignored `bin/`, a **GitHub Release** carries the addon zip as an asset, and the AssetLib
+  entry uses **Repository host = `Custom`, Download URL = the release-asset link**. It
+  explicitly warns against Actions artifacts (they expire) — use release assets.
+- [Issue #63](https://github.com/godotengine/godot-asset-library/issues/63), which *proposed
+  banning* custom download URLs to enforce "1 repo == 1 addon", was **closed without
+  enforcement** — `Custom` remains live and is the recommended path for binary addons.
+
+⇒ The custom-URL approach is the ecosystem norm, not a workaround. No dist repo is needed,
+including as a fallback. (Keeping `bin/` gitignored + CI-built also matches the template's
+own convention.)
+
 ## Architecture
 
 ```
