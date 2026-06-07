@@ -35,7 +35,7 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   clone) and a *stale* one (after a branch switch that moved/removed a `class_name` file); you no longer
   need to `rm` it manually. See the fresh-clone trap below.)
 - **CI:** `.github/workflows/ci.yml` runs on PRs/pushes to `main`. A `build` job compiles the
-  GDExtension once (godot-cpp `4.5` + ncnn tag `20260526`, both cached) and uploads `bin/`; a `test`
+  GDExtension once (godot-cpp `4.5` + ncnn tag `20260526`, both cached) and uploads `addons/godot_native_rl/bin/`; a `test`
   matrix runs the full `test/run_tests.sh` under Godot **4.5 + 4.6** (`.venv`/`.venv-train` cached).
   The SF smoke auto-skips (no `.venv-sf` in CI). Bump `CACHE_VERSION` in the workflow to force a cold
   rebuild; bump the Godot patch versions in the `test` matrix to track new releases.
@@ -116,7 +116,7 @@ daily:
   (also runs `export_to_ncnn.py`); `.venv-sf` (3.13, SampleFactory — pins `gymnasium<1.0`, so
   isolated) for the SF backend only. Create all three with `./scripts/setup_training.sh`.
 - **macOS: never sleep during training** — wrap in `caffeinate -is`.
-- **Rebuild the extension on a fresh clone** — `bin/` is gitignored.
+- **Rebuild the extension on a fresh clone** — `addons/godot_native_rl/bin/` is gitignored.
 
 ## Conventions
 

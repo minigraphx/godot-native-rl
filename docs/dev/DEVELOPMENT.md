@@ -14,7 +14,7 @@ Two layers, deliberately separated:
 
 - **C++ GDExtension (inference)** — `src/ncnn_runner.{h,cpp}` exposes `NcnnRunner` (load ncnn
   `.param`/`.bin`, run a forward pass, `run_discrete_action` = argmax). Statically links ncnn from
-  `thirdparty/ncnn`. Manifest `ncnn_runner.gdextension`, binaries in `bin/`. This is the moat: native
+  `thirdparty/ncnn`. Manifest `ncnn_runner.gdextension`, binaries in `addons/godot_native_rl/bin/`. This is the moat: native
   inference with no .NET/runtime, deployable to web/console/mobile.
 - **GDScript library (training bridge + authoring)** — `addons/godot_native_rl/`:
   - `sync.gd` (`NcnnSync`) — the godot_rl wire-protocol bridge (TCP client, port 11008).

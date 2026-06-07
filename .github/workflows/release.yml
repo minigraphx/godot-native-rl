@@ -115,6 +115,7 @@ jobs:
             libncnn_runner.windows.template_release.x86_64.dll \
             libncnn_runner.linux.template_release.x86_64.so \
             libncnn_runner.android.template_release.arm64.so \
+            libncnn_runner.android.template_release.x86_64.so \
             libncnn_runner.ios.template_release.xcframework ; do
             test -e "$ADDON_BIN/$f" || { echo "::error::missing $f"; exit 1; }
           done
@@ -132,10 +133,10 @@ jobs:
           cat dist/SHA256SUMS.txt
       - name: Drop-in smoke (extract addon zip into a clean project, load NcnnRunner)
         run: |
-          GODOT_URL="https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_linux.x86_64.zip"
+          GODOT_URL="https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip"
           curl -fsSL "$GODOT_URL" -o godot.zip
           unzip -q godot.zip
-          godot_bin="$(ls Godot_v4.5-stable_linux.x86_64)"
+          godot_bin="$(ls Godot_v4.5.2-stable_linux.x86_64)"
           chmod +x "$godot_bin"
           mkdir -p smoke/proj
           ( cd smoke/proj && unzip -q "$GITHUB_WORKSPACE/dist/godot-native-rl-addon-${GITHUB_REF_NAME}.zip" )
