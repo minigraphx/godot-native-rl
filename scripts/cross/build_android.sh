@@ -40,4 +40,4 @@ for cfg in template_debug template_release; do
 done
 
 echo "== built android $arch =="
-ls -la bin/ | grep android || true
+ls -la addons/godot_native_rl/bin/ | grep android || true

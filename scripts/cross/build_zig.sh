@@ -42,4 +42,4 @@ for cfg in template_debug template_release; do
 done
 
 echo "== built $plat $arch =="
-ls -la bin/ | grep "$plat" || true
+ls -la addons/godot_native_rl/bin/ | grep "$plat" || true

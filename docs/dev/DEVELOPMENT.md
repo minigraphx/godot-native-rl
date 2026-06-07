@@ -191,7 +191,7 @@ path: end-to-end per-step argmax + logit parity (`atol 1e-2`) and reset-reproduc
 model's conversion ever prunes those blobs, the fallback is to **hand-author the `.param`** state
 blobs (and the sidecar names them either way).
 
-**Rebuild required.** `run_inference_multi` changed the C++ ABI and `bin/` is gitignored, so a fresh
+**Rebuild required.** `run_inference_multi` changed the C++ ABI and `addons/godot_native_rl/bin/` is gitignored, so a fresh
 clone (or anyone pulling this branch) **must rebuild** the extension —
 `scons platform=... target=template_debug` **and** `target=template_release` — or `NcnnRunner` won't
 expose the new method.
