@@ -99,3 +99,37 @@ jobs:
           name: cross-ios
           path: addons/godot_native_rl/bin/
           if-no-files-found: error
+
+  # Web (WASM) — emscripten, single-threaded (NCNN_THREADS=OFF + scons threads=no). Compile-only;
+  # the in-browser proof is manual (documented in docs/dev/building.md), since CI has no browser.
+  web:
+    name: web
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential scons cmake git python3
+
+      - name: Setup emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
+
+      - name: Clone godot-cpp + ncnn
+        run: |
+          git clone -b "${GODOT_CPP_BRANCH}" --depth 1 https://github.com/godotengine/godot-cpp.git
+          mkdir -p thirdparty
+          git clone -b "${NCNN_TAG}" --depth 1 https://github.com/Tencent/ncnn.git thirdparty/ncnn
+
+      - name: Build web (wasm32)
+        run: scripts/cross/build_web.sh
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-web
+          path: bin/
+          if-no-files-found: error
