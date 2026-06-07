@@ -91,6 +91,8 @@ bool NcnnRunner::load_model_from_buffers(const PackedByteArray &p_param, const P
     }
 
     // The .bin weights load from an advancing memory cursor via DataReaderFromMemory.
+    // DataReaderFromMemory carries no length bound, so the .bin/.param are trusted
+    // app-bundled assets (same trust model as the path-based load_model).
     const unsigned char *bin_cursor = reinterpret_cast<const unsigned char *>(p_bin.ptr());
     ncnn::DataReaderFromMemory bin_reader(bin_cursor);
     const int bin_result = net_->load_model(bin_reader);

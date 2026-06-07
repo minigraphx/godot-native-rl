@@ -50,5 +50,11 @@ func _initialize() -> void:
 			h.assert_eq(a.run_discrete_action(obs), want, "A parity for %s" % str(obs_values))
 			h.assert_eq(b.run_discrete_action(obs), want, "B parity for %s" % str(obs_values))
 
+	# Empty buffers must fail closed (the non-empty guard).
+	var empty := _make_runner()
+	h.assert_true(not empty.load_model_from_buffers(PackedByteArray(), bin_bytes), "empty param buffer rejected")
+	h.assert_true(not empty.load_model_from_buffers(param_bytes, PackedByteArray()), "empty bin buffer rejected")
+	empty.free()
+
 	ref.free(); a.free(); b.free()
 	h.finish(self)
