@@ -15,3 +15,5 @@ android.debug.arm64 = "res://addons/godot_native_rl/bin/libncnn_runner.android.t
 android.release.arm64 = "res://addons/godot_native_rl/bin/libncnn_runner.android.template_release.arm64.so"
 android.debug.x86_64 = "res://addons/godot_native_rl/bin/libncnn_runner.android.template_debug.x86_64.so"
 android.release.x86_64 = "res://addons/godot_native_rl/bin/libncnn_runner.android.template_release.x86_64.so"
+web.debug.wasm32 = "res://addons/godot_native_rl/bin/libncnn_runner.web.template_debug.wasm32.nothreads.wasm"
+web.release.wasm32 = "res://addons/godot_native_rl/bin/libncnn_runner.web.template_release.wasm32.nothreads.wasm"
