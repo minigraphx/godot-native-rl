@@ -31,6 +31,21 @@ of the goal bearing + normalized distance. It ships with a pre-trained ncnn mode
 a golden-inference regression. The headless smoke test (`test/integration/rover_smoke_scene.tscn`)
 exercises the full obs + physics-raycast pipeline.
 
+Run the visible, autonomous demo from the editor, or directly:
+
+```bash
+godot --path . res://examples/rover_3d/rover_3d.tscn
+```
+
+The same play scene supports headless execution; rendering nodes are loaded but do not render:
+
+```bash
+godot --headless --path . --quit-after 300 res://examples/rover_3d/rover_3d.tscn
+```
+
+Use `rover_3d_train.tscn` only with the Python trainer. It waits for the training socket and is
+not the standalone demo.
+
 For parallel training (8 agents tiled in one process for ~6× faster training), see
 [training.md](training.md).
 
