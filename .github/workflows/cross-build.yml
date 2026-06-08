@@ -133,4 +133,3 @@ jobs:
           name: cross-web
           path: addons/godot_native_rl/bin/
           if-no-files-found: error
-          if-no-files-found: error
