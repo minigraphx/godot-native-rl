@@ -52,7 +52,7 @@ You don't need the C++/SCons/ncnn toolchain to *use* this framework — just the
 
 - **Asset Library (in-editor):** open the **AssetLib** tab in Godot 4.5+, search
   "Godot Native RL", install. It drops `addons/godot_native_rl/` (with native binaries for
-  macOS/Windows/Linux/Android/iOS) into your project.
+  macOS/Windows/Linux/Android/iOS/web) into your project.
 - **Manual:** download `godot-native-rl-addon-<version>.zip` from
   [Releases](../../releases) and unzip at your project root. For the demo scenes, also grab
   `godot-native-rl-examples-<version>.zip` (drop it in alongside the addon).
@@ -60,6 +60,23 @@ You don't need the C++/SCons/ncnn toolchain to *use* this framework — just the
 Then enable the plugin in **Project → Project Settings → Plugins**.
 
 Building from source is covered in [CONTRIBUTING.md](CONTRIBUTING.md) → [docs/dev/](docs/dev/).
+
+## Compatibility
+
+- **Godot:** 4.5+ (`compatibility_minimum = 4.5`); the test suite runs in CI on 4.5.2 and 4.6.3.
+- **Platforms** — prebuilt binaries ship for all; runtime-verification status:
+
+| Platform              | Toolchain   | Status                          |
+|-----------------------|-------------|---------------------------------|
+| Linux x86_64          | native GCC  | ✅ verified (CI smoke + tests)  |
+| macOS arm64           | native      | ✅ verified                     |
+| Web / WASM            | emscripten  | ✅ verified (in-browser)        |
+| Windows x86_64        | zig         | 🔨 builds; runtime check pending |
+| Android arm64/x86_64  | Android NDK | 🔨 builds; runtime check pending |
+| iOS arm64             | Xcode       | 🔨 builds; runtime check pending |
+
+"🔨 builds" means the binary compiles and links in CI but hasn't yet been loaded on a real
+device/runtime — contributions verifying these are welcome.
 
 ## Contributing / building from source
 Building the GDExtension, architecture, and dev notes:
