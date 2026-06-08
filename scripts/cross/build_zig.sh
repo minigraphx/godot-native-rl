@@ -37,8 +37,12 @@ if [ ! -f "$ncnn_build/install/lib/libncnn.a" ]; then
 fi
 
 export PATH="$shimdir:$PATH"
+# use_static_cpp=yes statically links the C++ runtime (-static-libstdc++/-static-libgcc) so the
+# binary is self-contained. Windows defaults this on; Linux defaults it OFF, which left libc++'s
+# std::string extern-template instantiations undefined in the .so (loaded fine to link, but failed
+# at runtime with 'undefined symbol: std::__1::basic_string::push_back'). Force it on for both.
 for cfg in template_debug template_release; do
-  scons platform="$plat" arch="$arch" target="$cfg" ncnn_openmp=no -j"$CPUS"
+  scons platform="$plat" arch="$arch" target="$cfg" ncnn_openmp=no use_static_cpp=yes -j"$CPUS"
 done
 
 echo "== built $plat $arch =="
