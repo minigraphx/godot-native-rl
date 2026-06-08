@@ -49,6 +49,7 @@ jobs:
           sudo apt-get install -y build-essential scons cmake git python3
       - name: Install zig
         if: matrix.target == 'windows'
+        # Still Node 20 (no Node 24 release upstream yet); GitHub auto-migrates it on 2026-06-16.
         uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
@@ -148,7 +149,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential scons cmake git python3
       - name: Setup emscripten
-        uses: mymindstorm/setup-emsdk@v14
+        uses: emscripten-core/setup-emsdk@v16   # repo moved from mymindstorm/; v16 runs on Node 24
         with:
           version: 3.1.64
       - name: Clone godot-cpp + ncnn
