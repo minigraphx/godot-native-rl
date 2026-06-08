@@ -104,6 +104,9 @@ obs vector ──(optional ObsNormalize)──► policy network (ncnn) ──�
   - `continuous` → the segment as-is, optionally `tanh`-squashed (`"squash": true`). PPO/A2C and
     TD3/DDPG deterministic actors pass the **mean** through; SAC's squashed-Gaussian deploys as
     `tanh(mean)` via the `squash` flag. All share the one continuous path.
+    - SAC's actor is exported with `scripts/export_sac_torchscript.py` (traces `tanh(mean)` to
+      TorchScript → pnnx); `torch.onnx.export` can't export SAC under torch ≥2.x (dynamo guard on
+      `Normal(mean, std)`). See `docs/ncnn_vs_onnx.md` and issue #81.
 - **Obs normalization is a VecEnv wrapper, not an algorithm feature.** `ObsNormalize` replays SB3
   `VecNormalize` running mean/var (it lives in a side `.pkl`, not the network), used by PPO/A2C/SAC/…
   alike — so it's algorithm-independent too.
