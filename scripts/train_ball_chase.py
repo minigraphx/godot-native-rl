@@ -20,7 +20,7 @@ import sys
 
 # Reuse the sidecar writer from the converter (import-light: no torch at module load).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from export_to_ncnn import write_shape_sidecar  # noqa: E402
+from export_sac_torchscript import export_sac_actor_as_torchscript  # noqa: E402
 
 _CKPT_RE = re.compile(r"^ball_chase_ckpt_(\d+)_steps\.zip$")
 
@@ -62,37 +62,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--checkpoint_dir", type=str, default="models/ball_chase_checkpoints")
     p.add_argument("--fresh", action="store_true", help="ignore any checkpoint and start over")
     return p.parse_args(argv)
-
-
-def export_sac_actor_as_torchscript(model, pt_path: pathlib.Path):
-    """Trace SAC's deterministic actor `tanh(mu(latent_pi(features)))` to `pt_path` + sidecar.
-
-    Returns (pt_path, sidecar_path). Equivalent to actor(obs, deterministic=True) but built
-    without the action distribution, so torch.jit.trace stays on the legacy path (avoids the
-    dynamo GuardOnDataDependentSymNode that breaks torch.onnx.export for SAC).
-    """
-    import torch
-
-    actor = model.policy.actor.to("cpu")
-    actor.eval()
-
-    class DeterministicSacActor(torch.nn.Module):
-        def __init__(self, actor):
-            super().__init__()
-            self.actor = actor
-
-        def forward(self, obs):
-            features = self.actor.extract_features(obs, self.actor.features_extractor)
-            return torch.tanh(self.actor.mu(self.actor.latent_pi(features)))
-
-    shape = (1, *model.observation_space.shape)
-    dummy = torch.zeros(*shape, dtype=torch.float32)
-    with torch.no_grad():
-        scripted = torch.jit.trace(DeterministicSacActor(actor).eval(), dummy)
-    pt_path.parent.mkdir(parents=True, exist_ok=True)
-    scripted.save(str(pt_path))
-    sidecar = write_shape_sidecar(pt_path, list(shape))
-    return pt_path, sidecar
 
 
 def main() -> None:
