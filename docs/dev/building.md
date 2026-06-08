@@ -384,30 +384,18 @@ The `.nothreads` suffix is godot-cpp's single-threaded variant tag. The manifest
 **`web.debug.wasm32` / `web.release.wasm32`** keys
 (no `threads` feature tag) — matching godot-cpp's own convention for a no-threads web library.
 
-### 3) Export a game to web (single-threaded, extension support)
+### 3) Export a game to web (to verify the build)
 
-In the Godot editor: **Project → Export → Add… → Web**, then in the preset options:
+Export any project that uses the addon to web. For the **Web preset settings** (Extension Support
+on, Thread Support off) and how the model `.param`/`.bin` get packed, see the deploy guide's
+[Exporting your game](../guide/deploying.md#exporting-your-game) — that's the canonical end-user
+reference. Headless, once a `Web` preset exists:
+`godot --headless --path . --export-debug "Web" build/web/index.html`.
 
-- **Thread Support: OFF** (selects the single-threaded template; pairs with our `nothreads` binary)
-- **Extension Support: ON** (selects the `dlink` template, required for any GDExtension on web)
-
-Export to `build/web/index.html`. (Or headless, once a `Web` preset exists:
-`godot --headless --path . --export-debug "Web" build/web/index.html`.) A correct export bundles
-`index.side.wasm` (the extension-capable engine side-module) **and** the
-`libncnn_runner.web.…nothreads.wasm` extension binary next to `index.html`; the model
-`.param`/`.bin` ride inside `index.pck` and are read game-side via `FileAccess` (the deploy-side
-controllers load models from byte buffers, not file paths — ncnn cannot `fopen` inside the
-browser-served `.pck`).
-
-> **Packing the model files.** Godot's exporter only auto-includes recognized *resources*; the
-> ncnn `.param`/`.bin` are raw data files referenced by string path, so the dependency scanner
-> skips them and an exported game would fail with `cannot read model files …` — on *every* platform
-> (the editor masks it because `res://` is the real filesystem there). **The addon handles this
-> automatically:** when the plugin is enabled, its `EditorExportPlugin`
-> (`addons/godot_native_rl/export/`) force-packs every `*.ncnn.param`/`*.ncnn.bin` into the export.
-> If you don't enable the plugin, set the export preset's include filter by hand
-> (`include_filter="*.ncnn.param, *.ncnn.bin"`). Verify either way with
-> `strings build/web/index.pck | grep 7767517` (ncnn's param magic — a hit means the model is in).
+A correct export bundles `index.side.wasm` (the extension-capable engine side-module) **and** the
+`libncnn_runner.web.…nothreads.wasm` extension binary next to `index.html`. Confirm the model rode
+into the pack with `strings build/web/index.pck | grep 7767517` (ncnn's param magic — a hit means
+the model is in).
 
 ### 4) Serve it — no special headers
 
