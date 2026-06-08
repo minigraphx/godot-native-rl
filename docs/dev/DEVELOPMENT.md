@@ -14,7 +14,7 @@ Two layers, deliberately separated:
 
 - **C++ GDExtension (inference)** — `src/ncnn_runner.{h,cpp}` exposes `NcnnRunner` (load ncnn
   `.param`/`.bin`, run a forward pass, `run_discrete_action` = argmax). Statically links ncnn from
-  `thirdparty/ncnn`. Manifest `ncnn_runner.gdextension`, binaries in `bin/`. This is the moat: native
+  `thirdparty/ncnn`. Manifest `ncnn_runner.gdextension`, binaries in `addons/godot_native_rl/bin/`. This is the moat: native
   inference with no .NET/runtime, deployable to web/console/mobile.
 - **GDScript library (training bridge + authoring)** — `addons/godot_native_rl/`:
   - `sync.gd` (`NcnnSync`) — the godot_rl wire-protocol bridge (TCP client, port 11008).
@@ -191,7 +191,7 @@ path: end-to-end per-step argmax + logit parity (`atol 1e-2`) and reset-reproduc
 model's conversion ever prunes those blobs, the fallback is to **hand-author the `.param`** state
 blobs (and the sidecar names them either way).
 
-**Rebuild required.** `run_inference_multi` changed the C++ ABI and `bin/` is gitignored, so a fresh
+**Rebuild required.** `run_inference_multi` changed the C++ ABI and `addons/godot_native_rl/bin/` is gitignored, so a fresh
 clone (or anyone pulling this branch) **must rebuild** the extension —
 `scons platform=... target=template_debug` **and** `target=template_release` — or `NcnnRunner` won't
 expose the new method.

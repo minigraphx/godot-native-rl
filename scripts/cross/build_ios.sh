@@ -46,13 +46,13 @@ fi
 for cfg in template_debug template_release; do
   scons platform=ios arch=arm64     target="$cfg"                   -j"$CPUS"
   scons platform=ios arch=universal target="$cfg" ios_simulator=yes -j"$CPUS"
-  out="bin/libncnn_runner.ios.$cfg.xcframework"
+  out="addons/godot_native_rl/bin/libncnn_runner.ios.$cfg.xcframework"
   rm -rf "$out"
   xcodebuild -create-xcframework \
-    -library "bin/libncnn_runner.ios.$cfg.arm64.dylib" \
-    -library "bin/libncnn_runner.ios.$cfg.universal.simulator.dylib" \
+    -library "addons/godot_native_rl/bin/libncnn_runner.ios.$cfg.arm64.dylib" \
+    -library "addons/godot_native_rl/bin/libncnn_runner.ios.$cfg.universal.simulator.dylib" \
     -output "$out"
 done
 
 echo "== built ios =="
-ls -d bin/*ios* || true
+ls -d addons/godot_native_rl/bin/*ios* || true

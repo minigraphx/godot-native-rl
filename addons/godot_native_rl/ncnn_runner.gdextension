@@ -1,0 +1,17 @@
+[configuration]
+entry_symbol = "ncnn_runner_library_init"
+compatibility_minimum = "4.5"
+
+[libraries]
+macos.debug.arm64 = "res://addons/godot_native_rl/bin/libncnn_runner.macos.template_debug.arm64.dylib"
+macos.release.arm64 = "res://addons/godot_native_rl/bin/libncnn_runner.macos.template_release.arm64.dylib"
+windows.debug.x86_64 = "res://addons/godot_native_rl/bin/libncnn_runner.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://addons/godot_native_rl/bin/libncnn_runner.windows.template_release.x86_64.dll"
+linux.debug.x86_64 = "res://addons/godot_native_rl/bin/libncnn_runner.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://addons/godot_native_rl/bin/libncnn_runner.linux.template_release.x86_64.so"
+ios.debug = "res://addons/godot_native_rl/bin/libncnn_runner.ios.template_debug.xcframework"
+ios.release = "res://addons/godot_native_rl/bin/libncnn_runner.ios.template_release.xcframework"
+android.debug.arm64 = "res://addons/godot_native_rl/bin/libncnn_runner.android.template_debug.arm64.so"
+android.release.arm64 = "res://addons/godot_native_rl/bin/libncnn_runner.android.template_release.arm64.so"
+android.debug.x86_64 = "res://addons/godot_native_rl/bin/libncnn_runner.android.template_debug.x86_64.so"
+android.release.x86_64 = "res://addons/godot_native_rl/bin/libncnn_runner.android.template_release.x86_64.so"

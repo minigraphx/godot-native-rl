@@ -423,10 +423,18 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     `normalize_obs` at **atol 1e-6**, an end-to-end JSON-loader test, controller integration tests
     (normalized/raw/skip), and Python export tests. No C++ change/rebuild. Full suite green from a
     clean cache.
-25. ⬜ **Asset Library release (extension packaging)** — move `ncnn_runner.gdextension` + a `bin/`
+25. ✅ **Asset Library release (extension packaging)** — move `ncnn_runner.gdextension` + a `bin/`
     of prebuilt per-platform binaries into `addons/godot_native_rl/`, repoint the manifest's library
     paths + the `SConstruct` output target, build macOS/Windows/Linux (+ web/mobile) binaries, fill
     `plugin.cfg` metadata, and submit. *(surfaced by item 5; the addon layout is already in place)*
+    **Done 2026-06-07** — `ncnn_runner.gdextension` and `bin/` (scons output target) live inside
+    `addons/godot_native_rl/`; a tag-triggered `.github/workflows/release.yml` builds all platforms
+    (macOS/Windows/Linux/Android/iOS), assembles two lean release zips
+    (`godot-native-rl-addon-<version>.zip` + `godot-native-rl-examples-<version>.zip`),
+    smoke-tests the packaged addon, and publishes a GitHub Release automatically on `vX.Y.Z` tags.
+    The Asset Library entry uses the `Custom` download provider pointed at the release-asset addon
+    zip (prebuilt binaries are never committed to git). Full release runbook in
+    `docs/dev/RELEASING.md`. Closes #32
 36. ✅ **Deploy-side image inference (CameraSensor)** — feed a live `SubViewport` frame to native
     ncnn and act on the argmax; closes the camera train→deploy loop for discrete RGB policies.
     **Done 2026-06-01** — spec `docs/superpowers/specs/2026-06-01-deploy-side-image-inference-design.md`,

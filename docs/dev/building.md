@@ -116,7 +116,7 @@ scons platform=linux target=template_debug
 scons platform=windows target=template_debug
 ```
 
-Build output is written to `bin/` and matched by `ncnn_runner.gdextension`.
+Build output is written to `addons/godot_native_rl/bin/` and matched by `ncnn_runner.gdextension`.
 
 ### Enable the plugin in Godot
 
@@ -180,8 +180,8 @@ scons platform=linux arch=arm64 target=template_debug
 Add architecture-specific entries in `.gdextension`, for example:
 
 ```ini
-linux.debug.x86_64 = "res://bin/libncnn_runner.linux.template_debug.x86_64.so"
-linux.debug.arm64 = "res://bin/libncnn_runner.linux.template_debug.arm64.so"
+linux.debug.x86_64 = "res://addons/godot_native_rl/bin/libncnn_runner.linux.template_debug.x86_64.so"
+linux.debug.arm64 = "res://addons/godot_native_rl/bin/libncnn_runner.linux.template_debug.arm64.so"
 ```
 
 ### Windows (ship multiple architecture-specific `.dll` files)
@@ -196,8 +196,8 @@ scons platform=windows arch=arm64 target=template_debug
 Add architecture-specific entries in `.gdextension`, for example:
 
 ```ini
-windows.debug.x86_64 = "res://bin/libncnn_runner.windows.template_debug.x86_64.dll"
-windows.debug.arm64 = "res://bin/libncnn_runner.windows.template_debug.arm64.dll"
+windows.debug.x86_64 = "res://addons/godot_native_rl/bin/libncnn_runner.windows.template_debug.x86_64.dll"
+windows.debug.arm64 = "res://addons/godot_native_rl/bin/libncnn_runner.windows.template_debug.arm64.dll"
 ```
 
 ## Cross-Compiling From a macOS Host (Windows / Linux / Android / iOS)
@@ -288,13 +288,13 @@ per config and reference that (no arch key) in the manifest:
 
 ```bash
 xcodebuild -create-xcframework \
-  -library bin/libncnn_runner.ios.template_debug.arm64.dylib \
-  -library bin/libncnn_runner.ios.template_debug.universal.simulator.dylib \
-  -output  bin/libncnn_runner.ios.template_debug.xcframework
+  -library addons/godot_native_rl/bin/libncnn_runner.ios.template_debug.arm64.dylib \
+  -library addons/godot_native_rl/bin/libncnn_runner.ios.template_debug.universal.simulator.dylib \
+  -output  addons/godot_native_rl/bin/libncnn_runner.ios.template_debug.xcframework
 ```
 ```ini
-ios.debug = "res://bin/libncnn_runner.ios.template_debug.xcframework"
-ios.release = "res://bin/libncnn_runner.ios.template_release.xcframework"
+ios.debug = "res://addons/godot_native_rl/bin/libncnn_runner.ios.template_debug.xcframework"
+ios.release = "res://addons/godot_native_rl/bin/libncnn_runner.ios.template_release.xcframework"
 ```
 
 ### Android (arm64-v8a + x86_64)
@@ -331,8 +331,8 @@ ANDROID_NDK_ROOT=~/android-ndk-r29 scons platform=android arch=arm64  target=tem
 ANDROID_NDK_ROOT=~/android-ndk-r29 scons platform=android arch=x86_64 target=template_debug ncnn_openmp=no ANDROID_HOME=
 ```
 ```ini
-android.debug.arm64 = "res://bin/libncnn_runner.android.template_debug.arm64.so"
-android.debug.x86_64 = "res://bin/libncnn_runner.android.template_debug.x86_64.so"
+android.debug.arm64 = "res://addons/godot_native_rl/bin/libncnn_runner.android.template_debug.arm64.so"
+android.debug.x86_64 = "res://addons/godot_native_rl/bin/libncnn_runner.android.template_debug.x86_64.so"
 ```
 
 The Android `.so` depends on `libc++_shared.so`, which Godot's Android export template ships.

@@ -71,7 +71,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cross-${{ matrix.target }}
-          path: bin/
+          path: addons/godot_native_rl/bin/
           if-no-files-found: error
 
   # iOS device + simulator — needs the iOS SDK, so a macOS runner.
@@ -97,5 +97,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cross-ios
-          path: bin/
+          path: addons/godot_native_rl/bin/
           if-no-files-found: error

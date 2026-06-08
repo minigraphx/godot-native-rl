@@ -124,7 +124,7 @@ elif env["platform"] == "android":
     env["SHOBJSUFFIX"] = ".o"
 
 library = env.SharedLibrary(
-    target=os.path.join("bin", "libncnn_runner{}{}".format(env["suffix"], env["SHLIBSUFFIX"])),
+    target=os.path.join("addons", "godot_native_rl", "bin", "libncnn_runner{}{}".format(env["suffix"], env["SHLIBSUFFIX"])),
     source=sources,
 )
 

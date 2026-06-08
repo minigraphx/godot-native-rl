@@ -20,7 +20,7 @@
   to a 16-byte boundary, so a `w=3` output reports 4 — copying `total()` floats yields a garbage trailing
   value (and can skew argmax). `NcnnRunner` copies the logical `w*h*d` elements per channel via
   `channel(q)` instead. This was fixed for item 21 (continuous deploy made it visible); **rebuild the
-  extension** (`scons ... target=template_debug` and `template_release`) on a fresh clone — `bin/` is
+  extension** (`scons ... target=template_debug` and `template_release`) on a fresh clone — `addons/godot_native_rl/bin/` is
   gitignored.
 - **The bridge sets `done` at `reset_after`** (godot_rl convention) so episodes terminate and
   `ep_rew_mean` appears. (A future chip splits this into `terminated`/`truncated`.)

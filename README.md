@@ -46,6 +46,21 @@ ncnn statically linked enables web/WASM and console deployment (ONNX/.NET can't)
 quantization, async inference, and Godot-native ideas (Signal→Reward, NavMesh sensor) — none
 replicable by a Python-server or managed-runtime framework.
 
+## Installation (use the addon — no build needed)
+
+You don't need the C++/SCons/ncnn toolchain to *use* this framework — just the prebuilt addon.
+
+- **Asset Library (in-editor):** open the **AssetLib** tab in Godot 4.5+, search
+  "Godot Native RL", install. It drops `addons/godot_native_rl/` (with native binaries for
+  macOS/Windows/Linux/Android/iOS) into your project.
+- **Manual:** download `godot-native-rl-addon-<version>.zip` from
+  [Releases](../../releases) and unzip at your project root. For the demo scenes, also grab
+  `godot-native-rl-examples-<version>.zip` (drop it in alongside the addon).
+
+Then enable the plugin in **Project → Project Settings → Plugins**.
+
+Building from source is covered in [CONTRIBUTING.md](CONTRIBUTING.md) → [docs/dev/](docs/dev/).
+
 ## Contributing / building from source
 Building the GDExtension, architecture, and dev notes:
 [CONTRIBUTING.md](CONTRIBUTING.md) → [docs/dev/](docs/dev/).
