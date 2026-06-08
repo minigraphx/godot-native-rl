@@ -444,9 +444,12 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
       byte buffers (`NcnnRunner.load_model_from_buffers` + controllers via `FileAccess`) since ncnn
       can't `fopen` inside Godot's web `.pck`. **Proven in-browser**: the `chase_the_target` policy
       runs native ncnn inference served with **no COOP/COEP headers** (itch.io / GitHub Pages work
-      unmodified) — `docs/dev/img/web-chase-proof.png`. Recipe + the export include-filter gotcha in
-      `docs/dev/building.md`. The release workflow (`release.yml`) builds the web target too, so the
-      addon release zip ships the `.wasm` alongside the other platforms.
+      unmodified) — `docs/dev/img/web-chase-proof.png`. Recipe in `docs/dev/building.md`; end-user
+      export steps in `docs/guide/deploying.md`. The release workflow (`release.yml`) builds the web
+      target too, so the addon release zip ships the `.wasm` alongside the other platforms. The
+      enabled addon also registers an `EditorExportPlugin` (`addons/godot_native_rl/export/`) that
+      **auto-packs `*.ncnn.param`/`*.ncnn.bin` into game exports** — Godot's exporter skips those raw
+      data files otherwise, crashing exported games with "cannot read model files" on every platform.
 36. ✅ **Deploy-side image inference (CameraSensor)** — feed a live `SubViewport` frame to native
     ncnn and act on the argmax; closes the camera train→deploy loop for discrete RGB policies.
     **Done 2026-06-01** — spec `docs/superpowers/specs/2026-06-01-deploy-side-image-inference-design.md`,

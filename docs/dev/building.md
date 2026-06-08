@@ -399,19 +399,14 @@ Export to `build/web/index.html`. (Or headless, once a `Web` preset exists:
 controllers load models from byte buffers, not file paths — ncnn cannot `fopen` inside the
 browser-served `.pck`).
 
-> **CRITICAL — pack the model files (every platform, not just web).** Godot's exporter only
-> auto-includes recognized *resources*. The ncnn `.param`/`.bin` are raw data files referenced by
-> string path, so the dependency scanner **does not pack them** and the controller fails at runtime
-> with `cannot read model files …`. You must add them to the export preset's
-> **Resources → "Filters to export non-resource files/folders"** include filter:
->
-> ```
-> *.ncnn.param, *.ncnn.bin
-> ```
->
-> (In `export_presets.cfg` this is `include_filter="*.ncnn.param, *.ncnn.bin"`.) This applies to
-> desktop and mobile exports too — running from the editor masks it because `res://` is the real
-> filesystem there; an exported `.pck` only contains what the filter packs. Verify with
+> **Packing the model files.** Godot's exporter only auto-includes recognized *resources*; the
+> ncnn `.param`/`.bin` are raw data files referenced by string path, so the dependency scanner
+> skips them and an exported game would fail with `cannot read model files …` — on *every* platform
+> (the editor masks it because `res://` is the real filesystem there). **The addon handles this
+> automatically:** when the plugin is enabled, its `EditorExportPlugin`
+> (`addons/godot_native_rl/export/`) force-packs every `*.ncnn.param`/`*.ncnn.bin` into the export.
+> If you don't enable the plugin, set the export preset's include filter by hand
+> (`include_filter="*.ncnn.param, *.ncnn.bin"`). Verify either way with
 > `strings build/web/index.pck | grep 7767517` (ncnn's param magic — a hit means the model is in).
 
 ### 4) Serve it — no special headers
