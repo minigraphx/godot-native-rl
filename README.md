@@ -66,4 +66,9 @@ Building the GDExtension, architecture, and dev notes:
 [CONTRIBUTING.md](CONTRIBUTING.md) → [docs/dev/](docs/dev/).
 
 ## License
-See repository license.
+
+This project is licensed under the **MIT License** — see [LICENSE](LICENSE).
+
+The prebuilt addon binaries statically link ncnn (BSD 3-Clause) and godot-cpp (MIT); their
+notices are reproduced in
+[addons/godot_native_rl/THIRD_PARTY_LICENSES.md](addons/godot_native_rl/THIRD_PARTY_LICENSES.md).
