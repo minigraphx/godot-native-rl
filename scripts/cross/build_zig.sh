@@ -37,8 +37,13 @@ if [ ! -f "$ncnn_build/install/lib/libncnn.a" ]; then
 fi
 
 export PATH="$shimdir:$PATH"
+# lto=none: godot-cpp defaults LTO to "full" on Linux, and under the zig/lld cross-link on an
+# Ubuntu host that full-LTO pass drops libc++'s out-of-line symbols (std::string members,
+# std::bad_array_new_length, ...), so the .so links but fails to load at runtime with
+# 'undefined symbol: std::__1::basic_string::push_back'. (A macOS-host build keeps them, which
+# masked this until the first real release.) Disabling LTO links libc++ normally on both hosts.
 for cfg in template_debug template_release; do
-  scons platform="$plat" arch="$arch" target="$cfg" ncnn_openmp=no -j"$CPUS"
+  scons platform="$plat" arch="$arch" target="$cfg" ncnn_openmp=no lto=none -j"$CPUS"
 done
 
 echo "== built $plat $arch =="
