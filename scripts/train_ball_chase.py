@@ -18,7 +18,7 @@ import pathlib
 import re
 import sys
 
-# Reuse the sidecar writer from the converter (import-light: no torch at module load).
+# Reuse the shared SAC actor-export helper (import-light: no torch at module load).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from export_sac_torchscript import export_sac_actor_as_torchscript  # noqa: E402
 
@@ -126,8 +126,9 @@ def main() -> None:
     print("Saved SB3 model to:", zip_path)
 
     pt_path = pathlib.Path(args.pt_export_path).with_suffix(".pt")
-    export_sac_actor_as_torchscript(model, pt_path)
+    _, sidecar = export_sac_actor_as_torchscript(model, pt_path)
     print("Exported TorchScript (deterministic actor = tanh(mean)) to:", pt_path)
+    print("Wrote shape sidecar:", sidecar)
     print("Convert to ncnn with: export_to_ncnn.py %s --via torchscript" % pt_path)
 
     env.close()

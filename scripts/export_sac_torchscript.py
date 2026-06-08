@@ -45,7 +45,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def export_sac_actor_as_torchscript(model, pt_path: pathlib.Path):
+def export_sac_actor_as_torchscript(model, pt_path: pathlib.Path) -> tuple[pathlib.Path, pathlib.Path]:
     """Trace SAC's deterministic actor `tanh(mu(latent_pi(features)))` to `pt_path` + sidecar.
 
     Returns (pt_path, sidecar_path). Equivalent to actor(obs, deterministic=True) but built
