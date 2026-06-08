@@ -106,6 +106,8 @@ jobs:
       # On a hit the Build GDExtension step is skipped; the bin/ is restored and still uploaded
       # below, so the test matrix is unaffected. A src/ or SConstruct edit changes the hash and
       # rebuilds; a GODOT_CPP_BRANCH/NCNN_TAG bump rotates the key (and also busts the dep caches).
+      # (Validated on #99: cold run built + populated the cache; a no-C++ follow-up hit it and
+      # skipped the scons compile while the test matrix stayed green.)
       - name: Cache extension binaries
         id: cache-bin
         uses: actions/cache@v4
