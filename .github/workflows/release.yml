@@ -183,11 +183,11 @@ jobs:
           chmod +x "$godot_bin"
           mkdir -p smoke/proj
           ( cd smoke/proj && unzip -q "$GITHUB_WORKSPACE/dist/godot-native-rl-addon-${GITHUB_REF_NAME}.zip" )
-          printf '%s\n' 'config_version=5' '[application]' 'config/features=PackedStringArray("4.5")' > smoke/proj/project.godot
+          printf '%s\n' 'config_version=5' '[application]' 'config/features=PackedStringArray("4.5")' '[debug]' 'gdscript/warnings/enable=false' > smoke/proj/project.godot
           cat > smoke/proj/smoke.gd <<'EOF'
           extends SceneTree
           func _init() -> void:
-              var r := ClassDB.instantiate("NcnnRunner")
+              var r = ClassDB.instantiate("NcnnRunner")
               if r == null:
                   push_error("NcnnRunner not registered — extension failed to load")
                   quit(1)
@@ -195,6 +195,9 @@ jobs:
                   print("OK: NcnnRunner loaded from packaged addon")
                   quit(0)
           EOF
+          # GDExtensions only load from .godot/extension_list.cfg, which an editor import pass
+          # generates — without it a fresh --script run never registers NcnnRunner.
+          "$GITHUB_WORKSPACE/$godot_bin" --headless --path smoke/proj --editor --quit || true
           "$GITHUB_WORKSPACE/$godot_bin" --headless --path smoke/proj --script res://smoke.gd
       - name: Create GitHub Release
         env:
