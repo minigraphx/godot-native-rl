@@ -37,7 +37,7 @@ jobs:
     name: Build extension (linux x86_64)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install build toolchain
         run: |
@@ -46,7 +46,7 @@ jobs:
 
       - name: Cache godot-cpp (built bindings)
         id: cache-godot-cpp
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: godot-cpp
           key: godot-cpp-${{ runner.os }}-${{ env.GODOT_CPP_BRANCH }}-${{ env.CACHE_VERSION }}
@@ -60,7 +60,7 @@ jobs:
 
       - name: Cache ncnn (static lib + INT8 tools)
         id: cache-ncnn
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: thirdparty/ncnn
           key: ncnn-${{ runner.os }}-${{ env.NCNN_TAG }}-${{ env.CACHE_VERSION }}
@@ -110,7 +110,7 @@ jobs:
       # skipped the scons compile while the test matrix stayed green.)
       - name: Cache extension binaries
         id: cache-bin
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: addons/godot_native_rl/bin
           key: bin-${{ runner.os }}-gcpp${{ env.GODOT_CPP_BRANCH }}-ncnn${{ env.NCNN_TAG }}-${{ env.CACHE_VERSION }}-${{ hashFiles('src/**', 'SConstruct') }}
@@ -122,7 +122,7 @@ jobs:
           scons platform=linux target=template_release -j"$(nproc)"
 
       - name: Upload extension binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: extension-bin
           path: addons/godot_native_rl/bin/
@@ -139,7 +139,7 @@ jobs:
           - { version: "4.5.2-stable", file: "Godot_v4.5.2-stable_linux.x86_64" }
           - { version: "4.6.3-stable", file: "Godot_v4.6.3-stable_linux.x86_64" }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install runtime toolchain
         # cmake/build-essential only needed if the ncnn-tools cache is cold; build_ncnn_tools.sh
@@ -149,13 +149,13 @@ jobs:
           sudo apt-get install -y build-essential cmake unzip curl
 
       - name: Download extension binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: extension-bin
           path: addons/godot_native_rl/bin/
 
       - name: Restore ncnn cache (source + INT8 tools)
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: thirdparty/ncnn
           key: ncnn-${{ runner.os }}-${{ env.NCNN_TAG }}-${{ env.CACHE_VERSION }}
@@ -164,18 +164,18 @@ jobs:
       # .venv-train runs on 3.12 (not the local 3.13): on 3.13, ml_dtypes needs numpy>=2.1 while
       # stable-baselines3 needs numpy<2.0 — unsatisfiable. On 3.12 numpy 1.26.4 satisfies both.
       - name: Set up Python 3.12 (.venv-train)
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: Set up Python 3.14 (.venv convert)
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.14"
 
       - name: Cache Python venvs
         id: cache-venvs
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             .venv
