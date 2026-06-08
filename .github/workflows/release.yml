@@ -31,7 +31,8 @@ jobs:
             echo "::error::tag v$tag does not match plugin.cfg version $cfg"; exit 1
           fi
 
-  # Linux/Windows (zig) + Android (NDK) — one target per leg, on Linux runners.
+  # Windows (zig) + Android (NDK) — one target per leg, on Linux runners. Linux is built
+  # natively (build-linux job) — the zig cross-compile produces a Linux .so that fails to load.
   build-unix:
     name: build ${{ matrix.target }}
     needs: guard
@@ -39,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [linux, windows, android-arm64, android-x86_64]
+        target: [windows, android-arm64, android-x86_64]
     steps:
       - uses: actions/checkout@v4
       - name: Install build tools
@@ -47,7 +48,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential scons cmake git python3
       - name: Install zig
-        if: matrix.target == 'linux' || matrix.target == 'windows'
+        if: matrix.target == 'windows'
         uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
@@ -59,13 +60,39 @@ jobs:
       - name: Build
         run: |
           case "${{ matrix.target }}" in
-            linux|windows) scripts/cross/build_zig.sh "${{ matrix.target }}" ;;
+            windows) scripts/cross/build_zig.sh windows ;;
             android-arm64) ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME" scripts/cross/build_android.sh arm64 ;;
             android-x86_64) ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME" scripts/cross/build_android.sh x86_64 ;;
           esac
       - uses: actions/upload-artifact@v4
         with:
           name: bin-${{ matrix.target }}
+          path: ${{ env.ADDON_BIN }}/
+          if-no-files-found: error
+
+  # Linux — native GCC build (system toolchain + libstdc++). The zig cross-compile leaves libc++
+  # symbols undefined in the .so (fails to load at runtime); native avoids it. Same toolchain
+  # ci.yml builds + tests with, so it's proven to load.
+  build-linux:
+    name: build linux
+    needs: guard
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential scons cmake git python3
+      - name: Clone godot-cpp + ncnn
+        run: |
+          git clone -b "${GODOT_CPP_BRANCH}" --depth 1 https://github.com/godotengine/godot-cpp.git
+          mkdir -p thirdparty
+          git clone -b "${NCNN_TAG}" --depth 1 https://github.com/Tencent/ncnn.git thirdparty/ncnn
+      - name: Build (native)
+        run: scripts/cross/build_linux_native.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-linux
           path: ${{ env.ADDON_BIN }}/
           if-no-files-found: error
 
@@ -139,7 +166,7 @@ jobs:
 
   package:
     name: package + publish
-    needs: [build-unix, build-macos, build-web]
+    needs: [build-unix, build-linux, build-macos, build-web]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4

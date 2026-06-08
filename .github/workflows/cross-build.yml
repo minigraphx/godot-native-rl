@@ -28,14 +28,15 @@ env:
   NCNN_JOBS: "2"            # cap ncnn's AVX512-heavy compile to avoid OOM on the 16 GB runner
 
 jobs:
-  # Windows + Linux (zig) and Android (NDK), one target per matrix leg, on Linux runners.
+  # Windows (zig) + Android (NDK), one target per matrix leg, on Linux runners. Linux is built
+  # natively (linux job below) — the zig cross-compile produces a Linux .so that won't load.
   unix:
     name: ${{ matrix.target }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        target: [linux, windows, android-arm64, android-x86_64]
+        target: [windows, android-arm64, android-x86_64]
     steps:
       - uses: actions/checkout@v4
 
@@ -45,7 +46,7 @@ jobs:
           sudo apt-get install -y build-essential scons cmake git python3
 
       - name: Install zig
-        if: matrix.target == 'linux' || matrix.target == 'windows'
+        if: matrix.target == 'windows'
         uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
@@ -59,8 +60,8 @@ jobs:
       - name: Cross-build (${{ matrix.target }})
         run: |
           case "${{ matrix.target }}" in
-            linux|windows)
-              scripts/cross/build_zig.sh "${{ matrix.target }}" ;;
+            windows)
+              scripts/cross/build_zig.sh windows ;;
             android-arm64)
               ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME" scripts/cross/build_android.sh arm64 ;;
             android-x86_64)
@@ -71,6 +72,35 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cross-${{ matrix.target }}
+          path: addons/godot_native_rl/bin/
+          if-no-files-found: error
+
+  # Linux — native GCC build (system libstdc++), the same way ci.yml builds + tests it. The zig
+  # cross-compile leaves libc++ symbols undefined in the .so, so it loads-fails at runtime.
+  linux:
+    name: linux
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential scons cmake git python3
+
+      - name: Clone godot-cpp + ncnn
+        run: |
+          git clone -b "${GODOT_CPP_BRANCH}" --depth 1 https://github.com/godotengine/godot-cpp.git
+          mkdir -p thirdparty
+          git clone -b "${NCNN_TAG}" --depth 1 https://github.com/Tencent/ncnn.git thirdparty/ncnn
+
+      - name: Build (native)
+        run: scripts/cross/build_linux_native.sh
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-linux
           path: addons/godot_native_rl/bin/
           if-no-files-found: error
 
