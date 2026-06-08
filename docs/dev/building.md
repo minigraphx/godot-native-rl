@@ -375,12 +375,13 @@ scripts/cross/build_web.sh        # NCNN_JOBS=N to cap ncnn compile parallelism
 This produces:
 
 ```
-bin/libncnn_runner.web.template_debug.wasm32.nothreads.wasm
-bin/libncnn_runner.web.template_release.wasm32.nothreads.wasm
+addons/godot_native_rl/bin/libncnn_runner.web.template_debug.wasm32.nothreads.wasm
+addons/godot_native_rl/bin/libncnn_runner.web.template_release.wasm32.nothreads.wasm
 ```
 
 The `.nothreads` suffix is godot-cpp's single-threaded variant tag. The manifest
-(`ncnn_runner.gdextension`) maps these to the **`web.debug.wasm32` / `web.release.wasm32`** keys
+(`addons/godot_native_rl/ncnn_runner.gdextension`) maps these to the
+**`web.debug.wasm32` / `web.release.wasm32`** keys
 (no `threads` feature tag) — matching godot-cpp's own convention for a no-threads web library.
 
 ### 3) Export a game to web (single-threaded, extension support)

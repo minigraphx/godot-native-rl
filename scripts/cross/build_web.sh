@@ -32,4 +32,4 @@ for cfg in template_debug template_release; do
 done
 
 echo "== built web wasm32 =="
-ls -la bin/ | grep -i web || true
+ls -la addons/godot_native_rl/bin/ | grep -i web || true
