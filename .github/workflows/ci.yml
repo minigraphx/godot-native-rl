@@ -96,7 +96,25 @@ jobs:
             cp -f "$src" "thirdparty/ncnn/tools-bin/$tool"
           done
 
+      # Content-addressed cache of the linked extension binaries. The key covers EVERY input the
+      # binary depends on, so a hit means the bytes would be identical to a fresh build:
+      #   - hashFiles('src/**', 'SConstruct')  → extension sources/headers (CPPPATH=["src"]) + build script
+      #   - GODOT_CPP_BRANCH                    → godot-cpp bindings it links against
+      #   - NCNN_TAG                            → vendored ncnn static lib it links against
+      #   - runner.os                           → toolchain/runner image family
+      #   - CACHE_VERSION                       → manual invalidation escape hatch (bump to force a cold rebuild)
+      # On a hit the Build GDExtension step is skipped; the bin/ is restored and still uploaded
+      # below, so the test matrix is unaffected. A src/ or SConstruct edit changes the hash and
+      # rebuilds; a GODOT_CPP_BRANCH/NCNN_TAG bump rotates the key (and also busts the dep caches).
+      - name: Cache extension binaries
+        id: cache-bin
+        uses: actions/cache@v4
+        with:
+          path: addons/godot_native_rl/bin
+          key: bin-${{ runner.os }}-gcpp${{ env.GODOT_CPP_BRANCH }}-ncnn${{ env.NCNN_TAG }}-${{ env.CACHE_VERSION }}-${{ hashFiles('src/**', 'SConstruct') }}
+
       - name: Build GDExtension
+        if: steps.cache-bin.outputs.cache-hit != 'true'
         run: |
           scons platform=linux target=template_debug -j"$(nproc)"
           scons platform=linux target=template_release -j"$(nproc)"
