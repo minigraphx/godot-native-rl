@@ -38,8 +38,12 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 - **CI:** `.github/workflows/ci.yml` runs on PRs/pushes to `main`. A `build` job compiles the
   GDExtension once (godot-cpp `4.5` + ncnn tag `20260526`, both cached) and uploads `addons/godot_native_rl/bin/`; a `test`
   matrix runs the full `test/run_tests.sh` under Godot **4.5 + 4.6** (`.venv`/`.venv-train` cached).
-  The SF smoke auto-skips (no `.venv-sf` in CI). Bump `CACHE_VERSION` in the workflow to force a cold
-  rebuild; bump the Godot patch versions in the `test` matrix to track new releases.
+  The SF smoke auto-skips (no `.venv-sf` in CI). The **Build GDExtension** step is skipped on a
+  content-addressed `bin/` cache hit (key = `hashFiles('src/**','SConstruct')` + `GODOT_CPP_BRANCH` +
+  `NCNN_TAG` + `runner.os` + `CACHE_VERSION`), so Python/GDScript/docs-only PRs reuse the prior binary
+  and the `build` job drops to ~1–2 min; the `test` matrix always runs. Bump `CACHE_VERSION` in the
+  workflow to force a cold rebuild (also busts this `bin/` cache); bump the Godot patch versions in the
+  `test` matrix to track new releases.
 - **Train (chase):** `TIMESTEPS=120000 ./scripts/train_chase.sh` (starts SB3 trainer, launches headless
   Godot training scene which connects on port 11008). ~34 min at 120k steps.
 - **Train (rover, resumable):** `./scripts/train_rover.sh` — checkpoints to `models/rover_checkpoints/`
