@@ -1,0 +1,22 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://examples/hide_and_seek/hide_seek_world.tscn" id="1"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="2"]
+
+[node name="HideSeekMultiPolicy" type="Node2D"]
+
+[node name="HideSeekWorld" parent="." instance=ExtResource("1")]
+
+[node name="Seeker" parent="HideSeekWorld" index="2"]
+control_mode = 3
+model_param_path = "res://examples/hide_and_seek/models/hide_seek_seeker.ncnn.param"
+model_bin_path = "res://examples/hide_and_seek/models/hide_seek_seeker.ncnn.bin"
+
+[node name="Hider" parent="HideSeekWorld" index="3"]
+control_mode = 3
+model_param_path = "res://examples/hide_and_seek/models/hide_seek_hider.ncnn.param"
+model_bin_path = "res://examples/hide_and_seek/models/hide_seek_hider.ncnn.bin"
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("2")
+control_mode = 2

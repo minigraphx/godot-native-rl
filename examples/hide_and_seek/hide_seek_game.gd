@@ -128,3 +128,20 @@ func _physics_process(delta: float) -> void:
 	_terminal = _caught or _step >= max_steps
 	if _terminal:
 		_pending_reset = true
+
+# Lightweight visualizer shared by the random and trained standalone scenes.
+func _process(_delta: float) -> void:
+	queue_redraw()
+
+func _draw() -> void:
+	draw_rect(Rect2(Vector2.ZERO, arena_size), Color(0.10, 0.10, 0.14), true)
+	draw_rect(Rect2(Vector2.ZERO, arena_size), Color(0.35, 0.35, 0.45), false, 2.0)
+	for wall in walls:
+		draw_rect(wall, Color(0.32, 0.34, 0.42), true)
+	var seeker := seeker_pos()
+	var hider := hider_pos()
+	draw_line(seeker, hider,
+		Color(0.95, 0.30, 0.25, 0.75) if _has_los else Color(0.35, 0.35, 0.42, 0.45),
+		2.0)
+	draw_circle(seeker, 18.0, Color(0.95, 0.30, 0.25))
+	draw_circle(hider, 18.0, Color(0.25, 0.70, 1.0))

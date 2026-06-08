@@ -29,8 +29,8 @@ web/WASM, console, mobile, desktop, and edge.
 ## Examples
 - `examples/chase_the_target` — 2D discrete-action agent, trained with SB3 PPO
 - `examples/rover_3d` — runnable 3D discrete-action rover with native inference, trained with SB3 PPO
-- `examples/hide_and_seek` — 2D 1v1 parameter-sharing self-play
-- `examples/ball_chase` — 2D continuous-action agent trained with SB3 **SAC** (`./scripts/train_ball_chase.sh`); exports the deterministic actor via TorchScript → ncnn (godot_rl's SAC ONNX export is incompatible with torch 2.x dynamo)
+- `examples/hide_and_seek` — 2D 1v1 self-play with a persistent trained two-policy demo
+- `examples/ball_chase` — runnable 2D continuous-action SAC agent with native inference (`./scripts/train_ball_chase.sh`); exports the deterministic actor via TorchScript → ncnn
 
 ## What you get
 - `NcnnRunner` C++ node: `load_model`, `run_inference`, `run_inference_image`,

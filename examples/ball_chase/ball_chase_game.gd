@@ -79,3 +79,14 @@ func reset_positions() -> void:
 		_agent_body.position = random_position()
 	if _target != null:
 		_target.position = random_position()
+
+# Lightweight visualizer for the standalone deploy scene. Gameplay remains Node2D-only, so these
+# draw calls do not affect observations, physics, training scenes, or headless execution.
+func _process(_delta: float) -> void:
+	queue_redraw()
+
+func _draw() -> void:
+	draw_rect(Rect2(Vector2.ZERO, arena_size), Color(0.08, 0.12, 0.17), true)
+	draw_rect(Rect2(Vector2.ZERO, arena_size), Color(0.28, 0.42, 0.55), false, 2.0)
+	draw_circle(get_target_pos(), touch_radius, Color(0.95, 0.55, 0.20))
+	draw_circle(get_agent_pos(), 16.0, Color(0.25, 0.85, 0.95))

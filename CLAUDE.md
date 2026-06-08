@@ -13,7 +13,9 @@ complement to godot_rl, grow toward full replacement.
 
 ## Current state (working, on `main`)
 
-Full train → convert → deploy loop works end-to-end (headless CI tests). Reusable library in
+Full train → convert → deploy loop works end-to-end (headless CI tests). All four examples have
+standalone headless-compatible play scenes; trained inference is available for chase, rover,
+multi-policy hide & seek, and BallChase. Reusable library in
 `addons/godot_native_rl/` (`sync.gd`/`NcnnSync`, `controllers/`, `reward/`, `sensors/`,
 `training/`, `net/`); C++ GDExtension at repo root (`src/ncnn_runner.{h,cpp}`). Examples:
 `chase_the_target` (2D), `rover_3d` (3D), `hide_and_seek` (2D self-play), `ball_chase` (2D continuous-control / SAC). Wire protocol is
