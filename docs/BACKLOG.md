@@ -445,8 +445,8 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
       can't `fopen` inside Godot's web `.pck`. **Proven in-browser**: the `chase_the_target` policy
       runs native ncnn inference served with **no COOP/COEP headers** (itch.io / GitHub Pages work
       unmodified) — `docs/dev/img/web-chase-proof.png`. Recipe + the export include-filter gotcha in
-      `docs/dev/building.md`. Follow-up: add the web target to `release.yml` so release zips ship the
-      `.wasm` too.
+      `docs/dev/building.md`. The release workflow (`release.yml`) builds the web target too, so the
+      addon release zip ships the `.wasm` alongside the other platforms.
 36. ✅ **Deploy-side image inference (CameraSensor)** — feed a live `SubViewport` frame to native
     ncnn and act on the argmax; closes the camera train→deploy loop for discrete RGB policies.
     **Done 2026-06-01** — spec `docs/superpowers/specs/2026-06-01-deploy-side-image-inference-design.md`,
