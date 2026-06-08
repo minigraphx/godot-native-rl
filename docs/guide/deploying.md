@@ -54,9 +54,10 @@ func _ready() -> void:
     add_child(_runner)
     _runner.input_blob_name = "in0"
     _runner.output_blob_name = "out0"
-    var ok = _runner.load_model(
-        ProjectSettings.globalize_path(model_param_path),
-        ProjectSettings.globalize_path(model_bin_path))
+    # Load from bytes (works in an exported .pck and on web, where there is no real file to fopen).
+    var param_bytes := FileAccess.get_file_as_bytes(model_param_path)
+    var bin_bytes := FileAccess.get_file_as_bytes(model_bin_path)
+    var ok = _runner.load_model_from_buffers(param_bytes, bin_bytes)
     if not ok:
         push_error("Failed to load ncnn model.")
 
@@ -78,7 +79,9 @@ controller node.
 
 Key `NcnnRunner` methods:
 
-- `load_model(param_path, bin_path) -> bool`
+- `load_model_from_buffers(param: PackedByteArray, bin: PackedByteArray) -> bool` — load from
+  bytes (read with `FileAccess.get_file_as_bytes`); **use this for exported games / web**
+- `load_model(param_path, bin_path) -> bool` — load from filesystem paths (editor / desktop tools)
 - `run_inference(input: PackedFloat32Array) -> PackedFloat32Array`
 - `run_inference_image(image: Image, normalize_to_zero_one := true) -> PackedFloat32Array`
 - `run_discrete_action(input: PackedFloat32Array) -> int` — argmax over output
@@ -87,6 +90,32 @@ Key `NcnnRunner` methods:
 - `is_model_loaded() -> bool`
 - `input_blob_name`, `output_blob_name` — set to `"in0"` / `"out0"` for godot-rl-exported models
 - `input_shape: PackedInt32Array` — optional: reshapes flat floats to 1D/2D/3D ncnn tensor
+
+## Exporting your game
+
+**Enable the addon** (Project → Project Settings → Plugins → *Godot Native RL*). Beyond surfacing a
+clear error if the native binary is missing for your platform, enabling it registers an export hook
+that **auto-packs your `.ncnn.param` / `.ncnn.bin` files into every export**. These are raw data
+files Godot's exporter skips by default (they're referenced by string path, not as resources), so
+without this an exported game crashes at runtime with `cannot read model files …` — on *every*
+platform. With the addon enabled there is nothing else to configure.
+
+> Not enabling the plugin? Then add the model files to your export preset by hand: Project →
+> Export → *Resources* → "Filters to export non-resource files/folders" →
+> `*.ncnn.param, *.ncnn.bin`.
+
+### Web (WASM)
+
+The native ncnn extension runs in the browser — something godot_rl's ONNX/.NET path cannot do. In
+the **Web** export preset set:
+
+- **Extension Support: ON** — required for any GDExtension on web (selects the `dlink` template).
+- **Thread Support: OFF** — pairs with the single-threaded `…wasm32.nothreads` binary the addon
+  ships. This means **no `SharedArrayBuffer`, so no COOP/COEP headers** — the game deploys to
+  itch.io / GitHub Pages / any static host with zero server configuration.
+
+Serve the exported folder with any static file server and open `index.html`. (Build the web binary
+from source via `scripts/cross/build_web.sh` — see `docs/dev/building.md`.)
 
 ## INT8 quantization (mobile/edge)
 

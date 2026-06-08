@@ -23,6 +23,7 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 ## Key commands
 
 - **Build the extension:** `scons platform=macos arch=arm64 target=template_debug` (see README for other platforms). Project minimum is **Godot 4.5**; developed/tested on both 4.5 and 4.6 (e.g. `/opt/homebrew/bin/godot-mono` is 4.5.1). Set `GODOT=` to pick the binary for `run_tests.sh`.
+- **Build the extension (web/WASM):** `source ~/emsdk/emsdk_env.sh && scripts/cross/build_web.sh` (single-threaded; needs emsdk 3.1.64). No COOP/COEP headers required at deploy — see `docs/dev/building.md`. Model `*.ncnn.param`/`*.ncnn.bin` are auto-packed into exports by the enabled addon's `EditorExportPlugin` (`addons/godot_native_rl/export/`); without the plugin, set an `include_filter` by hand. (Raw data files the Godot exporter skips otherwise — affects all platforms.)
 - **Cut a release:** bump `addons/godot_native_rl/plugin.cfg` `version=`, then `git tag vX.Y.Z &&
   git push origin vX.Y.Z` → `.github/workflows/release.yml` builds all platforms, assembles the
   addon + examples zips, smoke-tests the packaged addon, and publishes a GitHub Release. Then

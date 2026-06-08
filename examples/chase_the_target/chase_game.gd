@@ -58,3 +58,16 @@ func reset_positions() -> void:
 		_agent_body.position = random_position()
 	if _target != null:
 		_target.position = random_position()
+
+# --- Lightweight visualizer ---
+# The agent/target are bare Node2Ds (no sprites), so the scene renders nothing on its own. This
+# draws the arena, the target, and the agent so the deploy scene is watchable (e.g. the web export
+# proof). Headless runs never call _draw()/_process redraws, so this is free for the test suite.
+func _process(_delta: float) -> void:
+	queue_redraw()
+
+func _draw() -> void:
+	draw_rect(Rect2(Vector2.ZERO, arena_size), Color(0.10, 0.11, 0.15), true)
+	draw_rect(Rect2(Vector2.ZERO, arena_size), Color(0.30, 0.32, 0.42), false, 2.0)
+	draw_circle(get_target_pos(), touch_radius, Color(0.92, 0.33, 0.33))
+	draw_circle(get_agent_pos(), 15.0, Color(0.30, 0.80, 1.0))

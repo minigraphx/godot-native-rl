@@ -73,9 +73,14 @@ func _setup_ncnn_runner() -> void:
 	_ncnn_runner.input_blob_name = input_blob_name
 	_ncnn_runner.output_blob_name = output_blob_name
 	add_child(_ncnn_runner)
-	var absolute_param := ProjectSettings.globalize_path(model_param_path)
-	var absolute_bin := ProjectSettings.globalize_path(model_bin_path)
-	if not _ncnn_runner.load_model(absolute_param, absolute_bin):
+	var param_bytes := FileAccess.get_file_as_bytes(model_param_path)
+	var bin_bytes := FileAccess.get_file_as_bytes(model_bin_path)
+	if param_bytes.is_empty() or bin_bytes.is_empty():
+		push_error("NcnnAIController2D: cannot read model files '%s' / '%s'." % [model_param_path, model_bin_path])
+		_ncnn_runner.queue_free()
+		_ncnn_runner = null
+		return
+	if not _ncnn_runner.load_model_from_buffers(param_bytes, bin_bytes):
 		push_error("NcnnAIController2D: failed to load ncnn model.")
 		_ncnn_runner.queue_free()
 		_ncnn_runner = null

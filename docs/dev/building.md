@@ -344,6 +344,78 @@ hosts.
 > runtime-tested** on each target OS. The macOS arm64 build is the only one exercised by the test
 > suite today.
 
+## Web (WASM)
+
+The web build is **single-threaded by design** (`NCNN_THREADS=OFF` + `scons threads=no`). That
+means the exported game needs **no `SharedArrayBuffer`, and therefore no cross-origin-isolation
+(COOP/COEP) headers** — it deploys to any static host (itch.io, GitHub Pages, an S3 bucket) with
+zero server configuration. Our policies are small MLPs, so single-threaded inference is plenty.
+This is the deployment story neither godot_rl (Python server / ONNX) nor a .NET runtime can match.
+
+### 1) Install + activate emscripten (emsdk)
+
+```bash
+git clone https://github.com/emscripten-core/emsdk.git ~/emsdk
+cd ~/emsdk && ./emsdk install 3.1.64 && ./emsdk activate 3.1.64
+source ~/emsdk/emsdk_env.sh      # puts emcc on PATH for the current shell
+emcc --version                   # expect 3.1.64
+```
+
+Pin **3.1.64** — it is known to compile against godot-cpp `4.5`. Other versions may work but are
+untested here; the CI `web` leg pins the same version.
+
+### 2) Build ncnn (static, single-threaded) + the GDExtension
+
+```bash
+cd /path/to/godot-native-rl
+source ~/emsdk/emsdk_env.sh
+scripts/cross/build_web.sh        # NCNN_JOBS=N to cap ncnn compile parallelism
+```
+
+This produces:
+
+```
+addons/godot_native_rl/bin/libncnn_runner.web.template_debug.wasm32.nothreads.wasm
+addons/godot_native_rl/bin/libncnn_runner.web.template_release.wasm32.nothreads.wasm
+```
+
+The `.nothreads` suffix is godot-cpp's single-threaded variant tag. The manifest
+(`addons/godot_native_rl/ncnn_runner.gdextension`) maps these to the
+**`web.debug.wasm32` / `web.release.wasm32`** keys
+(no `threads` feature tag) — matching godot-cpp's own convention for a no-threads web library.
+
+### 3) Export a game to web (to verify the build)
+
+Export any project that uses the addon to web. For the **Web preset settings** (Extension Support
+on, Thread Support off) and how the model `.param`/`.bin` get packed, see the deploy guide's
+[Exporting your game](../guide/deploying.md#exporting-your-game) — that's the canonical end-user
+reference. Headless, once a `Web` preset exists:
+`godot --headless --path . --export-debug "Web" build/web/index.html`.
+
+A correct export bundles `index.side.wasm` (the extension-capable engine side-module) **and** the
+`libncnn_runner.web.…nothreads.wasm` extension binary next to `index.html`. Confirm the model rode
+into the pack with `strings build/web/index.pck | grep 7767517` (ncnn's param magic — a hit means
+the model is in).
+
+### 4) Serve it — no special headers
+
+```bash
+cd build/web && python3 -m http.server 8060
+# open http://localhost:8060/
+```
+
+A plain static server sends **no COOP/COEP headers** — and the game still runs, because the build
+is single-threaded. That is the proof the deployment works on any host.
+
+**Verified in-browser:** the `chase_the_target` policy runs native ncnn inference in the browser
+(the agent chases the target) served this way. See `docs/dev/img/web-chase-proof.png`.
+
+> If you instead build a **multi-threaded** web variant (`threads=yes`, `NCNN_THREADS=ON`), the
+> manifest key becomes `web.debug.threads.wasm32` and the host **must** send COOP/COEP headers
+> (`Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`) so the
+> browser grants `SharedArrayBuffer`. itch.io and plain GitHub Pages do not, which is why the
+> default here is single-threaded.
+
 ## Manual ONNX → ncnn conversion (internals)
 
 > The one-command path (`scripts/export_to_ncnn.py`) is documented for game developers in

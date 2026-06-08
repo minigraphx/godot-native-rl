@@ -13,3 +13,7 @@ config_version=5
 config/name="Godot Native RL"
 run/main_scene="uid://dpxy8gpo1mfiu"
 config/features=PackedStringArray("4.5")
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godot_native_rl/plugin.cfg")

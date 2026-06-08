@@ -95,9 +95,38 @@ jobs:
           path: ${{ env.ADDON_BIN }}/
           if-no-files-found: error
 
+  # Web (WASM) — emscripten, single-threaded (NCNN_THREADS=OFF + scons threads=no). Built here so
+  # the release zips ship the .wasm too. Runtime-proven separately (docs/dev/building.md).
+  build-web:
+    name: build web
+    needs: guard
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential scons cmake git python3
+      - name: Setup emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
+      - name: Clone godot-cpp + ncnn
+        run: |
+          git clone -b "${GODOT_CPP_BRANCH}" --depth 1 https://github.com/godotengine/godot-cpp.git
+          mkdir -p thirdparty
+          git clone -b "${NCNN_TAG}" --depth 1 https://github.com/Tencent/ncnn.git thirdparty/ncnn
+      - name: Build web (wasm32)
+        run: scripts/cross/build_web.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-web
+          path: ${{ env.ADDON_BIN }}/
+          if-no-files-found: error
+
   package:
     name: package + publish
-    needs: [build-unix, build-macos]
+    needs: [build-unix, build-macos, build-web]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -116,7 +145,8 @@ jobs:
             libncnn_runner.linux.template_release.x86_64.so \
             libncnn_runner.android.template_release.arm64.so \
             libncnn_runner.android.template_release.x86_64.so \
-            libncnn_runner.ios.template_release.xcframework ; do
+            libncnn_runner.ios.template_release.xcframework \
+            libncnn_runner.web.template_release.wasm32.nothreads.wasm ; do
             test -e "$ADDON_BIN/$f" || { echo "::error::missing $f"; exit 1; }
           done
       - name: Assemble zips
