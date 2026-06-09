@@ -17,6 +17,11 @@ var heuristic: String = "human"
 var reward_source = null
 var obs_norm_stats: Dictionary = {}
 
+# Continuous DiagGaussian std sidecar (from ActionDist.to_typed of a <model>_action_dist.json).
+# Empty -> continuous actions are the mean (current behavior). Used only when
+# deterministic_inference=false; applied positionally across continuous action dims.
+var action_dist_stats: Dictionary = {}
+
 # Recurrent (LSTM/GRU) deploy: a typed contract (from RecurrentState.to_typed of a
 # <model>.recurrent.json sidecar). Empty -> feed-forward (current behavior, zero overhead).
 var recurrent_contract: Dictionary = {}
@@ -108,7 +113,7 @@ func choose_and_apply_action(agent, runner) -> void:
 			output = runner.run_inference(obs_vec)
 		else:
 			output = _run_recurrent_and_advance(runner, obs_vec)
-	var action: Dictionary = ActionDecode.decode_actions(output, agent.get_action_space(), deterministic_inference, rng)
+	var action: Dictionary = ActionDecode.decode_actions(output, agent.get_action_space(), deterministic_inference, rng, action_dist_stats)
 	if action.is_empty():
 		push_error("NcnnControllerCore.choose_and_apply_action: action decode failed (empty/mismatched output); skipping action.")
 		return
