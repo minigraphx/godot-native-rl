@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Create the three Python venvs for training + conversion + SampleFactory and install their deps.
-# Plain venvs are the primary path; conda is documented as an alternative in
+# Create the four Python venvs for training + conversion + SampleFactory + RLlib and install
+# their deps. Plain venvs are the primary path; conda is documented as an alternative in
 # docs/guide/training.md. Idempotent: existing venvs are reused.
 #
 #   ./scripts/setup_training.sh           # create + install
 #   ./scripts/setup_training.sh --check   # validate only, no venv creation, no install
 #
 # Overrides: PYTHON_TRAIN (default python3.13), PYTHON_CONVERT (default python3.14),
-#            PYTHON_SF (default python3.13).
+#            PYTHON_SF (default python3.13), PYTHON_RLLIB (default python3.13).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,9 +16,11 @@ cd "$REPO_ROOT"
 PYTHON_TRAIN="${PYTHON_TRAIN:-python3.13}"
 PYTHON_CONVERT="${PYTHON_CONVERT:-python3.14}"
 PYTHON_SF="${PYTHON_SF:-python3.13}"
+PYTHON_RLLIB="${PYTHON_RLLIB:-python3.13}"
 REQ_TRAIN="requirements-train.txt"
 REQ_CONVERT="requirements-convert.txt"
 REQ_SF="requirements-sf.txt"
+REQ_RLLIB="requirements-rllib.txt"
 # Shared with CI: pins the numpy<2 vs ml_dtypes/onnx tension deterministically for .venv-train.
 # Without it a bare `pip install -r requirements-train.txt` backtracks into a broken ml_dtypes
 # sdist and crashes (see docs/dev/gotchas.md). Convert/SF venvs install without constraints.
@@ -30,8 +32,9 @@ echo "Training stack setup"
 echo "  train venv:   .venv-train  (interpreter: $PYTHON_TRAIN, deps: $REQ_TRAIN)"
 echo "  convert venv: .venv        (interpreter: $PYTHON_CONVERT, deps: $REQ_CONVERT)"
 echo "  sf venv:      .venv-sf     (interpreter: $PYTHON_SF, deps: $REQ_SF)"
+echo "  rllib venv:   .venv-rllib  (interpreter: $PYTHON_RLLIB, deps: $REQ_RLLIB)"
 
-for f in "$REQ_TRAIN" "$REQ_CONVERT" "$REQ_SF" "$CONSTRAINTS_TRAIN"; do
+for f in "$REQ_TRAIN" "$REQ_CONVERT" "$REQ_SF" "$REQ_RLLIB" "$CONSTRAINTS_TRAIN"; do
 	if [ ! -f "$f" ]; then
 		echo "ERROR: missing $f" >&2
 		exit 1
@@ -43,6 +46,7 @@ if [ "$CHECK_ONLY" -eq 1 ]; then
 	command -v "$PYTHON_TRAIN" >/dev/null 2>&1 || echo "NOTE: $PYTHON_TRAIN not on PATH (needed for .venv-train; override with PYTHON_TRAIN=)."
 	command -v "$PYTHON_CONVERT" >/dev/null 2>&1 || echo "NOTE: $PYTHON_CONVERT not on PATH (needed for .venv; override with PYTHON_CONVERT=)."
 	command -v "$PYTHON_SF" >/dev/null 2>&1 || echo "NOTE: $PYTHON_SF not on PATH (needed for .venv-sf; override with PYTHON_SF=)."
+	command -v "$PYTHON_RLLIB" >/dev/null 2>&1 || echo "NOTE: $PYTHON_RLLIB not on PATH (needed for .venv-rllib; override with PYTHON_RLLIB=)."
 	echo "Next: ./scripts/setup_training.sh   then   ./scripts/train_chase.sh"
 	exit 0
 fi
@@ -70,5 +74,11 @@ create_venv() {
 create_venv "$PYTHON_TRAIN" ".venv-train" "$REQ_TRAIN" "$CONSTRAINTS_TRAIN"
 create_venv "$PYTHON_CONVERT" ".venv" "$REQ_CONVERT"
 create_venv "$PYTHON_SF" ".venv-sf" "$REQ_SF"
+create_venv "$PYTHON_RLLIB" ".venv-rllib" "$REQ_RLLIB"
+# godot-rl declares gymnasium<=1.0.0 (+ SB3 pins) which conflicts with ray[rllib]'s
+# gymnasium==1.2.2; its runtime use is compatible, so install it without deps.
+if [ -x ".venv-rllib/bin/pip" ]; then
+	".venv-rllib/bin/pip" install --no-deps "godot-rl==0.8.2"
+fi
 
 echo "Done. Next: ./scripts/train_chase.sh   (see docs/guide/training.md)"
