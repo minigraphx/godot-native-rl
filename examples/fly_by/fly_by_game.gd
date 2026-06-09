@@ -77,12 +77,6 @@ func collect_goals(parent: Node) -> Array:
 func get_plane_xform() -> Transform3D:
 	return _plane.transform if _plane != null else _plane_xform_override
 
-func set_plane_xform_for_test(x: Transform3D) -> void:
-	_plane_xform_override = x
-
-func goal_count() -> int:
-	return _goals.size()
-
 func current_goal_pos() -> Vector3:
 	if _goals.is_empty():
 		return Vector3.ZERO
@@ -111,15 +105,14 @@ func move_plane(pitch: float, turn: float, delta: float) -> void:
 	var xform := get_plane_xform()
 	var b := advance_basis(xform.basis, pitch, turn, pitch_speed, turn_speed, delta)
 	var next_pos := xform.origin + (-b.z.normalized()) * flight_speed * delta
-	var clamped := clamp_to_bounds(next_pos, arena_half)
-	if clamped != next_pos:
+	if out_of_bounds(next_pos, arena_half):
 		if not _at_boundary:
 			_at_boundary = true
 			exited_arena.emit()
 	else:
 		_at_boundary = false
 	xform.basis = b
-	xform.origin = clamped
+	xform.origin = clamp_to_bounds(next_pos, arena_half)
 	if _plane != null:
 		_plane.transform = xform
 	else:
