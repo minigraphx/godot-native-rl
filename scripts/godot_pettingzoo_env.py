@@ -43,6 +43,7 @@ class GodotParallelEnv(ParallelEnv):
             if port is None:
                 port = GodotEnv.DEFAULT_PORT
             reserved = {"env_path", "show_window", "action_repeat", "speedup", "seed", "port"}
+            # Forward any non-reserved config keys to GodotEnv as kwargs (reserved keys are passed explicitly above/below).
             extra = {k: v for k, v in config.items() if k not in reserved}
             self.godot_env = GodotEnv(
                 env_path=config.get("env_path"),
@@ -67,6 +68,11 @@ class GodotParallelEnv(ParallelEnv):
             agent: self.godot_env.tuple_action_spaces[i]
             for i, agent in enumerate(self.possible_agents)
         }
+        import numpy as np
+        self._zero_actions = {
+            agent: np.zeros_like(self.action_spaces[agent].sample())
+            for agent in self.possible_agents
+        }
 
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent):
@@ -83,6 +89,7 @@ class GodotParallelEnv(ParallelEnv):
         self.godot_env.close()
 
     def reset(self, seed=None, options=None):
+        # seed: GodotEnv seeds at construction; reset-time re-seeding is unsupported by the bridge.
         godot_obs, godot_infos = self.godot_env.reset()
         self.agents = self.possible_agents[:]
         observations = {agent: godot_obs[i] for i, agent in enumerate(self.possible_agents)}
@@ -90,20 +97,16 @@ class GodotParallelEnv(ParallelEnv):
         return observations, infos
 
     def step(self, actions):
-        import numpy as np
-
         godot_actions = [
-            actions[agent]
-            if agent in actions
-            else np.zeros_like(self.action_spaces[agent].sample())
+            actions[agent] if agent in actions else self._zero_actions[agent]
             for agent in self.possible_agents
         ]
         godot_obs, godot_rewards, godot_dones, godot_truncations, godot_infos = self.godot_env.step(
             godot_actions, order_ij=True
         )
-        observations = {agent: godot_obs[agent] for agent in actions}
-        rewards = {agent: godot_rewards[agent] for agent in actions}
-        terminations = {agent: bool(godot_dones[agent]) for agent in actions}
-        truncations = {agent: False for agent in actions}
-        infos = {agent: godot_infos[agent] for agent in actions}
+        observations = {agent: godot_obs[i] for i, agent in enumerate(self.possible_agents) if agent in actions}
+        rewards = {agent: godot_rewards[i] for i, agent in enumerate(self.possible_agents) if agent in actions}
+        terminations = {agent: bool(godot_dones[i]) for i, agent in enumerate(self.possible_agents) if agent in actions}
+        truncations = {agent: False for agent in self.possible_agents if agent in actions}
+        infos = {agent: godot_infos[i] for i, agent in enumerate(self.possible_agents) if agent in actions}
         return observations, rewards, terminations, truncations, infos
