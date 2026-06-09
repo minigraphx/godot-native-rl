@@ -20,6 +20,8 @@ from __future__ import annotations
 import functools
 from typing import Dict, Optional
 
+# Top-level (not lazy like torch/godot_rl): the base class must be resolved at class-definition
+# time, so `GodotParallelEnv(ParallelEnv)` forces this import. Intentional convention exception.
 from pettingzoo import ParallelEnv
 
 
@@ -69,8 +71,11 @@ class GodotParallelEnv(ParallelEnv):
             for i, agent in enumerate(self.possible_agents)
         }
         import numpy as np
+
+        # Zero action for a done agent: one int64 per Tuple(Discrete,...) component (matches the
+        # (len(nvec),) action rows the trainer scatters). Explicit dtype, not np.zeros_like(sample()).
         self._zero_actions = {
-            agent: np.zeros_like(self.action_spaces[agent].sample())
+            agent: np.zeros(len(self.action_spaces[agent].spaces), dtype=np.int64)
             for agent in self.possible_agents
         }
 
@@ -97,6 +102,8 @@ class GodotParallelEnv(ParallelEnv):
         return observations, infos
 
     def step(self, actions):
+        # Fixed-population: self.agents is NOT pruned on per-agent termination (godot_rl keeps every
+        # agent every step; done agents get zero actions). Terminated/truncated split tracked in #12.
         godot_actions = [
             actions[agent] if agent in actions else self._zero_actions[agent]
             for agent in self.possible_agents
