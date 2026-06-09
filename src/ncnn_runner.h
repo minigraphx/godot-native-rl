@@ -20,6 +20,12 @@ class Mat;
 
 namespace godot {
 
+// Godot-facing wrapper around a statically linked ncnn::Net: loads a converted
+// *.ncnn.{param,bin} model (from file paths or in-memory buffers) and runs CPU
+// inference — flat float vectors, image inputs, multi-input/multi-output (e.g.
+// recurrent hidden state), plus an argmax convenience for discrete policies.
+// Input/output blob names and an optional explicit input shape are configurable
+// to match whatever the converter emitted.
 class NcnnRunner : public Node {
     GDCLASS(NcnnRunner, Node)
 

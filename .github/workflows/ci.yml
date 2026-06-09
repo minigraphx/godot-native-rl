@@ -44,12 +44,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential scons cmake git
 
-      - name: Cache godot-cpp (built bindings)
+      # The cache must carry the PREBUILT libs (bin/libgodot-cpp.*.a) + the checkout itself:
+      # on warm runs the clone step is skipped, and the root build links these libs directly via
+      # build_library=no (see Build GDExtension) instead of recompiling the bindings (#85).
+      # Intermediate objects and godot-cpp's own .sconsign are excluded — nothing reads them once
+      # the libs exist, and dropping them keeps the cache small and fast to restore.
+      # Key is rotated ("-lib") so the pre-#85 cache (which predates this layout) can't be hit.
+      - name: Cache godot-cpp (checkout + prebuilt lib)
         id: cache-godot-cpp
         uses: actions/cache@v5
         with:
-          path: godot-cpp
-          key: godot-cpp-${{ runner.os }}-${{ env.GODOT_CPP_BRANCH }}-${{ env.CACHE_VERSION }}
+          path: |
+            godot-cpp
+            !godot-cpp/**/*.o
+            !godot-cpp/**/*.os
+            !godot-cpp/.sconsign.dblite
+          key: godot-cpp-lib-${{ runner.os }}-${{ env.GODOT_CPP_BRANCH }}-${{ env.CACHE_VERSION }}
 
       - name: Build godot-cpp bindings
         if: steps.cache-godot-cpp.outputs.cache-hit != 'true'
@@ -115,11 +125,16 @@ jobs:
           path: addons/godot_native_rl/bin
           key: bin-${{ runner.os }}-gcpp${{ env.GODOT_CPP_BRANCH }}-ncnn${{ env.NCNN_TAG }}-${{ env.CACHE_VERSION }}-${{ hashFiles('src/**', 'SConstruct') }}
 
+      # build_library=no (godot-cpp's own option) makes the included godot-cpp/SConstruct skip
+      # compiling the bindings and just link the prebuilt bin/libgodot-cpp.*.a from the step/cache
+      # above. Without it, the root scons recompiles all of godot-cpp (~15 min) because its
+      # signature DB (.sconsign) is separate from the `scons -C godot-cpp` build's (#85). The
+      # bindings *generator* still re-runs (~1 min, idempotent) — only the recompile is skipped.
       - name: Build GDExtension
         if: steps.cache-bin.outputs.cache-hit != 'true'
         run: |
-          scons platform=linux target=template_debug -j"$(nproc)"
-          scons platform=linux target=template_release -j"$(nproc)"
+          scons platform=linux target=template_debug build_library=no -j"$(nproc)"
+          scons platform=linux target=template_release build_library=no -j"$(nproc)"
 
       - name: Upload extension binaries
         uses: actions/upload-artifact@v7
