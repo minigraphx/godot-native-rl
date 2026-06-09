@@ -63,6 +63,11 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   `--multi-policy` cmdline gate read by `HideSeekAgent`), each exported to ncnn via
   `export_to_ncnn.py --via torchscript`. `SCENE=`/`TIMESTEPS=` overrides; the trained example for the
   `agent_policy_names` wire field. Deploy/regress in `hide_and_seek_multipolicy_eval.tscn`.
+- **Train (multi-policy, PettingZoo interop):** `./scripts/train_pettingzoo.sh` — multi-policy PPO over
+  our own `GodotParallelEnv` PettingZoo `ParallelEnv` adapter (`scripts/godot_pettingzoo_env.py`; the
+  godot_rl `GDRLPettingZooEnv` functionality without depending on the upstream class). Reads
+  `agent_policy_names`, one learner per policy, each actor → TorchScript → `export_to_ncnn.py`. Interop
+  proven deterministically via PettingZoo's `parallel_api_test`. `SCENE`/`TIMESTEPS` overrides.
 - **Train (BallChase, SAC):** `./scripts/train_ball_chase.sh` — SB3 SAC (continuous-control) over the
   BallChase env (port 11008). Exports the deterministic actor (tanh(mean)) as **TorchScript** (godot_rl's
   SAC ONNX export breaks under torch 2.x dynamo), then `scripts/export_to_ncnn.py models/ball_chase_sac.pt
@@ -223,6 +228,11 @@ daily:
     controllers + pure PolicyDebug formatter; live obs/action-probs/identity/get_debug_status overlay,
     auto-discovery + F3 toggle + debug-build gate; headless helper/overlay/emit tests + chase debug
     scene),
+    GitHub #111 (PettingZoo `ParallelEnv` interop adapter — `GodotParallelEnv` in
+    `scripts/godot_pettingzoo_env.py` provides `GDRLPettingZooEnv` functionality without depending on
+    the upstream class; `train_pettingzoo.sh` drives multi-policy PPO one learner per `agent_policy_names`
+    each actor → TorchScript → ncnn; conformance proven via PettingZoo's `parallel_api_test`;
+    live full training run is a follow-up).
     9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 23 (deploy-side inference gap: batched multi-agent
