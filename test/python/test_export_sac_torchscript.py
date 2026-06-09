@@ -127,23 +127,14 @@ class TestDynamoFalseFallbackGuard(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as d:
             onnx_path = Path(d) / "sac.onnx"
-            try:
-                torch.onnx.export(
-                    wrapper, (obs,), str(onnx_path),
-                    input_names=["input"], output_names=["output"], opset_version=17,
-                    dynamo=False,
-                )
-            except AttributeError as e:
-                # The numpy<2 training stack (stable-baselines3 caps numpy<2.0) resolves onnx 1.19,
-                # which references ml_dtypes.float4_e2m1fn — only present in ml_dtypes>=0.5 (numpy>=2).
-                # So torch.onnx export is simply unavailable here; that's expected, not a regression
-                # (we standardize on the TorchScript path — see docs/dev/gotchas.md). Skip rather than
-                # fail. A real removal of the legacy exporter would raise a different error and still
-                # surface. Re-raise anything unrelated.
-                if "float4_e2m1fn" in str(e) or "ml_dtypes" in str(e):
-                    self.skipTest("legacy torch.onnx export needs ml_dtypes>=0.5 / numpy>=2; "
-                                  "training stack pins numpy<2.0 (see docs/dev/gotchas.md)")
-                raise
+            # The training stack pins onnx==1.17.0, which imports cleanly under ml_dtypes 0.4.x
+            # (numpy<2). onnx>=1.18 references ml_dtypes.float4_e2m1fn at import time and crashes
+            # here, which is exactly why requirements-train.txt pins 1.17.0 — see docs/dev/gotchas.md.
+            torch.onnx.export(
+                wrapper, (obs,), str(onnx_path),
+                input_names=["input"], output_names=["output"], opset_version=17,
+                dynamo=False,
+            )
             sess = ort.InferenceSession(str(onnx_path))
             out = np.array(sess.run(None, {sess.get_inputs()[0].name: obs.numpy()})[0]).reshape(-1)
         self.assertTrue(np.allclose(out, ref, atol=1e-5), f"{out} vs {ref}")
