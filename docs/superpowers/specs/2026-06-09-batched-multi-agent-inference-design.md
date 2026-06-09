@@ -77,7 +77,11 @@ crowd agents that share one policy.
 - Loads the model once (same `model_param_path` / `model_bin_path` / blob-name pattern as
   `NcnnAIController2D._setup_ncnn_runner`, factored so we don't duplicate the file-read/load logic).
 - Holds an ordered list of **crowd agents** (duck-typed, must implement `get_obs()`,
-  `get_action_space()`, `set_action()`), discovered from a configurable group or child subtree.
+  `get_action_space()`, `set_action()`), discovered by walking the controller's **child subtree**
+  in stable `get_children()` (scene-tree) order — same idiom as `collect_sensors`. Agents are
+  parented under the `CrowdController`. Stable order keeps the batch index ↔ agent mapping
+  reproducible for the parity tests. (A named-group override is intentionally **not** included —
+  YAGNI; add later only if dynamically-spawned, scattered crowds need it.)
 - `decide()` (called at control cadence):
   1. gather `get_obs()["obs"]` from each agent into an `Array` of `PackedFloat32Array`
      (optional shared `ObsNormalize` applied per-vector, like the core does);
