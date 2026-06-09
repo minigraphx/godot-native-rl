@@ -179,8 +179,11 @@ a cartoon plane with two continuous actions (`pitch`, `turn`) — and ships its 
   `set_action` clamps to [-1,1] (PPO mean is unbounded, and the #64 DiagGaussian sample can exceed the
   range) — no `"squash"` key, clamp game-side. Reward via `RewardBuilder`: progress shaping toward the
   current goal + `goal_reached` event bonus + step penalty + arena-exit penalty; done on arena exit.
-- **File split** mirrors upstream's three-file structure: `fly_by_plane.gd` (CharacterBody3D movement),
-  `fly_by_game.gd` (Node3D goal/arena manager + pure helpers), `fly_by_agent.gd` (NcnnAIController3D).
+- **File split** mirrors the `rover_3d` precedent (the closest 3D example): two files —
+  `fly_by_game.gd` (Node3D that owns the plane body + goal ring + arena, integrates motion manually
+  on a `Node3D` like `RoverGame.move_agent` for headless determinism + pure-helper testability, no
+  `CharacterBody3D` physics) and `fly_by_agent.gd` (NcnnAIController3D: obs/action/reward wiring). The
+  vendored cartoon_plane glTF is a visual child of the plane body and doesn't affect the sim.
 
 ## Components — PR 2
 - **`examples/fly_by/`**: port the plane env to our framework — `fly_by_agent.gd` (`get_obs`,
