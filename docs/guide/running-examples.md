@@ -81,3 +81,25 @@ godot --headless --path . --quit-after 300 res://examples/ball_chase/ball_chase.
 
 Use `ball_chase_train.tscn` only through `./scripts/train_ball_chase.sh`; it waits for the Python
 trainer and is not the standalone demo.
+
+## FlyBy (3D continuous control, PPO)
+
+A cartoon plane that flies at constant speed through a ring of goals, steered by two continuous
+actions (`pitch`, `turn`). The standalone scene loads the shipped trained PPO policy through native
+ncnn inference and flies **deterministically** (the action mean) by default:
+
+```bash
+godot --path . res://examples/fly_by/fly_by.tscn
+godot --headless --path . --quit-after 600 res://examples/fly_by/fly_by.tscn
+```
+
+**Stochastic flight (demonstrates continuous DiagGaussian sampling, #64):** the ncnn policy only
+emits the action *mean*; the per-axis std lives in `models/fly_by_action_dist.json`. To sample
+`mean + std·N(0,1)` game-side instead of always taking the mean, set the `FlyByAgent`'s
+`deterministic_inference = false` (and optionally a fixed `inference_seed` for reproducible eval).
+With `deterministic_inference = true` (default) the std is ignored. See
+[deploying.md](deploying.md#continuous-action-sampling-diaggaussian-std-sidecar).
+
+Use `fly_by_train.tscn` only through `./scripts/train_fly_by.sh`; it waits for the Python trainer
+and is not the standalone demo. The plane model + HDR sky are vendored from the upstream FlyBy
+example (MIT) — see `examples/fly_by/ATTRIBUTION.md`.

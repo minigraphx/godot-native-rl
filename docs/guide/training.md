@@ -46,6 +46,9 @@ SCENE=res://examples/rover_3d/rover_3d_train_parallel.tscn ./scripts/train_rover
 
 # Chase via SampleFactory backend (async PPO; needs .venv-sf)
 ./scripts/train_sf.sh
+
+# FlyBy (3D continuous control, PPO)
+./scripts/train_fly_by.sh
 ```
 
 The rover trainer is **checkpoint/resume-capable**: it saves to `models/rover_checkpoints/` every

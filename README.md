@@ -31,6 +31,7 @@ web/WASM, console, mobile, desktop, and edge.
 - `examples/rover_3d` — runnable 3D discrete-action rover with native inference, trained with SB3 PPO
 - `examples/hide_and_seek` — 2D 1v1 self-play with a persistent trained two-policy demo
 - `examples/ball_chase` — runnable 2D continuous-action SAC agent with native inference (`./scripts/train_ball_chase.sh`); exports the deterministic actor via TorchScript → ncnn
+- `examples/fly_by` — runnable 3D continuous-action plane (PPO); ships a trained ncnn net + a `fly_by_action_dist.json` std sidecar for deploy-side DiagGaussian sampling (`./scripts/train_fly_by.sh`)
 
 ## What you get
 - `NcnnRunner` C++ node: `load_model`, `run_inference`, `run_inference_image`,
