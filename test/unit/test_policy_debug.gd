@@ -77,4 +77,14 @@ func _initialize() -> void:
 	h.assert_true(ijoined.contains("84") and ijoined.contains("OBS image"), "render shows image dims on image path")
 	h.assert_true(not ijoined.contains("OBS (0)"), "render skips numeric obs section on image path")
 
+	# --- action_rows(): multi-key slicing walks the logit vector per key ---
+	var multirows := PolicyDebug.action_rows(
+		PackedFloat32Array([2.0, 0.0, -1.0, 0.8]),
+		{"move": {"size": 3, "action_type": "discrete"}, "fire": {"size": 1, "action_type": "discrete"}},
+		{"move": 0, "fire": 0},
+		8)
+	var mj := _joined(multirows)
+	h.assert_true(mj.contains("move (discrete, 3)"), "multi-key: first key header")
+	h.assert_true(mj.contains("fire (discrete, 1)"), "multi-key: second key header")
+
 	h.finish(self)

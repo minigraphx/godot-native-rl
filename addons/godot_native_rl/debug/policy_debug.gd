@@ -93,8 +93,9 @@ static func render_lines(debug: Dictionary, identity: Dictionary, status: Dictio
 	var obs_image: Dictionary = debug.get("obs_image", {})
 	if obs.is_empty() and not obs_image.is_empty():
 		out.append("OBS image  %dx%dx%d" % [int(obs_image.get("w", 0)), int(obs_image.get("h", 0)), int(obs_image.get("c", 0))])
-	else:
+	elif not obs.is_empty():
 		out.append_array(obs_rows(obs, bar_width))
+	# else: neither obs vector nor image present — skip the obs section silently
 	out.append_array(action_rows(
 		debug.get("logits", PackedFloat32Array()),
 		debug.get("action_space", {}),
