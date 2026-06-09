@@ -31,11 +31,21 @@ class TestToActionDict(unittest.TestCase):
         np.testing.assert_array_equal(d[0], np.array([1]))
         np.testing.assert_array_equal(d[1], np.array([2]))
 
+    def test_respects_agent_order(self):
+        full = np.array([[1], [2]], dtype=np.int64)
+        d = tp.to_action_dict(full, [1, 0])
+        np.testing.assert_array_equal(d[1], np.array([1]))
+        np.testing.assert_array_equal(d[0], np.array([2]))
+
 
 class TestActionNvec(unittest.TestCase):
     def test_reads_tuple_of_discrete(self):
         space = spaces.Tuple((spaces.Discrete(5), spaces.Discrete(3)))
         self.assertEqual(tp.action_nvec(space), [5, 3])
+
+    def test_rejects_non_tuple_space(self):
+        with self.assertRaises(ValueError):
+            tp.action_nvec(spaces.MultiDiscrete([5, 3]))
 
 
 if __name__ == "__main__":

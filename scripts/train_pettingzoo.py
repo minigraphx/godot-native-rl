@@ -21,20 +21,28 @@ import argparse
 from typing import Dict, NamedTuple, Sequence
 
 
-def stack_by_agent(per_agent: Dict, agents: Sequence):
-    """Stack a {agent: vector} dict into a (n_agents, dim) array, ordered by `agents`. Lazy numpy."""
+def stack_by_agent(per_agent: Dict, agents: Sequence) -> "np.ndarray":
+    """Stack a {agent: vector} dict into a (n_agents, dim) array, ordered by `agents`. Lazy numpy.
+
+    Assumes every agent in `agents` is present in `per_agent` (fixed-population semantics; see
+    GodotParallelEnv). A missing agent raises KeyError — an upstream contract violation, not silent.
+    """
     import numpy as np
 
     return np.stack([np.asarray(per_agent[a]) for a in agents])
 
 
-def to_action_dict(full_action, agents: Sequence) -> Dict:
+def to_action_dict(full_action: "np.ndarray", agents: Sequence) -> Dict:
     """Scatter a (n_agents, action_dim) array into {agent: row}, ordered by `agents`."""
     return {a: full_action[i] for i, a in enumerate(agents)}
 
 
 def action_nvec(action_space) -> list:
     """Per-component action sizes from a Tuple(Discrete(n), ...) space -> [n, ...]."""
+    from gymnasium import spaces
+
+    if not isinstance(action_space, spaces.Tuple):
+        raise ValueError(f"action_nvec expects a Tuple space, got {type(action_space).__name__}")
     return [int(s.n) for s in action_space.spaces]
 
 
@@ -136,98 +144,99 @@ def main(argv: Sequence[str] | None = None) -> None:
     updates = tc.num_updates(cfg.timesteps, num_steps, n_agents)
     print(f"running {updates} updates over {n_agents} agents")
 
-    obs_dict, _ = env.reset(seed=cfg.seed)
-    next_obs = torch.tensor(stack_by_agent(obs_dict, agents_list).astype(np.float32), device=device)
-    next_done = torch.zeros(n_agents, device=device)
+    try:
+        obs_dict, _ = env.reset(seed=cfg.seed)
+        next_obs = torch.tensor(stack_by_agent(obs_dict, agents_list).astype(np.float32), device=device)
+        next_done = torch.zeros(n_agents, device=device)
 
-    def split_t(t):
-        return {name: t[idx] for name, idx in index_map.items()}
+        def split_t(t):
+            return {name: t[idx] for name, idx in index_map.items()}
 
-    for update in range(updates):
-        for step in range(num_steps):
-            no_split = split_t(next_obs)
-            nd_split = split_t(next_done)
-            per_policy_action = {}
-            for name, idx in index_map.items():
-                ag, b, ob = learners[name], bufs[name], no_split[name]
-                b["obs"][step] = ob
-                b["dones"][step] = nd_split[name]
-                with torch.no_grad():
-                    logits = ag.logits(ob)
-                    value = ag.value(ob)
-                dists = tc._split_categoricals(logits, nvec)
-                sampled = [d.sample() for d in dists]
-                action = torch.stack(sampled, dim=1)
-                b["actions"][step] = action
-                b["logprobs"][step] = sum(d.log_prob(a) for d, a in zip(dists, sampled))
-                b["values"][step] = value
-                per_policy_action[name] = action.cpu().numpy().astype(np.int64)
-            full_action = stitch_actions(per_policy_action, index_map, n_agents)
-
-            obs_dict, rew_dict, term_dict, trunc_dict, _ = env.step(to_action_dict(full_action, agents_list))
-            reward = stack_by_agent(rew_dict, agents_list).astype(np.float32)
-            term = stack_by_agent(term_dict, agents_list).astype(np.float32)
-            trunc = stack_by_agent(trunc_dict, agents_list).astype(np.float32)
-            done = np.logical_or(term, trunc).astype(np.float32)
-            reward_t = torch.tensor(reward, device=device)
-            for name, idx in index_map.items():
-                bufs[name]["rewards"][step] = reward_t[idx]
-            next_obs = torch.tensor(stack_by_agent(obs_dict, agents_list).astype(np.float32), device=device)
-            next_done = torch.tensor(done, device=device)
-
-        for name, idx in index_map.items():
-            ag, opt, b = learners[name], opts[name], bufs[name]
-            np_ = len(idx)
-            with torch.no_grad():
-                next_value = ag.value(next_obs[idx])
-            adv_np, ret_np = tc.compute_gae(
-                b["rewards"].cpu().numpy(), b["values"].cpu().numpy(), b["dones"].cpu().numpy(),
-                next_value.cpu().numpy(), next_done[idx].cpu().numpy(), cfg.gamma, cfg.gae_lambda)
-            advantages = torch.tensor(adv_np, device=device)
-            returns = torch.tensor(ret_np, device=device)
-
-            b_obs = b["obs"].reshape(-1, observation_dim)
-            b_actions = b["actions"].reshape(-1, len(nvec))
-            b_logprobs = b["logprobs"].reshape(-1)
-            b_advantages = advantages.reshape(-1)
-            b_returns = returns.reshape(-1)
-            batch_size = num_steps * np_
-            minibatch_size = max(1, batch_size // cfg.num_minibatches)
-            b_inds = np.arange(batch_size)
-            for _ in range(cfg.update_epochs):
-                np.random.shuffle(b_inds)
-                for start in range(0, batch_size, minibatch_size):
-                    mb = b_inds[start:start + minibatch_size]
-                    logits = ag.logits(b_obs[mb])
+        for update in range(updates):
+            for step in range(num_steps):
+                no_split = split_t(next_obs)
+                nd_split = split_t(next_done)
+                per_policy_action = {}
+                for name, idx in index_map.items():
+                    ag, b, ob = learners[name], bufs[name], no_split[name]
+                    b["obs"][step] = ob
+                    b["dones"][step] = nd_split[name]
+                    with torch.no_grad():
+                        logits = ag.logits(ob)
+                        value = ag.value(ob)
                     dists = tc._split_categoricals(logits, nvec)
-                    mb_actions = b_actions[mb]
-                    new_logprob = sum(d.log_prob(mb_actions[:, i]) for i, d in enumerate(dists))
-                    entropy = sum(d.entropy() for d in dists)
-                    new_value = ag.value(b_obs[mb])
-                    logratio = new_logprob - b_logprobs[mb]
-                    ratio = logratio.exp()
-                    mb_adv = b_advantages[mb]
-                    mb_adv = (mb_adv - mb_adv.mean()) / (mb_adv.std() + 1e-8)
-                    pg_loss = torch.max(-mb_adv * ratio,
-                                        -mb_adv * torch.clamp(ratio, 1 - cfg.clip_coef, 1 + cfg.clip_coef)).mean()
-                    v_loss = 0.5 * ((new_value - b_returns[mb]) ** 2).mean()
-                    loss = pg_loss - cfg.ent_coef * entropy.mean() + cfg.vf_coef * v_loss
-                    opt.zero_grad()
-                    loss.backward()
-                    nn.utils.clip_grad_norm_(ag.parameters(), cfg.max_grad_norm)
-                    opt.step()
+                    sampled = [d.sample() for d in dists]
+                    action = torch.stack(sampled, dim=1)
+                    b["actions"][step] = action
+                    b["logprobs"][step] = sum(d.log_prob(a) for d, a in zip(dists, sampled))
+                    b["values"][step] = value
+                    per_policy_action[name] = action.cpu().numpy().astype(np.int64)
+                full_action = stitch_actions(per_policy_action, index_map, n_agents)
 
-        msg = " ".join(f"{name}_rew={float(bufs[name]['rewards'].mean()):.3f}" for name in index_map)
-        print(f"update {update + 1}/{updates} {msg}")
+                obs_dict, rew_dict, term_dict, trunc_dict, _ = env.step(to_action_dict(full_action, agents_list))
+                reward = stack_by_agent(rew_dict, agents_list).astype(np.float32)
+                term = stack_by_agent(term_dict, agents_list).astype(np.float32)
+                trunc = stack_by_agent(trunc_dict, agents_list).astype(np.float32)
+                done = np.logical_or(term, trunc).astype(np.float32)
+                reward_t = torch.tensor(reward, device=device)
+                for name, idx in index_map.items():
+                    bufs[name]["rewards"][step] = reward_t[idx]
+                next_obs = torch.tensor(stack_by_agent(obs_dict, agents_list).astype(np.float32), device=device)
+                next_done = torch.tensor(done, device=device)
 
-    outdir = pathlib.Path(cfg.export_dir)
-    outdir.mkdir(parents=True, exist_ok=True)
-    for name in index_map:
-        pt_path = outdir / f"pettingzoo_{name}.pt"
-        export_actor_as_torchscript(learners[name], observation_dim, pt_path)
-        print("Exported TorchScript to:", pt_path)
+            for name, idx in index_map.items():
+                ag, opt, b = learners[name], opts[name], bufs[name]
+                np_ = len(idx)
+                with torch.no_grad():
+                    next_value = ag.value(next_obs[idx])
+                adv_np, ret_np = tc.compute_gae(
+                    b["rewards"].cpu().numpy(), b["values"].cpu().numpy(), b["dones"].cpu().numpy(),
+                    next_value.cpu().numpy(), next_done[idx].cpu().numpy(), cfg.gamma, cfg.gae_lambda)
+                advantages = torch.tensor(adv_np, device=device)
+                returns = torch.tensor(ret_np, device=device)
 
-    env.close()
+                b_obs = b["obs"].reshape(-1, observation_dim)
+                b_actions = b["actions"].reshape(-1, len(nvec))
+                b_logprobs = b["logprobs"].reshape(-1)
+                b_advantages = advantages.reshape(-1)
+                b_returns = returns.reshape(-1)
+                batch_size = num_steps * np_
+                minibatch_size = max(1, batch_size // cfg.num_minibatches)
+                b_inds = np.arange(batch_size)
+                for _ in range(cfg.update_epochs):
+                    np.random.shuffle(b_inds)
+                    for start in range(0, batch_size, minibatch_size):
+                        mb = b_inds[start:start + minibatch_size]
+                        logits = ag.logits(b_obs[mb])
+                        dists = tc._split_categoricals(logits, nvec)
+                        mb_actions = b_actions[mb]
+                        new_logprob = sum(d.log_prob(mb_actions[:, i]) for i, d in enumerate(dists))
+                        entropy = sum(d.entropy() for d in dists)
+                        new_value = ag.value(b_obs[mb])
+                        logratio = new_logprob - b_logprobs[mb]
+                        ratio = logratio.exp()
+                        mb_adv = b_advantages[mb]
+                        mb_adv = (mb_adv - mb_adv.mean()) / (mb_adv.std() + 1e-8)
+                        pg_loss = torch.max(-mb_adv * ratio,
+                                            -mb_adv * torch.clamp(ratio, 1 - cfg.clip_coef, 1 + cfg.clip_coef)).mean()
+                        v_loss = 0.5 * ((new_value - b_returns[mb]) ** 2).mean()
+                        loss = pg_loss - cfg.ent_coef * entropy.mean() + cfg.vf_coef * v_loss
+                        opt.zero_grad()
+                        loss.backward()
+                        nn.utils.clip_grad_norm_(ag.parameters(), cfg.max_grad_norm)
+                        opt.step()
+
+            msg = " ".join(f"{name}_rew={float(bufs[name]['rewards'].mean()):.3f}" for name in index_map)
+            print(f"update {update + 1}/{updates} {msg}")
+
+        outdir = pathlib.Path(cfg.export_dir)
+        outdir.mkdir(parents=True, exist_ok=True)
+        for name in index_map:
+            pt_path = outdir / f"pettingzoo_{name}.pt"
+            export_actor_as_torchscript(learners[name], observation_dim, pt_path)
+            print("Exported TorchScript to:", pt_path)
+    finally:
+        env.close()
 
 
 if __name__ == "__main__":
