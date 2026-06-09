@@ -74,8 +74,107 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
+RAY_PIN = "ray[rllib]==2.55.* (requirements-rllib.txt)"
+# New-stack checkpoint layout (verified live in plan Task 6): the RLModule lives under
+# <checkpoint>/learner_group/learner/rl_module and is a MultiRLModule keyed by module id.
+RL_MODULE_SUBDIR = ("learner_group", "learner", "rl_module")
+DEFAULT_MODULE_ID = "default_policy"
+
+
+def _structure_error(detail: str) -> RuntimeError:
+    return RuntimeError(
+        f"unexpected RLModule structure ({detail}); this exporter is pinned to {RAY_PIN} — "
+        "introspect the checkpoint and update export_rllib_to_torchscript.py."
+    )
+
+
+def _load_actor_parts(checkpoint_dir: str):
+    """RLModule checkpoint -> (actor_encoder_net, pi_net, rl_module) or fail loud.
+
+    The actor path of 2.55's DefaultPPOTorchRLModule is two plain tensor->tensor TorchMLPs:
+    encoder.actor_encoder.net and pi.net (raw logits, no softmax). Verified equivalent to
+    forward_inference's action_dist_inputs before tracing (see main).
+    """
+    import os
+
+    from ray.rllib.core.rl_module.rl_module import RLModule
+
+    rl_module_dir = os.path.join(checkpoint_dir, *RL_MODULE_SUBDIR)
+    if not os.path.isdir(rl_module_dir):
+        raise _structure_error(f"missing {os.path.join(*RL_MODULE_SUBDIR)} under {checkpoint_dir}")
+    module = RLModule.from_checkpoint(rl_module_dir)
+
+    # A MultiRLModule keyed by module id; single-module checkpoints may load directly.
+    if hasattr(module, "keys"):
+        keys = list(module.keys())
+        if DEFAULT_MODULE_ID in keys:
+            module = module[DEFAULT_MODULE_ID]
+        elif len(keys) == 1:
+            module = module[keys[0]]
+        else:
+            raise _structure_error(f"ambiguous module ids {keys}")
+
+    encoder = getattr(module, "encoder", None)
+    actor_encoder = getattr(encoder, "actor_encoder", None)
+    actor_encoder_net = getattr(actor_encoder, "net", None)
+    pi_net = getattr(getattr(module, "pi", None), "net", None)
+    if actor_encoder_net is None or pi_net is None:
+        raise _structure_error(
+            f"expected encoder.actor_encoder.net + pi.net on {type(module).__name__}"
+        )
+    return actor_encoder_net, pi_net, module
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    raise NotImplementedError("main() lands in plan Task 6")
+    # Lazy heavy imports (only when exporting).
+    import torch
+    import torch.nn as nn
+
+    args = parse_args(argv)
+    total_logits, _nvec = actor_logit_layout(args.nvec)
+
+    ckpt = args.checkpoint or latest_checkpoint(args.train_dir, args.experiment)
+    print("loading RLlib checkpoint:", ckpt)
+    actor_encoder_net, pi_net, rl_module = _load_actor_parts(ckpt)
+
+    class ScriptableActor(nn.Module):
+        """obs -> actor encoder MLP -> pi head -> raw action logits (single in/out)."""
+
+        def __init__(self, encoder_net, head_net) -> None:
+            super().__init__()
+            self.encoder_net = encoder_net
+            self.head_net = head_net
+
+        def forward(self, obs):
+            return self.head_net(self.encoder_net(obs))
+
+    actor = ScriptableActor(actor_encoder_net, pi_net).to("cpu").eval()
+
+    # Sanity BEFORE tracing: the plain tensor path must reproduce forward_inference exactly,
+    # and the logit count must match the declared action layout.
+    sample_obs = torch.randn(4, args.obs_dim)
+    with torch.no_grad():
+        reference = rl_module.forward_inference({"obs": sample_obs})
+        if "action_dist_inputs" not in reference:
+            raise _structure_error(f"forward_inference keys {sorted(reference)}")
+        wrapped = actor(sample_obs)
+    if not torch.allclose(reference["action_dist_inputs"], wrapped, atol=1e-6):
+        raise _structure_error("wrapped actor logits diverge from forward_inference")
+    if wrapped.shape != (4, total_logits):
+        raise _structure_error(f"expected logits (*, {total_logits}), got {tuple(wrapped.shape)}")
+
+    shape = [1, args.obs_dim]
+    dummy_obs = torch.zeros(*shape, dtype=torch.float32)
+    with torch.no_grad():
+        scripted = torch.jit.trace(actor, dummy_obs)
+    pt_path = pathlib.Path(args.out).with_suffix(".pt")
+    pt_path.parent.mkdir(parents=True, exist_ok=True)
+    scripted.save(str(pt_path))
+    sidecar = write_shape_sidecar(pt_path, shape)
+    print("exported TorchScript to:", pt_path, "logits:", total_logits)
+    print("wrote shape sidecar:    ", sidecar)
+    print("next: export_to_ncnn.py", pt_path)
+    return 0
 
 
 if __name__ == "__main__":
