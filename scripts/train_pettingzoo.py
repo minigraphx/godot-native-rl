@@ -124,7 +124,14 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     agents_list = env.possible_agents
     n_agents = len(agents_list)
-    observation_dim = int(env.observation_space(agents_list[0])["obs"].shape[0])
+    obs_space = env.observation_space(agents_list[0])
+    obs_keys = list(obs_space.spaces.keys())
+    if obs_keys != ["obs"]:
+        raise ValueError(
+            f"train_pettingzoo supports a single 'obs' sensor; got obs keys {obs_keys}. "
+            "unwrap_obs would silently drop the others — concatenate them before training."
+        )
+    observation_dim = int(obs_space["obs"].shape[0])
     nvec = action_nvec(env.action_space(agents_list[0]))
     total_logits = int(sum(nvec))
 
