@@ -15,13 +15,14 @@ extends Node3D
 @export var rng_seed := -1        ## >= 0 seeds the RNG at _ready for reproducible runs
 
 signal goal_reached
-signal exited_arena
+signal exited_arena  ## emitted ONCE per arena-boundary crossing (re-armed when the plane returns inside)
 
 var reaches := 0
 var goal_index := 0
 var _rng := RandomNumberGenerator.new()
 var _plane: Node3D
 var _goals: Array = []  # Array[Node3D], the ring, in order
+var _at_boundary := false  # latch so a wall press costs one penalty, not one per frame
 # Headless/test fallback when no plane body is attached.
 var _plane_xform_override := Transform3D()
 
@@ -55,6 +56,10 @@ func advance_basis(basis: Basis, pitch: float, turn: float, p_speed: float, t_sp
 # True iff pos is outside the centered box of the given half-extent.
 func out_of_bounds(pos: Vector3, half: Vector3) -> bool:
 	return absf(pos.x) > half.x or absf(pos.y) > half.y or absf(pos.z) > half.z
+
+# Clamp a position into the centered box of the given half-extent.
+func clamp_to_bounds(pos: Vector3, half: Vector3) -> Vector3:
+	return Vector3(clampf(pos.x, -half.x, half.x), clampf(pos.y, -half.y, half.y), clampf(pos.z, -half.z, half.z))
 
 func next_goal_index(i: int, count: int) -> int:
 	return (i + 1) % count if count > 0 else 0
@@ -98,18 +103,27 @@ func distance() -> float:
 func get_obs_array() -> Array:
 	return compute_obs(get_plane_xform(), current_goal_pos(), next_goal_pos())
 
-# Integrate one step of flight; advances the goal ring on reach, emits exited_arena off-box.
+# Integrate one step of flight, CLAMPED to the arena box. The plane can't leave (it slides along
+# the boundary and must turn back), and exited_arena fires ONCE per crossing (re-armed on return) so
+# a wall press costs a single penalty, not one per frame. No episode termination here — the bridge
+# truncates at reset_after, matching chase/rover/ball_chase (which also only clamp + truncate).
 func move_plane(pitch: float, turn: float, delta: float) -> void:
-	if _plane == null:
-		var b0 := advance_basis(_plane_xform_override.basis, pitch, turn, pitch_speed, turn_speed, delta)
-		_plane_xform_override.basis = b0
-		_plane_xform_override.origin += -b0.z.normalized() * flight_speed * delta
-		return
-	var b := advance_basis(_plane.transform.basis, pitch, turn, pitch_speed, turn_speed, delta)
-	_plane.transform.basis = b
-	_plane.position += -b.z.normalized() * flight_speed * delta
-	if out_of_bounds(_plane.position, arena_half):
-		exited_arena.emit()
+	var xform := get_plane_xform()
+	var b := advance_basis(xform.basis, pitch, turn, pitch_speed, turn_speed, delta)
+	var next_pos := xform.origin + (-b.z.normalized()) * flight_speed * delta
+	var clamped := clamp_to_bounds(next_pos, arena_half)
+	if clamped != next_pos:
+		if not _at_boundary:
+			_at_boundary = true
+			exited_arena.emit()
+	else:
+		_at_boundary = false
+	xform.basis = b
+	xform.origin = clamped
+	if _plane != null:
+		_plane.transform = xform
+	else:
+		_plane_xform_override = xform
 
 func try_reach_goal() -> void:
 	if distance() < goal_radius and not _goals.is_empty():
@@ -119,6 +133,7 @@ func try_reach_goal() -> void:
 
 func reset_positions() -> void:
 	goal_index = 0
+	_at_boundary = false
 	var start := Transform3D(Basis(), Vector3.ZERO)
 	# Random yaw so episodes don't all start identically.
 	start.basis = start.basis.rotated(Vector3.UP, _rng.randf_range(-PI, PI))

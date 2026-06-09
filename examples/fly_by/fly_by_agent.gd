@@ -11,10 +11,7 @@ const RewardBuilderScript = preload("res://addons/godot_native_rl/reward/reward_
 @export var game_path: NodePath
 @export var goal_bonus := 2.0
 @export var step_penalty := 0.002  ## per physics frame; ~ -2.0 over a full reset_after=1000 episode
-# Must exceed the max per-episode step penalty (~2.0) so diving out of bounds to escape the step
-# penalty early is never worth it — otherwise the plane learns to leave the arena. Episode ends on
-# exit (done=true), so this fires at most once per episode.
-@export var exit_penalty := 5.0
+@export var exit_penalty := 1.0    ## one-time nudge per arena-boundary crossing (the plane is clamped in, not terminated)
 
 var _game  # FlyByGame (duck-typed at runtime)
 var _pitch := 0.0
@@ -88,9 +85,6 @@ func _physics_process(delta: float) -> void:
 	# Accumulate reward against the CURRENT goal BEFORE advancing it (matches chase/rover).
 	accumulate_reward()
 	_game.try_reach_goal()
-	# End the episode when the plane leaves the arena (the exited_arena signal already penalized).
-	if _game.out_of_bounds(_game.get_plane_xform().origin, _game.arena_half):
-		done = true
 	if needs_reset:
 		needs_reset = false
 		_game.reset_positions()

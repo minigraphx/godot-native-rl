@@ -35,5 +35,11 @@ func _initialize() -> void:
 	h.assert_eq(game.next_goal_index(0, 4), 1, "next after 0 is 1")
 	h.assert_eq(game.next_goal_index(3, 4), 0, "next after last wraps to 0")
 
+	# clamp_to_bounds: inside is unchanged; outside is pulled onto the centered box.
+	h.assert_eq(game.clamp_to_bounds(Vector3(10, 5, -10), Vector3(50, 50, 50)), Vector3(10, 5, -10),
+		"clamp leaves in-bounds unchanged")
+	h.assert_eq(game.clamp_to_bounds(Vector3(60, -70, 80), Vector3(50, 40, 50)), Vector3(50, -40, 50),
+		"clamp pulls out-of-bounds onto the box")
+
 	game.free()
 	h.finish(self)
