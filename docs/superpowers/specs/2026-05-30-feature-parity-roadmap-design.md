@@ -16,18 +16,19 @@ Godot Native RL is a GDExtension-based RL framework for Godot 4.6+ that uses Ten
 
 **Strategy:** Start as a complement to godot_rl (train with their Python tooling, deploy with ncnn). Build toward full replacement as each feature gap closes. The complete replacement target is achieved when a user can do *everything* through this repo without installing godot_rl at all.
 
-**Current state (updated 2026-06-03):**
-- ✅ Full godot_rl wire-protocol compatibility (proven by real SB3 + CleanRL training)
+**Current state (updated 2026-06-09):**
+- ✅ Full godot_rl wire-protocol compatibility (proven by real SB3 + CleanRL + SampleFactory training)
 - ✅ `NcnnSync` + `NcnnAIController2D`/`3D` + `NcnnRunner` GDExtension
-- ✅ End-to-end Chase The Target 2D + Rover 3D examples (train → pnnx → ncnn → inference) +
-  Hide & Seek 2D self-play scaffold
-- ✅ Headless test suite (unit + protocol + inference smoke + trained-chase/rover checks + golden regressions)
-- ✅ Conversion verification (`verify_ncnn_parity.py`: argmax + atol + diversity); INT8 + obs-norm + TorchScript paths
-- ✅ **Full sensor parity** — Raycast/Grid/Camera/RelativePosition (2D+3D) all shipped (was the
-  biggest switching friction; now closed, and RelativePosition puts us *ahead* of godot_rl)
-- ⚠️ Addon structure (`addons/godot_native_rl/` + `plugin.cfg`) in place; Asset Library **binary
-  packaging/release** still deferred (item 25)
-- ⚠️ Two training backends (SB3 + CleanRL; SampleFactory/SKRL/RLlib queued)
+- ✅ End-to-end examples: Chase (2D), Rover (3D), Hide & Seek (self-play + multi-policy trained), BallChase (SAC continuous)
+- ✅ Headless test suite (unit + protocol + inference smoke + golden regressions for all examples)
+- ✅ Conversion verification; INT8, obs-norm, TorchScript, LSTM-deploy, web/WASM paths
+- ✅ **Full sensor parity + novel sensors** — Raycast/Grid/Camera/RelativePosition (2D+3D) all shipped;
+  `ObsHistoryBuffer` + `RunningNormSensor` go beyond godot_rl parity
+- ✅ Asset Library release (item 25) — `release.yml` ships prebuilt binaries including web/WASM on
+  every `vX.Y.Z` tag; `EditorExportPlugin` auto-packs model files
+- ✅ Three training backends (SB3, CleanRL, SampleFactory; SKRL/RLlib queued)
+- ✅ Expert-demo recording + BC imitation learning (item 10); multi-policy trained example (item 45)
+- ✅ In-editor Policy Debugger (item 49); stochastic continuous DiagGaussian game-side (#64)
 
 ---
 
@@ -42,7 +43,7 @@ Godot Native RL is a GDExtension-based RL framework for Godot 4.6+ that uses Ten
 | Sensor | godot_rl | Ours |
 |---|---|---|
 | `RaycastSensor2D` | ✅ (n_rays, ray_length, collision mask) | ✅ (item 3) |
-| `RaycastSensor3D` | ✅ (n_rays_width × height grid) | ✅ (item 3) — *distance-only; per-class one-hot queued (item 41)* |
+| `RaycastSensor3D` | ✅ (n_rays_width × height grid) | ✅ (item 3) — distance + per-class multi-hot mode done (item 41) |
 | `GridSensor2D` | ✅ (cell-based spatial detection) | ✅ (item 11) |
 | `GridSensor3D` | ✅ | ✅ (item 11) |
 | `RGBCameraSensor3D` | ✅ (SubViewport → obs) | ✅ `CameraSensor` (item 8) + deploy-side image inference (item 36) |
@@ -55,24 +56,24 @@ Godot Native RL is a GDExtension-based RL framework for Godot 4.6+ that uses Ten
 | Parallel multi-agent training (tiled worlds) | ✅ | ✅ `ParallelArena`/`ParallelArena2D` (item 30, ~6.2×) |
 | Parameter-sharing self-play example | ⚠️ | ✅ Hide & Seek 2D scaffold (item 12) |
 | Per-agent `policy_name` in `env_info` | ✅ | ✅ (item 20 wire-field slice, done 2026-06-03) |
-| PettingZoo wrapper | ✅ | ❌ (`agent_policy_names` now shipped — trained example queued, item 45) |
-| Multi-policy training (RLlib) | ✅ | ❌ (`agent_policy_names` now shipped — trained example queued, item 45) |
-| Expert-demo recording (RECORD_EXPERT_DEMOS) | ✅ | ❌ (queued — item 10) |
-| Imitation learning (BC + GAIL, `imitation` lib) | ✅ | ❌ (follows expert-demo recording) |
+| PettingZoo wrapper | ✅ | ⚠️ item 45 done via custom multi-policy PPO; `GDRLPettingZooEnv` wrapper open (#26) |
+| Multi-policy training (RLlib) | ✅ | ✅ custom multi-policy PPO trained example done (item 45); RLlib trainer not wired (#26) |
+| Expert-demo recording (RECORD_EXPERT_DEMOS) | ✅ | ✅ done (item 10) — `gnrl_v1`/`godot_rl` formats + Python loader + BC trainer |
+| Imitation learning (BC + GAIL, `imitation` lib) | ✅ | ✅ BC done (`train_bc.py`); GAIL not done |
 
 #### Training backends
 | Backend | godot_rl | Ours |
 |---|---|---|
 | Stable-Baselines3 | ✅ | ✅ |
 | CleanRL | ✅ | ✅ (item 17, trained model shipped) |
-| SampleFactory | ✅ | ❌ (queued — item 18) |
-| RLlib | ✅ | ❌ (queued — item 45; multi-policy `policy_name` field now shipped) |
+| SampleFactory | ✅ | ✅ done (#24) — `train_sf.sh`, async PPO, TorchScript→ncnn, isolated `.venv-sf` |
+| RLlib | ✅ | ⚠️ custom multi-policy PPO example done (item 45); native RLlib trainer not wired (#26) |
 | SKRL | ❌ | ❌ (queued — item 19) |
 
 #### Distribution & DX
 | Feature | godot_rl | Ours |
 |---|---|---|
-| Godot Asset Library plugin | ✅ | ⚠️ addon structure + `plugin.cfg` done; binary release deferred (item 25) |
+| Godot Asset Library plugin | ✅ | ✅ done (item 25) — prebuilt binaries + web/WASM via `release.yml` on every `vX.Y.Z` tag |
 | `gdrl` CLI launcher | ✅ | ❌ |
 | Hugging Face Hub integration | ✅ | ❌ (item 50) |
 | HP tuning (Optuna) | ✅ | ❌ |
@@ -82,7 +83,7 @@ Godot Native RL is a GDExtension-based RL framework for Godot 4.6+ that uses Ten
 
 | Feature | Unity | godot_rl | Ours |
 |---|---|---|---|
-| SAC (off-policy) | ✅ | ❌ | ❌ |
+| SAC (off-policy) | ✅ | ❌ | ✅ via SB3 — BallChase live-trained (#74); TorchScript→ncnn deploy |
 | Curiosity intrinsic reward | ✅ | ❌ | ❌ |
 | RND intrinsic reward | ✅ | ❌ | ❌ |
 | Competitive self-play | ✅ | ❌ | ⚠️ (parameter-sharing self-play example, item 12; no opponent-snapshot pool) |
@@ -90,7 +91,7 @@ Godot Native RL is a GDExtension-based RL framework for Godot 4.6+ that uses Ten
 | Curriculum learning | ✅ | ❌ | ❌ |
 | Environment parameter randomization | ✅ | ❌ | ❌ |
 | Variable-length obs (attention) | ✅ | ❌ | ❌ |
-| RNN/LSTM memory | ✅ | ⚠️ (CleanRL GRU) | ❌ (deploy-side queued — item 22) |
+| RNN/LSTM memory | ✅ | ⚠️ (CleanRL GRU) | ✅ deploy done (item 22); `RecurrentPPO` training/export pending (#33) |
 | Physics body sensor (articulation joints) | ✅ | ❌ | ❌ |
 | Buffer sensor (variable-count entities) | ✅ | ❌ | ❌ |
 | Side channels (config/stats/float/string) | ✅ | ❌ | ❌ |

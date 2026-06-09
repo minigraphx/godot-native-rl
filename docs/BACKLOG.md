@@ -243,6 +243,9 @@ the same change. New items → GitHub issue only.
     `RelativePositionSensor2D/3D` takes a single `target_path`. Extend to accept an
     `Array[NodePath]` of targets; encode each as `[dir_x, dir_y, (dir_z,) dist_norm]` and
     concatenate. Update `obs_size()` accordingly. Missing targets remain zero-filled.
+    **Done 2026-06-03** — `objects_to_observe: Array[NodePath]` export on both sensors; `obs_size()`
+    scales to `N × per_target_size`; missing targets zero-fill; headless multi-target unit tests added.
+    Closes #15.
 43. ✅ **Stochastic action sampling (`deterministic_inference` flag)** — upstream `Sync` and
     `AIController` expose a `deterministic_inference` export (default `true`); when `false`,
     discrete actions are sampled from `softmax(logits)` rather than `argmax`. This allows
@@ -251,6 +254,11 @@ the same change. New items → GitHub issue only.
     pass logits through a weighted-random draw before applying. Continuous DiagGaussian sampling via
     a `log_std` sidecar followed (#64): when `false` and an `action_dist_stats_path` is set, continuous
     actions are sampled as `mean + std·N(0,1)` game-side.
+    **Done** — discrete: `deterministic_inference`/`inference_seed` on `NcnnAIController2D/3D`;
+    seedable RNG weighted softmax draw in `NcnnControllerCore.choose_and_apply_action`. Closes #16.
+    Continuous DiagGaussian **Done 2026-06-09** — `scripts/export_action_dist.py` exports PPO log_std
+    to `*_action_dist.json` sidecar; `action_dist_stats_path` loads it into the controller;
+    `ActionDecode` samples `mean + std·N(0,1)` when `deterministic_inference=false`. Closes #64.
 44. ✅ **`INHERIT_FROM_SYNC` per-agent control mode** — when an agent's `control_mode ==
     INHERIT_FROM_SYNC` it defers to the sync node's mode; any other value overrides independently,
     enabling mixed-mode scenes (e.g. one agent TRAINING while another is NCNN_INFERENCE).
@@ -299,6 +307,11 @@ the same change. New items → GitHub issue only.
     probabilities (softmax of logits) in the Godot viewport. Pure GDScript + ncnn, zero Python;
     answers "what does the agent see and want?" visually. Needs non-`--headless` verification.
     *(from item 20; novel-addons spec §3 A5)*
+    **Done 2026-06-09** — drop-in `PolicyDebugOverlay` node + pure `PolicyDebug` formatter +
+    `inference_step` signal emitted by controllers after every forward pass; live obs / action-probs /
+    identity / `get_debug_status()` overlay; auto-discovery of all controllers in scene; F3 toggle;
+    debug-build gate (no overhead in release builds); headless unit tests (helper, overlay, emit
+    path); `examples/chase_the_target/chase_policy_debug.tscn` debug scene. Closes #23.
 
 ## Training backends & algorithms
 

@@ -1,9 +1,10 @@
 # godot_rl Ecosystem Gap Analysis
 
-**Date:** 2026-06-02 · **status refreshed 2026-06-03**  
+**Date:** 2026-06-02 · **status refreshed 2026-06-09**  
 **Repos audited:** `edbeeching/godot_rl_agents` · `edbeeching/godot_rl_agents_plugin` · `edbeeching/godot_rl_agents_examples`  
-**This repo state:** backlog items 1–8, 10–13, 17, 20 (wire-field slice), 21, 24, 30, 33, 36,
-39, 40, 41, 44 done; item 9 partial. Open gaps tracked as GitHub issues (see table below).
+**This repo state:** backlog items 1–8, 10–13, 17–18, 20–22, 24–25, 30, 33, 36, 39–47, 49 done;
+item 9 partial (terminated/truncated blocked upstream). GitHub #45, #64, #74, #79, #81 also closed.
+Open gaps tracked as GitHub issues (see table below).
 (2026-06-03 refresh: GridSensor + ISensor interface shipped; `INHERIT_FROM_SYNC` already wired;
 `policy_name`/`agent_policy_names` wire field shipped — RLlib/PettingZoo *trainers* now unblocked,
 tracked as issue #26)
@@ -15,6 +16,16 @@ upstream plugin not vendored. Trains with SB3 SAC via `SBGSingleObsEnv`; exports
 (tanh(mean)) as TorchScript (godot_rl's SAC ONNX export breaks under torch 2.x dynamo); converts to
 ncnn via `export_to_ncnn.py --via torchscript`. Behavioral regression in CI. Closes #74 — live-trained
 non-PPO follow-up to #45.)
+(2026-06-07 refresh: Asset Library release shipped (item 25) — `release.yml` builds all platforms
+including web/WASM on every `vX.Y.Z` tag; EditorExportPlugin auto-packs `*.ncnn.*` into game exports;
+web proven in-browser without COOP/COEP headers. ObsHistoryBuffer (item 46) + RunningNormSensor
+(item 47) shipped 2026-06-05. Multi-policy trained example (item 45) shipped 2026-06-05 — custom
+single-file multi-policy PPO, seeker+hider with distinct ncnn models. SampleFactory golden regression
+added (#79).)
+(2026-06-09 refresh: In-editor Policy Debugger shipped (item 49) — `PolicyDebugOverlay`, `inference_step`
+signal, F3 toggle, debug-build gate, auto-discovery; closes #23. Continuous DiagGaussian action
+sampling via log_std sidecar shipped (#64) — game-side `mean + std·N(0,1)` for PPO continuous
+policies via `action_dist_stats_path`; closes #64. SAC ncnn export standardised on TorchScript (#81).)
 
 ---
 
@@ -83,7 +94,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `SBGSingleObsEnv` (SB3 + `MlpPolicy` compat) | ✅ | ✅ used by `train_ball_chase.py` (SAC) | ✅ done (#74) |
 | `CleanRLGodotEnv` | ✅ | ✅ item 17 done | — |
 | `RayVectorGodotEnv` (RLlib) | ✅ | ❌ no training script | **Gap** (#26 — `policy_name` now shipped) |
-| `GDRLPettingZooEnv` (PettingZoo, multi-policy) | ✅ | ❌ | **Gap** (#26 — `policy_name` shipped; needs trainer/example) |
+| `GDRLPettingZooEnv` (PettingZoo, multi-policy) | ✅ | ⚠️ item 45 done via custom multi-policy PPO; `GDRLPettingZooEnv` wrapper still open | **Gap** (#26) |
 | `SampleFactoryEnvWrapper` (batched + non-batched) | ✅ | ✅ done (#24) — `train_sf.sh`, async PPO, TorchScript→ncnn, isolated `.venv-sf` | — |
 | ONNX export helper (`OnnxablePolicy`) | ✅ SB3/SAC → ONNX | ✅ `export_to_ncnn.py` ONNX+TorchScript→ncnn | Different, covered |
 | Optuna HP tuning example | ✅ | ❌ | Nice-to-have |
@@ -122,6 +133,11 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | Socket connect/read timeouts | Clean exit on dead trainer |
 | Per-agent `info` field | `get_info()` hook on controllers |
 | `RewardBuilder` / `RewardAdapter` | More expressive than upstream's `ApproachNodeReward` |
+| `ObsHistoryBuffer` (frame-stacking sensor wrapper) | `ISensor`-conforming ring-buffer, `N × inner.obs_size()`, auto-discovered by `collect_sensors()` |
+| `RunningNormSensor` (online Welford normalisation) | No Python `VecNormalize` at deploy; Welford mean/var, freeze + JSON sidecar |
+| In-editor Policy Debugger (`PolicyDebugOverlay`) | Live obs / action-probs / identity overlay, F3 toggle, debug-build gate, auto-discovery |
+| Web/WASM GDExtension (no COOP/COEP) | Single-threaded ncnn WASM; proven in-browser on itch.io / GitHub Pages unmodified |
+| Continuous DiagGaussian action sampling (game-side) | `action_dist_stats_path` + log_std sidecar → `mean + std·N(0,1)` without Python at inference |
 
 ---
 
@@ -138,11 +154,15 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | ✅ Done | `RECORD_EXPERT_DEMOS` + demo infra — `gnrl_v1`/`godot_rl` formats, Python loader + `train_bc.py`, chase scripted-expert | #13 |
 | ✅ Done | Recurrent / LSTM **deploy** (hidden-state carry; training/export still pending) | #33 |
 | ✅ Done | `SBGSingleObsEnv` + SB3 SAC continuous training — BallChase example, live-trained non-PPO regression | #74 |
-| 🟡 P2 | RLlib + PettingZoo multi-policy trained example | #26 |
+| ✅ Done | Multi-policy trained example (custom single-file PPO, seeker+hider, item 45) | #26 partial |
+| ✅ Done | Asset Library release + web/WASM GDExtension — prebuilt binaries on all platforms, EditorExportPlugin auto-packs models | #32 |
+| ✅ Done | `ObsHistoryBuffer` (frame-stacking) + `RunningNormSensor` (online Welford) | #17, #18 |
+| ✅ Done | In-editor Policy Debugger — live obs/action-probs overlay, F3 toggle | #23 |
+| ✅ Done | Continuous DiagGaussian action sampling via log_std sidecar | #64 |
 | ✅ Done | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
+| 🟡 P2 | RLlib + PettingZoo wrappers / native multi-policy trainer (custom PPO example done; API wrappers still open) | #26 |
 | 🔵 P3 | Batched multi-agent inference | #34 |
 | ⚪ P4 | CameraSensor: configurable render res + downscale + RGBA | #36 |
 | ⚪ P4 | Grayscale camera deploy (C++ `PIXEL_GRAY` path) | #36 |
-| ⚪ P4 | `SBGSingleObsEnv` compat wrapper | — |
 | 🔴 P5 | `terminated`/`truncated` split — wire semantics change; blocked on upstream godot_rl TODO | #12 |
 | 🔵 By design | `ONNX_INFERENCE` mode — replaced by ncnn | — |
