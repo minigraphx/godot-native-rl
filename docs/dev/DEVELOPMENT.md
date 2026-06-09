@@ -25,6 +25,8 @@ Two layers, deliberately separated:
     per-ray multi-hot collision-layer segments via `detection_classes` + optional `other`/closeness
     slots, encoded by `raycast_math.encode_ray_class`).
   - `training/` — `ParallelArena` (tiles N agent worlds in one process for ~Nx-faster training).
+  - `debug/` — `PolicyDebugOverlay` (drop-in CanvasLayer: auto-discovers agents, renders live
+    obs/action-probs/identity, F3 toggle) + `PolicyDebug` (pure static formatter, headless-testable).
 
 Examples (`examples/chase_the_target/`, `examples/rover_3d/`) compose these into runnable scenes.
 

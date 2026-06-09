@@ -30,8 +30,8 @@ func _initialize() -> void:
 	var overlay := PolicyDebugOverlay.new()
 	overlay.debug_build_only = false   # do not free in _ready regardless of build type
 	overlay.start_visible = true
-	root.add_child(overlay)            # _ready() runs discovery + connects
-	overlay._ready()                   # _ready() is deferred in synchronous _initialize(); call it explicitly
+	root.add_child(overlay)            # add_child alone does NOT call _ready() in a synchronous _initialize() context
+	overlay._ready()                   # _ready() is deferred here; call it explicitly to trigger discovery + signal wiring
 
 	# Emit a payload as the core would.
 	ctrl.inference_step.emit({
