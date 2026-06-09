@@ -31,6 +31,8 @@
 
 **Convention reminders (from CLAUDE.md):** Python 4-space indent; heavy imports (`ray`/`torch`/`godot_rl`/`numpy`/`gymnasium`) **lazy inside `main()`**/class methods so pure helpers stay import-light and testable; tests are stdlib `unittest` auto-discovered by `run_tests.sh`. Do NOT push to `main`.
 
+**Branch:** implementation continues on **`claude/eloquent-cerf-fb6073`** (the branch carrying this spec + plan) — draft **PR #115** grows into the feature PR (SF-style design+implementation in one). Retitle it `feat: Ray/RLlib training backend (#110)` and add `Closes #110` to the body when marking it ready.
+
 ---
 
 ## Task 1: `.venv-rllib` dependency isolation
