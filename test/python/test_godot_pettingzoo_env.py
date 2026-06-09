@@ -23,8 +23,11 @@ class StubGodotEnv:
         self.num_envs = num_envs
         self.obs_dim = obs_dim
         self.agent_policy_names = list(policy_names)
+        # godot_rl GodotEnv exposes Dict obs spaces (Dict({'obs': Box(...)})), not a flat Box —
+        # mirror that so the adapter (and its consumers) are tested against the real contract.
         self.observation_spaces = [
-            spaces.Box(-np.inf, np.inf, (obs_dim,), dtype=np.float32) for _ in range(num_envs)
+            spaces.Dict({"obs": spaces.Box(-np.inf, np.inf, (obs_dim,), dtype=np.float32)})
+            for _ in range(num_envs)
         ]
         self.tuple_action_spaces = [
             spaces.Tuple((spaces.Discrete(n_actions),)) for _ in range(num_envs)
@@ -33,7 +36,7 @@ class StubGodotEnv:
         self.last_actions = None
 
     def _obs(self):
-        return [np.zeros(self.obs_dim, dtype=np.float32) for _ in range(self.num_envs)]
+        return [{"obs": np.zeros(self.obs_dim, dtype=np.float32)} for _ in range(self.num_envs)]
 
     def reset(self):
         return self._obs(), [{} for _ in range(self.num_envs)]
@@ -63,7 +66,7 @@ class TestGodotParallelEnv(unittest.TestCase):
 
     def test_spaces_mapped_per_agent(self):
         env = self._env()
-        self.assertEqual(env.observation_space(0).shape, (4,))
+        self.assertEqual(env.observation_space(0)["obs"].shape, (4,))
         self.assertEqual(env.action_space(1).spaces[0].n, 3)
 
     def test_reset_returns_dicts_for_all_agents(self):
@@ -71,7 +74,7 @@ class TestGodotParallelEnv(unittest.TestCase):
         obs, infos = env.reset()
         self.assertEqual(set(obs.keys()), {0, 1})
         self.assertEqual(set(infos.keys()), {0, 1})
-        self.assertEqual(obs[0].shape, (4,))
+        self.assertEqual(obs[0]["obs"].shape, (4,))
 
     def test_step_returns_five_dicts_keyed_by_action_agents(self):
         env = self._env()

@@ -48,5 +48,19 @@ class TestActionNvec(unittest.TestCase):
             tp.action_nvec(spaces.MultiDiscrete([5, 3]))
 
 
+class TestUnwrapObs(unittest.TestCase):
+    def test_extracts_inner_obs_key(self):
+        # godot_rl GodotEnv returns per-agent Dict obs {'obs': vec}; unwrap to {agent: vec}.
+        obs_dict = {0: {"obs": np.array([1.0, 2.0])}, 1: {"obs": np.array([3.0, 4.0])}}
+        out = tp.unwrap_obs(obs_dict)
+        np.testing.assert_array_equal(out[0], np.array([1.0, 2.0]))
+        np.testing.assert_array_equal(out[1], np.array([3.0, 4.0]))
+
+    def test_custom_key(self):
+        obs_dict = {0: {"camera": np.array([5.0])}}
+        out = tp.unwrap_obs(obs_dict, key="camera")
+        np.testing.assert_array_equal(out[0], np.array([5.0]))
+
+
 if __name__ == "__main__":
     unittest.main()

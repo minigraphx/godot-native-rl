@@ -46,6 +46,13 @@ def action_nvec(action_space) -> list:
     return [int(s.n) for s in action_space.spaces]
 
 
+def unwrap_obs(obs_dict: Dict, key: str = "obs") -> Dict:
+    """godot_rl exposes Dict obs spaces and returns per-agent Dict obs ({key: vector}); pull the inner
+    array so it can be stacked. {agent: {key: vec}} -> {agent: vec}. Mirrors CleanRLGodotEnv's obs[key]
+    extraction (single-sensor envs). Multi-sensor obs would concatenate keys — out of scope here."""
+    return {agent: per_agent[key] for agent, per_agent in obs_dict.items()}
+
+
 class Config(NamedTuple):
     timesteps: int
     speedup: int
@@ -117,7 +124,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     agents_list = env.possible_agents
     n_agents = len(agents_list)
-    observation_dim = int(env.observation_space(agents_list[0]).shape[0])
+    observation_dim = int(env.observation_space(agents_list[0])["obs"].shape[0])
     nvec = action_nvec(env.action_space(agents_list[0]))
     total_logits = int(sum(nvec))
 
@@ -146,7 +153,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     try:
         obs_dict, _ = env.reset(seed=cfg.seed)
-        next_obs = torch.tensor(stack_by_agent(obs_dict, agents_list).astype(np.float32), device=device)
+        next_obs = torch.tensor(stack_by_agent(unwrap_obs(obs_dict), agents_list).astype(np.float32), device=device)
         next_done = torch.zeros(n_agents, device=device)
 
         def split_t(t):
@@ -181,7 +188,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 reward_t = torch.tensor(reward, device=device)
                 for name, idx in index_map.items():
                     bufs[name]["rewards"][step] = reward_t[idx]
-                next_obs = torch.tensor(stack_by_agent(obs_dict, agents_list).astype(np.float32), device=device)
+                next_obs = torch.tensor(stack_by_agent(unwrap_obs(obs_dict), agents_list).astype(np.float32), device=device)
                 next_done = torch.tensor(done, device=device)
 
             for name, idx in index_map.items():
