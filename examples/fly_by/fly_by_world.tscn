@@ -1,0 +1,39 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://examples/fly_by/fly_by_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/fly_by/fly_by_agent.gd" id="2"]
+[ext_resource type="PackedScene" path="res://examples/fly_by/cartoon_plane/scene.gltf" id="3"]
+
+[node name="FlyByGame" type="Node3D"]
+script = ExtResource("1")
+plane_body_path = NodePath("PlaneBody")
+goals_path = NodePath("Goals")
+
+[node name="PlaneBody" type="Node3D" parent="."]
+
+[node name="PlaneMesh" parent="PlaneBody" instance=ExtResource("3")]
+transform = Transform3D(0.5, 0, 0, 0, 0.5, 0, 0, 0, 0.5, 0, 0, 0)
+
+[node name="Goals" type="Node3D" parent="."]
+
+[node name="Goal0" type="Node3D" parent="Goals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -30)
+
+[node name="Goal1" type="Node3D" parent="Goals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 0, -15)
+
+[node name="Goal2" type="Node3D" parent="Goals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 0, 15)
+
+[node name="Goal3" type="Node3D" parent="Goals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 30)
+
+[node name="Goal4" type="Node3D" parent="Goals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 0, 15)
+
+[node name="Goal5" type="Node3D" parent="Goals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 0, -15)
+
+[node name="FlyByAgent" type="Node3D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
