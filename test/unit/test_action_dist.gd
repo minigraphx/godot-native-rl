@@ -30,4 +30,17 @@ func _initialize() -> void:
 	# to_typed: invalid -> {}.
 	h.assert_eq(ActionDist.to_typed({"std": []}), {}, "to_typed invalid -> {}")
 
+	# continuous_action_dim: sums size over continuous keys only (discrete keys contribute 0).
+	h.assert_eq(ActionDist.continuous_action_dim(
+		{"steer": {"size": 2, "action_type": "continuous"}}), 2,
+		"continuous_action_dim sums a single continuous key")
+	h.assert_eq(ActionDist.continuous_action_dim({
+		"fire": {"size": 3, "action_type": "discrete"},
+		"steer": {"size": 2, "action_type": "continuous"},
+		"throttle": {"size": 1, "action_type": "continuous"}}), 3,
+		"continuous_action_dim ignores discrete keys, sums continuous")
+	h.assert_eq(ActionDist.continuous_action_dim(
+		{"move": {"size": 5, "action_type": "discrete"}}), 0,
+		"continuous_action_dim is 0 for a discrete-only space")
+
 	h.finish(self)

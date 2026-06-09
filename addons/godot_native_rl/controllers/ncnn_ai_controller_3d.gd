@@ -18,7 +18,7 @@ enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
 @export_file("*.json") var action_dist_stats_path: String = ""  # continuous DiagGaussian std sidecar
 @export_file("*.json") var recurrent_stats_path: String = ""  # LSTM/GRU deploy: <model>.recurrent.json
 @export var policy_name: String = "shared_policy"  # multi-policy routing (PettingZoo/RLlib)
-@export var deterministic_inference: bool = true  # false -> sample discrete actions from softmax(logits)
+@export var deterministic_inference: bool = true  # false -> sample stochastically: discrete from softmax(logits), continuous DiagGaussian when an action_dist sidecar is set
 @export var inference_seed: int = -1  # -1 = randomize each run; >= 0 = fixed seed (reproducible eval)
 
 var _core := NcnnControllerCore.new()
@@ -122,7 +122,15 @@ func _load_action_dist_stats() -> void:
 	if not (parsed is Dictionary) or not ActionDist.validate(parsed):
 		push_error("NcnnAIController3D: invalid action-dist stats JSON at '%s'." % action_dist_stats_path)
 		return
-	_core.action_dist_stats = ActionDist.to_typed(parsed)
+	var typed := ActionDist.to_typed(parsed)
+	# Fail loud if std length doesn't match the policy's continuous action dims — a sidecar from
+	# the wrong checkpoint would otherwise silently sample only some dims (action_decode falls back
+	# to the mean for any dim beyond std.size()).
+	var cont_dim := ActionDist.continuous_action_dim(get_action_space())
+	if typed["std"].size() != cont_dim:
+		push_error("NcnnAIController3D: action-dist std has %d entries but the action space has %d continuous dim(s) at '%s'. Re-export the sidecar from the matching checkpoint." % [typed["std"].size(), cont_dim, action_dist_stats_path])
+		return
+	_core.action_dist_stats = typed
 
 func set_action_dist_for_test(stats: Dictionary) -> void:
 	_core.action_dist_stats = stats

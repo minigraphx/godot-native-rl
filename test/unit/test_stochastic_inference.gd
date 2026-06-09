@@ -93,4 +93,31 @@ func _initialize() -> void:
 	c1.free()
 	c2.free()
 
+	# --- Load-time std-size cross-check (mismatched sidecar fails loud) ---
+	# Exercises the real FileAccess + JSON + ActionDist path. A sidecar whose std length (3)
+	# != the continuous action dim (steer size 2) must be rejected at load, per the design spec's
+	# "fail loud on mismatch" guarantee — otherwise deploy silently samples only some dims.
+	var bad_path := "user://test_action_dist_bad.json"
+	var bf := FileAccess.open(bad_path, FileAccess.WRITE)
+	bf.store_string('{"std": [0.1, 0.2, 0.3]}')
+	bf.close()
+	var mism := ContStub.new()
+	mism.action_dist_stats_path = bad_path
+	mism._load_action_dist_stats()
+	h.assert_true(mism._core.action_dist_stats.is_empty(),
+		"mismatched std length rejected at load (fail loud)")
+	mism.free()
+
+	# A correctly-sized sidecar (2 == continuous dim) loads through the file path.
+	var good_path := "user://test_action_dist_good.json"
+	var gf := FileAccess.open(good_path, FileAccess.WRITE)
+	gf.store_string('{"std": [0.1, 0.2]}')
+	gf.close()
+	var okc := ContStub.new()
+	okc.action_dist_stats_path = good_path
+	okc._load_action_dist_stats()
+	h.assert_true(okc._core.action_dist_stats.has("std"), "correctly-sized sidecar loads")
+	h.assert_eq(okc._core.action_dist_stats["std"].size(), 2, "loaded std has 2 entries")
+	okc.free()
+
 	h.finish(self)

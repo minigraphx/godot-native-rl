@@ -35,3 +35,15 @@ static func to_typed(stats: Dictionary) -> Dictionary:
 		push_error("ActionDist.to_typed: invalid stats dictionary.")
 		return {}
 	return {"std": PackedFloat32Array(stats["std"])}
+
+# Total continuous action dimensions in an action_space dict — the count the sidecar's `std`
+# must match. Discrete keys contribute nothing (their stochasticity is softmax over logits, not a
+# sidecar). Used by the controllers to cross-check std.size() at load and fail loud on mismatch,
+# so a sidecar exported from the wrong checkpoint never silently samples only some dims.
+static func continuous_action_dim(action_space: Dictionary) -> int:
+	var n := 0
+	for key in action_space.keys():
+		var entry: Dictionary = action_space[key]
+		if entry.get("action_type", "") == "continuous":
+			n += int(entry.get("size", 0))
+	return n
