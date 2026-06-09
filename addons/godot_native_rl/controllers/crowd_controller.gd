@@ -33,6 +33,8 @@ func _ready() -> void:
 	register_agents()
 
 func _setup_runner() -> void:
+	if _runner != null:
+		return  # idempotent: never create a second runner (e.g. if called after _ready already ran it)
 	if model_param_path.is_empty() or model_bin_path.is_empty():
 		push_error("NcnnCrowdController: model_param_path and model_bin_path are required.")
 		return

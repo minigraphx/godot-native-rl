@@ -8,7 +8,13 @@ static func gather_obs(agents: Array) -> Array:
 	var inputs: Array = []
 	for agent in agents:
 		var obs_dict: Dictionary = agent.get_obs()
-		assert("obs" in obs_dict, "CrowdMath.gather_obs: get_obs() must return an 'obs' key")
+		if not ("obs" in obs_dict):
+			# Deploy-path helper: fail loud but keep index alignment. An empty obs vector becomes an
+			# empty input -> empty output slot -> skipped by the controller (assert would be stripped
+			# in exported release builds, silently feeding a degenerate vector).
+			push_error("CrowdMath.gather_obs: agent get_obs() missing 'obs' key; using empty obs for that slot.")
+			inputs.append(PackedFloat32Array())
+			continue
 		inputs.append(PackedFloat32Array(obs_dict["obs"]))
 	return inputs
 

@@ -62,6 +62,8 @@ func apply_step(delta: float) -> void:
 	if _arena_pos.distance_to(_target_pos) < touch_radius:
 		catches += 1
 		_target_pos = _random_local()
+	queue_redraw()  # per-CanvasItem: the unit must request its own redraw to animate (the game's
+	# _process redraw only covers the game node's own _draw, not each unit's)
 
 func _draw() -> void:
 	# Drawn in local space; Node2D.position (the tile offset) places this whole arena in the grid.
