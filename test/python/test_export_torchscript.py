@@ -363,22 +363,11 @@ class TestShapeHelpers(unittest.TestCase):
 
 
 class TestExportTorchscriptHelpers(unittest.TestCase):
-    """Torch-free helpers of the standalone TorchScript writer (export_torchscript.py)."""
+    """Torch-free helpers of the standalone TorchScript writer (export_torchscript.py).
 
-    def test_latest_checkpoint_picks_newest(self):
-        import os
-        with tempfile.TemporaryDirectory() as d:
-            old = Path(d) / "ckpt_100.zip"
-            new = Path(d) / "ckpt_200.zip"
-            old.write_text("a")
-            new.write_text("b")
-            os.utime(old, (1000, 1000))
-            os.utime(new, (2000, 2000))
-            self.assertEqual(ets.latest_checkpoint(d), str(new))
-
-    def test_latest_checkpoint_empty_dir(self):
-        with tempfile.TemporaryDirectory() as d:
-            self.assertEqual(ets.latest_checkpoint(d), "")
+    The checkpoint picker now lives in export_to_ncnn.newest_zip (tested in
+    test_export_to_ncnn.py); export_torchscript imports it rather than redefining it.
+    """
 
     def test_obs_key_and_box_dict_obs(self):
         box = types.SimpleNamespace(shape=(5,))
