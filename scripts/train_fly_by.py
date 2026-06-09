@@ -5,12 +5,21 @@ godot-rl bridge.
 Run this FIRST (opens the server on port 11008 and waits), THEN launch the Godot training scene
 which connects as the client. See scripts/train_fly_by.sh for orchestration.
 
-The action space is two continuous keys (pitch, turn). godot_rl's export_model_as_onnx emits the
-action MEAN for a Box policy (no std), which export_to_ncnn.py converts unchanged. The std is
+The action space is two continuous keys (pitch, turn). We trace the deterministic actor (the action
+MEAN for a Box policy) to TorchScript, which export_to_ncnn.py converts unchanged. The std is
 exported separately by scripts/export_action_dist.py for deploy-side DiagGaussian sampling (#64).
+
+Export is TorchScript, NOT godot_rl's export_model_as_onnx: on the numpy<2-pinned training stack
+(stable-baselines3 caps numpy<2.0), onnx 1.19 references `ml_dtypes.float4_e2m1fn`, which only exists
+in ml_dtypes>=0.5 (needs numpy>=2), so torch.onnx export raises AttributeError. TorchScript is the
+repo's first-class ONNX-free path (see docs/dev/gotchas.md + scripts/export_torchscript.py).
 """
 import argparse
 import pathlib
+import sys
+
+# Reuse the deterministic-actor TorchScript tracer (import stays light at module load: no torch).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -20,7 +29,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--action_repeat", type=int, default=4)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--save_model_path", type=str, default="models/fly_by_policy.zip")
-    p.add_argument("--onnx_export_path", type=str, default="models/fly_by_policy.onnx")
+    p.add_argument("--pt_export_path", type=str, default="models/fly_by_policy.pt")
     return p.parse_args(argv)
 
 
@@ -28,7 +37,7 @@ def main() -> None:
     from stable_baselines3 import PPO
     from stable_baselines3.common.vec_env.vec_monitor import VecMonitor
     from godot_rl.wrappers.stable_baselines_wrapper import StableBaselinesGodotEnv
-    from godot_rl.wrappers.onnx.stable_baselines_export import export_model_as_onnx
+    from export_torchscript import export_policy_as_torchscript
 
     args = parse_args()
 
@@ -63,9 +72,11 @@ def main() -> None:
     model.save(zip_path)
     print("Saved SB3 model to:", zip_path)
 
-    onnx_path = pathlib.Path(args.onnx_export_path).with_suffix(".onnx")
-    export_model_as_onnx(model, str(onnx_path))
-    print("Exported ONNX to:", onnx_path)
+    pt_path = pathlib.Path(args.pt_export_path).with_suffix(".pt")
+    _, sidecar = export_policy_as_torchscript(model, pt_path)
+    print("Exported TorchScript (deterministic actor = action mean) to:", pt_path)
+    print("Wrote shape sidecar:", sidecar)
+    print("Convert to ncnn with: export_to_ncnn.py %s" % pt_path)
 
     env.close()
 

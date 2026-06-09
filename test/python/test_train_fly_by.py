@@ -14,7 +14,7 @@ class TestParseArgs(unittest.TestCase):
         a = tfb.parse_args([])
         self.assertGreater(a.timesteps, 0)
         self.assertTrue(a.save_model_path.endswith(".zip"))
-        self.assertTrue(a.onnx_export_path.endswith(".onnx"))
+        self.assertTrue(a.pt_export_path.endswith(".pt"))
 
     def test_overrides(self):
         a = tfb.parse_args(["--timesteps", "1234", "--speedup", "4"])
