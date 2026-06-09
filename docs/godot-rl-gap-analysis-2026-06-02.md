@@ -125,7 +125,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | INT8 quantization | ❌ | ✅ item 13 | **Advantage** |
 | TorchScript → ncnn export | ❌ | ✅ item 33 | **Advantage** |
 | Recurrent / LSTM deploy | ❌ | ✅ item 22 | **Advantage** (deploy; training/export pending #33) |
-| Batched multi-agent inference | ❌ | ❌ | Parity gap (#34) |
+| Batched multi-agent inference | ❌ | ✅ `run_inference_batch` (thread-parallel) + `CrowdController` + `chase_crowd` | **Advantage** (#34) |
 
 ---
 
@@ -170,11 +170,11 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | ✅ Done | In-editor Policy Debugger — live obs/action-probs overlay, F3 toggle | #23 |
 | ✅ Done | Continuous DiagGaussian action sampling via log_std sidecar | #64 |
 | ✅ Done | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
+| ✅ Done | Batched multi-agent inference — `run_inference_batch` (thread-parallel, one shared `Net`) + `CrowdController` + `chase_crowd` example | #34 |
 | ✅ Done | PettingZoo `ParallelEnv` interop — `GodotParallelEnv` adapter + `parallel_api_test` conformance; live training run is a follow-up | #111 |
 | 🟡 P3 | RLlib `RayVectorGodotEnv` training-script interop | #110 |
 | ⚪ P4 | Plugin editor-DX parity: pre-built sensor `.tscn` scenes + `script_templates/AIController` | #112 |
 | ⚪ P5 | Optuna hyperparameter-tuning example (nice-to-have) | #113 |
-| 🔵 P3 | Batched multi-agent inference | #34 |
 | ⚪ P4 | CameraSensor: configurable render res + downscale + RGBA | #36 |
 | ⚪ P4 | Grayscale camera deploy (C++ `PIXEL_GRAY` path) | #36 |
 | 🔴 P5 | `terminated`/`truncated` split — wire semantics change; blocked on upstream godot_rl TODO | #12 |

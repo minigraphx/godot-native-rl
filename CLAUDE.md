@@ -18,7 +18,7 @@ standalone headless-compatible play scenes; trained inference is available for c
 multi-policy hide & seek, and BallChase. Reusable library in
 `addons/godot_native_rl/` (`sync.gd`/`NcnnSync`, `controllers/`, `reward/`, `sensors/`,
 `training/`, `net/`); C++ GDExtension at repo root (`src/ncnn_runner.{h,cpp}`). Examples:
-`chase_the_target` (2D), `rover_3d` (3D), `hide_and_seek` (2D self-play), `ball_chase` (2D continuous-control / SAC), `fly_by` (3D continuous-control / PPO, ships the #64 DiagGaussian-sampling demo). Wire protocol is
+`chase_the_target` (2D, + `chase_crowd.tscn` batched shared-policy crowd via `run_inference_batch` + `NcnnCrowdController`), `rover_3d` (3D), `hide_and_seek` (2D self-play), `ball_chase` (2D continuous-control / SAC), `fly_by` (3D continuous-control / PPO, ships the #64 DiagGaussian-sampling demo). Wire protocol is
 godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 [docs/dev/DEVELOPMENT.md](docs/dev/DEVELOPMENT.md).**
 
@@ -247,5 +247,6 @@ daily:
 
 ncnn statically linked via C++ enables: web/WASM deployment (godot_rl's ONNX/.NET can't),
 console deployment (no .NET cert issues), INT8 quantization game-side, async inference threads,
+thread-parallel batched crowd inference (`run_inference_batch` + `NcnnCrowdController`, one shared `Net`),
 LOD policy switching, and Godot-native ideas (Signal→Reward, NavMesh sensor) — none replicable by
 a Python-server framework or a managed-runtime one. Lead with these in all docs.

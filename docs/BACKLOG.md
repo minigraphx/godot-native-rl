@@ -420,10 +420,17 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     gitignored). See docs/dev/DEVELOPMENT.md "The recurrent deploy contract".
     **Deferred:** real `RecurrentPPO` (sb3-contrib) training + a trained recurrent example; general
     export tooling that emits the sidecar from an arbitrary trained model (only a synthetic fixture
-    here); image-obs + recurrent (float-obs path only); batched multi-agent recurrent (item 23 /
-    #34).
-23. ⬜ **Batched multi-agent inference** — each agent currently runs its own forward pass (linear cost).
-    Add batched inference (batch dim) at the C++ level for crowds / large multi-agent scenes.
+    here); image-obs + recurrent (float-obs path only); batched multi-agent **recurrent** inference
+    (item 23 / #34 shipped non-recurrent batched crowd inference — batched recurrent remains a future
+    follow-up).
+23. ✅ **Batched multi-agent inference** — `NcnnRunner.run_inference_batch(inputs, num_threads)` runs N
+    agents' forward passes in one C++ call, fanned across `std::thread` workers (the Net's `opt.num_threads`
+    is pinned to 1 for the call so each worker's Extractor is single-threaded — no nested OpenMP; serial
+    on WASM). ncnn has no CPU batch dim, so the win is collapsing N Variant round-trips into one + thread
+    parallelism + one shared `Net` (not fewer FLOPs). Reusable `NcnnCrowdController`
+    (`addons/godot_native_rl/controllers/crowd_controller.gd`) gathers child-agent obs → one batch →
+    `ActionDecode` → scatters actions; `chase_crowd` example tiles 8 shared-policy chasers on the
+    committed chase net (`examples/chase_the_target/chase_crowd.tscn`). Closes #34.
 24. ✅ **Observation-normalization parity helper** — replay SB3 `VecNormalize` obs stats game-side.
     Added pure `addons/godot_native_rl/controllers/obs_normalize.gd` (`normalize`/`validate`/`to_typed`),
     `scripts/export_vecnormalize.py` (`vec_normalize.pkl` → committed JSON), and an
