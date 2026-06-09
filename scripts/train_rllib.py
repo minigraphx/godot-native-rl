@@ -89,6 +89,7 @@ def ppo_config_overrides(cfg: RLlibConfig) -> dict:
         "num_epochs": 4,
         "lr": 2.5e-4,
         "gamma": 0.99,
+        "entropy_coeff": 0.01,
     }
 
 
@@ -162,8 +163,93 @@ def make_godot_env_cls():
     return GodotRLlibEnv
 
 
+def _find_rl_module_dirs(checkpoint_dir: str) -> list[str]:
+    """All `rl_module` subdirectories under a saved checkpoint (lazy os import not needed: stdlib).
+
+    New-stack checkpoints nest the RLModule under learner_group/learner/rl_module/<module_id>;
+    the exporter (export_rllib_to_torchscript.py) consumes this layout. Walked rather than
+    hardcoded so a layout change in a future ray fails loud here, at save time.
+    """
+    import os
+
+    found = []
+    for root, dirs, _files in os.walk(checkpoint_dir):
+        for d in dirs:
+            if d == "rl_module":
+                found.append(os.path.join(root, d))
+    return found
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    raise NotImplementedError("main() lands in plan Task 4")
+    import os
+
+    import ray
+    from ray.rllib.algorithms.ppo import PPOConfig
+
+    cfg = parse_args(argv)
+    overrides = ppo_config_overrides(cfg)
+    env_cls = make_godot_env_cls()
+
+    ray.init(include_dashboard=False, ignore_reinit_error=True, num_cpus=2)
+    config = (
+        PPOConfig()
+        # New stack is the 2.55 default; explicit so a future default flip can't silently
+        # move us back to the old stack this backend deliberately targets.
+        .api_stack(
+            enable_rl_module_and_learner=True,
+            enable_env_runner_and_connector_v2=True,
+        )
+        .environment(
+            env_cls,
+            env_config={
+                "base_port": cfg.base_port,
+                "speedup": cfg.speedup,
+                "action_repeat": cfg.action_repeat,
+                "seed": cfg.seed,
+            },
+        )
+        .env_runners(num_env_runners=overrides["num_env_runners"])
+        .framework(overrides["framework"])
+        .debugging(seed=overrides["seed"])
+        .training(
+            lr=overrides["lr"],
+            gamma=overrides["gamma"],
+            train_batch_size_per_learner=overrides["train_batch_size"],
+            minibatch_size=overrides["minibatch_size"],
+            num_epochs=overrides["num_epochs"],
+            entropy_coeff=overrides["entropy_coeff"],
+        )
+    )
+    algo = config.build_algo()
+
+    sampled = 0
+    iteration = 0
+    while sampled < cfg.timesteps:
+        result = algo.train()
+        iteration = int(result.get("training_iteration", iteration + 1))
+        env_runner_results = result.get("env_runners", {})
+        if "num_env_steps_sampled_lifetime" not in env_runner_results:
+            raise RuntimeError(
+                "env_runners/num_env_steps_sampled_lifetime missing from RLlib result "
+                f"(keys: {sorted(env_runner_results)}); the step-counter key moved — "
+                "update train_rllib.py for this ray version."
+            )
+        sampled = int(env_runner_results["num_env_steps_sampled_lifetime"])
+        episode_return = env_runner_results.get("episode_return_mean", float("nan"))
+        print(f"iter {iteration} steps={sampled}/{cfg.timesteps} episode_return_mean={episode_return}")
+
+    ckpt_dir = os.path.abspath(
+        os.path.join(cfg.train_dir, cfg.experiment, f"checkpoint_{iteration:06d}")
+    )
+    os.makedirs(ckpt_dir, exist_ok=True)
+    algo.save_to_path(ckpt_dir)
+    print("checkpoint:", ckpt_dir)
+    for rl_module_dir in _find_rl_module_dirs(ckpt_dir):
+        print("rl_module dir:", rl_module_dir)
+
+    algo.stop()  # closes the env -> the Godot client exits
+    ray.shutdown()
+    return 0
 
 
 if __name__ == "__main__":
