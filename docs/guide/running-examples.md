@@ -11,6 +11,13 @@ with a pre-trained model so it runs out of the box.
 - Scene: `examples/chase_the_target/chase_the_target.tscn`
 - From-scratch tutorial: [docs/examples/chase_the_target_tutorial.md](../examples/chase_the_target_tutorial.md)
 
+Run it normally or headlessly:
+
+```bash
+godot --path . res://examples/chase_the_target/chase_the_target.tscn
+godot --headless --path . --quit-after 300 res://examples/chase_the_target/chase_the_target.tscn
+```
+
 Run the headless checks (unit tests + protocol + inference smoke + trained-chase):
 
 ```bash
@@ -31,6 +38,21 @@ of the goal bearing + normalized distance. It ships with a pre-trained ncnn mode
 a golden-inference regression. The headless smoke test (`test/integration/rover_smoke_scene.tscn`)
 exercises the full obs + physics-raycast pipeline.
 
+Run the visible, autonomous demo from the editor, or directly:
+
+```bash
+godot --path . res://examples/rover_3d/rover_3d.tscn
+```
+
+The same play scene supports headless execution; rendering nodes are loaded but do not render:
+
+```bash
+godot --headless --path . --quit-after 300 res://examples/rover_3d/rover_3d.tscn
+```
+
+Use `rover_3d_train.tscn` only with the Python trainer. It waits for the training socket and is
+not the standalone demo.
+
 For parallel training (8 agents tiled in one process for ~6× faster training), see
 [training.md](training.md).
 
@@ -39,3 +61,23 @@ For parallel training (8 agents tiled in one process for ~6× faster training), 
 A 2D 1v1 self-play example (parameter sharing): a seeker vs a hider trained by one shared PPO
 policy, with line-of-sight-gated vision and occluding walls. See
 [examples/hide_and_seek/README.md](../../examples/hide_and_seek/README.md).
+
+Run the trained two-policy demo:
+
+```bash
+godot --path . res://examples/hide_and_seek/hide_and_seek_multipolicy.tscn
+godot --headless --path . --quit-after 300 res://examples/hide_and_seek/hide_and_seek_multipolicy.tscn
+```
+
+## BallChase (2D continuous control)
+
+A continuous-action SAC agent that applies 2D thrust to reach a relocating target. The standalone
+scene loads the shipped deterministic actor through native ncnn inference:
+
+```bash
+godot --path . res://examples/ball_chase/ball_chase.tscn
+godot --headless --path . --quit-after 300 res://examples/ball_chase/ball_chase.tscn
+```
+
+Use `ball_chase_train.tscn` only through `./scripts/train_ball_chase.sh`; it waits for the Python
+trainer and is not the standalone demo.

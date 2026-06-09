@@ -20,11 +20,19 @@ Train faster (8 tiled worlds → 16 agents, one shared policy):
 SCENE=res://examples/hide_and_seek/hide_and_seek_train_parallel.tscn ./scripts/train_hide_seek.sh
 ```
 
-Watch random agents move (no trainer, manual visual inspection):
+Watch random agents move (no trainer):
 
 ```bash
 godot --path . res://examples/hide_and_seek/hide_and_seek.tscn
 ```
+
+Run the trained seeker and hider policies continuously:
+
+```bash
+godot --path . res://examples/hide_and_seek/hide_and_seek_multipolicy.tscn
+```
+
+Both scenes also support `--headless`; add `--quit-after 300` for a bounded smoke run.
 
 ## How it works
 
@@ -55,9 +63,11 @@ The agents get distinct `policy_name`s (`seeker` / `hider`) **only** when Godot 
 (`scripts/train_hide_seek_multipolicy.py`, a multi-policy sibling of the CleanRL backend) reads
 `agent_policy_names`, routes each agent to its policy, runs one PPO learner per role, and exports
 each actor to ncnn via `export_to_ncnn.py --via torchscript` (TorchScript rather than ONNX, to stay
-in stable-baselines3's numpy<2 world). Deploy both in `hide_and_seek_multipolicy_eval.tscn` (each
-agent loads its own `models/hide_seek_{seeker,hider}.ncnn.*`). A cleaner per-agent identity mechanism
-than the cmdline gate is tracked in issue #73.
+in stable-baselines3's numpy<2 world). Deploy both continuously in
+`hide_and_seek_multipolicy.tscn` (each agent loads its own
+`models/hide_seek_{seeker,hider}.ncnn.*`). The separate
+`hide_and_seek_multipolicy_eval.tscn` adds a finite behavioral checker for CI. A cleaner per-agent
+identity mechanism than the cmdline gate is tracked in issue #73.
 
 ## Status
 

@@ -1,10 +1,48 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://examples/rover_3d/rover_game.gd" id="1"]
 [ext_resource type="Script" path="res://examples/rover_3d/rover_agent.gd" id="2"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/sensors/raycast_sensor_3d.gd" id="3"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="4"]
 
 [sub_resource type="BoxShape3D" id="Box"]
+size = Vector3(4, 2, 4)
+
+[sub_resource type="StandardMaterial3D" id="GroundMaterial"]
+albedo_color = Color(0.12, 0.2, 0.14, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="GroundMesh"]
+material = SubResource("GroundMaterial")
+size = Vector3(40, 0.2, 40)
+
+[sub_resource type="StandardMaterial3D" id="RoverMaterial"]
+albedo_color = Color(0.18, 0.5, 0.95, 1)
+metallic = 0.15
+roughness = 0.55
+
+[sub_resource type="BoxMesh" id="RoverMesh"]
+material = SubResource("RoverMaterial")
+size = Vector3(1.8, 0.8, 2.6)
+
+[sub_resource type="StandardMaterial3D" id="GoalMaterial"]
+albedo_color = Color(0.25, 0.95, 0.35, 1)
+emission_enabled = true
+emission = Color(0.08, 0.45, 0.12, 1)
+emission_energy_multiplier = 1.5
+
+[sub_resource type="CylinderMesh" id="GoalMesh"]
+material = SubResource("GoalMaterial")
+top_radius = 0.7
+bottom_radius = 0.7
+height = 1.5
+
+[sub_resource type="StandardMaterial3D" id="ObstacleMaterial"]
+albedo_color = Color(0.75, 0.3, 0.16, 1)
+roughness = 0.8
+
+[sub_resource type="BoxMesh" id="ObstacleMesh"]
+material = SubResource("ObstacleMaterial")
 size = Vector3(4, 2, 4)
 
 [node name="RoverGame" type="Node3D"]
@@ -13,8 +51,25 @@ agent_body_path = NodePath("AgentBody")
 goal_path = NodePath("Goal")
 obstacles_path = NodePath("Obstacles")
 
+[node name="Ground" type="MeshInstance3D" parent="."]
+position = Vector3(20, -0.1, 20)
+mesh = SubResource("GroundMesh")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-55, -35, 0)
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(20, 32, 48)
+rotation_degrees = Vector3(-38, 0, 0)
+current = true
+
 [node name="AgentBody" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, 6)
+
+[node name="RoverMesh" type="MeshInstance3D" parent="AgentBody"]
+position = Vector3(0, 0.4, 0)
+mesh = SubResource("RoverMesh")
 
 [node name="RaycastSensor3D" type="Node3D" parent="AgentBody"]
 script = ExtResource("3")
@@ -28,10 +83,18 @@ collision_mask = 1
 [node name="Goal" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34, 0, 34)
 
+[node name="GoalMesh" type="MeshInstance3D" parent="Goal"]
+position = Vector3(0, 0.75, 0)
+mesh = SubResource("GoalMesh")
+
 [node name="Obstacles" type="Node3D" parent="."]
 
 [node name="Obstacle1" type="StaticBody3D" parent="Obstacles"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 12)
+
+[node name="Mesh" type="MeshInstance3D" parent="Obstacles/Obstacle1"]
+position = Vector3(0, 1, 0)
+mesh = SubResource("ObstacleMesh")
 
 [node name="Col" type="CollisionShape3D" parent="Obstacles/Obstacle1"]
 shape = SubResource("Box")
@@ -39,17 +102,29 @@ shape = SubResource("Box")
 [node name="Obstacle2" type="StaticBody3D" parent="Obstacles"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, 12)
 
+[node name="Mesh" type="MeshInstance3D" parent="Obstacles/Obstacle2"]
+position = Vector3(0, 1, 0)
+mesh = SubResource("ObstacleMesh")
+
 [node name="Col" type="CollisionShape3D" parent="Obstacles/Obstacle2"]
 shape = SubResource("Box")
 
 [node name="Obstacle3" type="StaticBody3D" parent="Obstacles"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 28)
 
+[node name="Mesh" type="MeshInstance3D" parent="Obstacles/Obstacle3"]
+position = Vector3(0, 1, 0)
+mesh = SubResource("ObstacleMesh")
+
 [node name="Col" type="CollisionShape3D" parent="Obstacles/Obstacle3"]
 shape = SubResource("Box")
 
 [node name="Obstacle4" type="StaticBody3D" parent="Obstacles"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, 28)
+
+[node name="Mesh" type="MeshInstance3D" parent="Obstacles/Obstacle4"]
+position = Vector3(0, 1, 0)
+mesh = SubResource("ObstacleMesh")
 
 [node name="Col" type="CollisionShape3D" parent="Obstacles/Obstacle4"]
 shape = SubResource("Box")
@@ -58,3 +133,10 @@ shape = SubResource("Box")
 script = ExtResource("2")
 game_path = NodePath("..")
 sensor_path = NodePath("../AgentBody/RaycastSensor3D")
+control_mode = 3
+model_param_path = "res://examples/rover_3d/models/rover_policy.ncnn.param"
+model_bin_path = "res://examples/rover_3d/models/rover_policy.ncnn.bin"
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("4")
+control_mode = 2
