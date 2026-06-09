@@ -1,6 +1,16 @@
 # Training + verification env (.venv-train, Python 3.13 — torch wheels don't exist for 3.14).
 # Used by scripts/train_*.sh and the parity/verify scripts.
+#
+# Pins (do not loosen without re-testing a FRESH install): stable-baselines3 caps numpy<2.0, but
+# newer onnxscript/onnx_ir pull an ml_dtypes that requires numpy>=2.0. Left unpinned, pip backtracks
+# forever and eventually tries to build the old ml_dtypes 0.4.0 sdist, whose build-time numpy==2.0.0rc1
+# does not exist — the install crashes. Pinning onnxscript (and numpy<2.0 explicitly) keeps the whole
+# chain on the numpy-1.x generation that SB3 requires. See docs/dev/gotchas.md.
 godot-rl
 onnxruntime
 ncnn
-onnxscript
+numpy<2.0
+ml-dtypes==0.4.1
+onnx==1.19.0
+onnx-ir==0.1.8
+onnxscript==0.5.0

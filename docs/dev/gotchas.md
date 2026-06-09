@@ -10,6 +10,14 @@
   stack. Keep them separate. All gitignored.
 - **`onnxscript` is required** for ONNX export (torch 2.12 dynamo exporter needs it) — not pulled
   in by godot-rl automatically.
+- **Pin the onnx chain in `requirements-train.txt` (don't loosen).** `stable-baselines3` caps
+  `numpy<2.0`, but newer `onnxscript`/`onnx_ir` pull an `ml_dtypes` that requires `numpy>=2.0`. Left
+  unpinned, pip backtracks forever and ultimately tries to build the old `ml_dtypes 0.4.0` **sdist**,
+  whose build-time `numpy==2.0.0rc1` doesn't exist → the whole `setup_training.sh` install crashes
+  (seen on a fresh macOS arm64 / Python 3.13 box where no older `onnxscript` was cached). Fix: pin
+  `numpy<2.0`, `ml-dtypes==0.4.1`, `onnx==1.19.0`, `onnx-ir==0.1.8`, `onnxscript==0.5.0` — the
+  numpy-1.x-compatible set. Verify any change with a fresh `python3.13 -m venv` + `pip install
+  --dry-run -r requirements-train.txt` (must end in `Would install …` with no `ERROR`).
 - **Do NOT pass `seed=` to `PPO()`** — godot-rl's env wrapper raises `NotImplementedError` on
   `env.seed()`. Seed via the env constructor only.
 - **pnnx `inputshape` must be quoted** (`'inputshape=[1,5],[1]'`) or zsh globs the brackets. The
