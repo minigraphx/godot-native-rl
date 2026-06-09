@@ -35,7 +35,8 @@ func init_recurrent_state() -> void:
 	recurrent_state = RecurrentState.zero_state(recurrent_contract)
 
 # Stochastic deploy: when false, discrete actions are sampled from softmax(logits) via `rng`
-# instead of argmax. Continuous actions are unaffected (mean). Set by the controller wrappers.
+# instead of argmax, and continuous actions are sampled from a DiagGaussian when `action_dist_stats`
+# is set (else the mean). Set by the controller wrappers.
 var deterministic_inference: bool = true
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
