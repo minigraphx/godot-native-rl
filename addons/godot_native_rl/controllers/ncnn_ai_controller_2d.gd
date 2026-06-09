@@ -4,6 +4,7 @@ extends Node2D
 const RewardAdapterScript = preload("res://addons/godot_native_rl/reward/reward_adapter.gd")
 const NcnnControllerCore = preload("res://addons/godot_native_rl/controllers/ncnn_controller_core.gd")
 const ObsNormalize = preload("res://addons/godot_native_rl/controllers/obs_normalize.gd")
+const ActionDist = preload("res://addons/godot_native_rl/controllers/action_dist.gd")
 const RecurrentState = preload("res://addons/godot_native_rl/controllers/recurrent_state.gd")
 
 enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
@@ -14,6 +15,7 @@ enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
 @export var input_blob_name: String = "in0"
 @export var output_blob_name: String = "out0"
 @export_file("*.json") var obs_norm_stats_path: String = ""
+@export_file("*.json") var action_dist_stats_path: String = ""  # continuous DiagGaussian std sidecar
 @export_file("*.json") var recurrent_stats_path: String = ""  # LSTM/GRU deploy: <model>.recurrent.json
 @export var policy_name: String = "shared_policy"  # multi-policy routing (PettingZoo/RLlib)
 @export var deterministic_inference: bool = true  # false -> sample discrete actions from softmax(logits)
@@ -61,6 +63,7 @@ func _ready() -> void:
 	if control_mode == ControlModes.NCNN_INFERENCE:
 		_setup_ncnn_runner()
 		_load_obs_norm_stats()
+		_load_action_dist_stats()
 		_load_recurrent_stats()
 		_core.deterministic_inference = deterministic_inference
 		_core.setup_rng(inference_seed)
@@ -105,6 +108,24 @@ func _load_obs_norm_stats() -> void:
 
 func set_obs_norm_stats_for_test(stats: Dictionary) -> void:
 	_core.obs_norm_stats = stats
+
+func _load_action_dist_stats() -> void:
+	if action_dist_stats_path.is_empty():
+		return
+	var f := FileAccess.open(action_dist_stats_path, FileAccess.READ)
+	if f == null:
+		push_error("NcnnAIController2D: cannot open action_dist_stats_path '%s'." % action_dist_stats_path)
+		return
+	var text := f.get_as_text()
+	f.close()
+	var parsed = JSON.parse_string(text)
+	if not (parsed is Dictionary) or not ActionDist.validate(parsed):
+		push_error("NcnnAIController2D: invalid action-dist stats JSON at '%s'." % action_dist_stats_path)
+		return
+	_core.action_dist_stats = ActionDist.to_typed(parsed)
+
+func set_action_dist_for_test(stats: Dictionary) -> void:
+	_core.action_dist_stats = stats
 
 func _load_recurrent_stats() -> void:
 	if recurrent_stats_path.is_empty():
