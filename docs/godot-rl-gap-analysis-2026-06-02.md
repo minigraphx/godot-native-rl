@@ -3,7 +3,7 @@
 **Date:** 2026-06-02 · **status refreshed 2026-06-09**  
 **Repos audited:** `edbeeching/godot_rl_agents` · `edbeeching/godot_rl_agents_plugin` · `edbeeching/godot_rl_agents_examples`  
 **This repo state:** backlog items 1–8, 10–13, 17–18, 20–22, 24–25, 30, 33, 36, 39–47, 49 done;
-item 9 partial (terminated/truncated blocked upstream). GitHub #45, #64, #74, #79, #81 also closed.
+item 9 partial (terminated/truncated blocked upstream). GitHub #45, #64, #74, #79, #81, #111 also closed.
 Open gaps tracked as GitHub issues (see table below).
 (2026-06-03 refresh: GridSensor + ISensor interface shipped; `INHERIT_FROM_SYNC` already wired;
 `policy_name`/`agent_policy_names` wire field shipped — RLlib/PettingZoo *trainers* now unblocked,
@@ -26,6 +26,16 @@ added (#79).)
 signal, F3 toggle, debug-build gate, auto-discovery; closes #23. Continuous DiagGaussian action
 sampling via log_std sidecar shipped (#64) — game-side `mean + std·N(0,1)` for PPO continuous
 policies via `action_dist_stats_path`; closes #64. SAC ncnn export standardised on TorchScript (#81).)
+(2026-06-09 audit: re-checked every gap row against open issues. The remaining godot_rl_agents
+compatibility gaps that had **no open tracking issue** were filed into the `v0.2 — godot_rl complement`
+milestone — RLlib `RayVectorGodotEnv` (#110), PettingZoo `GDRLPettingZooEnv` (#111), plugin editor-DX
+parity / sensor `.tscn` scenes + `script_templates/AIController` (#112), Optuna HP-tuning example (#113).
+The old `#26` references on the RLlib/PettingZoo rows were stale — #26 shipped a custom multi-policy PPO
+and is closed; the stock-wrapper interop is now tracked separately.)
+(2026-06-09 refresh: PettingZoo `ParallelEnv` interop shipped (#111) — `GodotParallelEnv` adapter in
+`scripts/godot_pettingzoo_env.py` provides `GDRLPettingZooEnv` functionality without depending on the
+upstream class; `train_pettingzoo.sh` drives multi-policy PPO; conformance proven via PettingZoo's
+`parallel_api_test`. Live training run is a follow-up. RLlib (#110) remains open.)
 
 ---
 
@@ -41,8 +51,8 @@ policies via `action_dist_stats_path`; closes #64. SAC ncnn export standardised 
 | `RGBCameraSensor2D/3D` | ✅ configurable render res + downscale + RGBA/RGB + editor preview | ✅ fixed viewport res, RGB only, no downscale | ⚠️ partial (#36) |
 | `GridSensor2D` | ✅ area/body occupancy grid, multi-layer, debug view | ✅ query-based, per-layer counts | ✅ done (item 11) |
 | `GridSensor3D` | ✅ | ✅ | ✅ done (item 11) |
-| Pre-built sensor `.tscn` scenes | ✅ RaycastSensor2D.tscn, RGBCameraSensor2D.tscn + examples | ❌ | Minor |
-| `script_templates/AIController` | ✅ controller scaffold template in plugin | ❌ | Minor |
+| Pre-built sensor `.tscn` scenes | ✅ RaycastSensor2D.tscn, RGBCameraSensor2D.tscn + examples | ❌ | Minor (#112) |
+| `script_templates/AIController` | ✅ controller scaffold template in plugin | ❌ | Minor (#112) |
 
 ### CameraSensor detail gap
 Upstream `RGBCameraSensor2D` exports: `render_image_resolution` (default 36×36),
@@ -93,11 +103,11 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `StableBaselinesGodotEnv` (SB3 VecEnv, n_parallel) | ✅ | ✅ proven | — |
 | `SBGSingleObsEnv` (SB3 + `MlpPolicy` compat) | ✅ | ✅ used by `train_ball_chase.py` (SAC) | ✅ done (#74) |
 | `CleanRLGodotEnv` | ✅ | ✅ item 17 done | — |
-| `RayVectorGodotEnv` (RLlib) | ✅ | ❌ no training script | **Gap** (#26 — `policy_name` now shipped) |
-| `GDRLPettingZooEnv` (PettingZoo, multi-policy) | ✅ | ⚠️ item 45 done via custom multi-policy PPO; `GDRLPettingZooEnv` wrapper still open | **Gap** (#26) |
+| `RayVectorGodotEnv` (RLlib) | ✅ | ❌ no training script | **Gap** (#110) |
+| `GDRLPettingZooEnv` (PettingZoo, multi-policy) | ✅ | ✅ `GodotParallelEnv` in `scripts/godot_pettingzoo_env.py` — `GDRLPettingZooEnv` functionality without the upstream class; `parallel_api_test` conformance; live training run is a follow-up | ✅ done (#111) |
 | `SampleFactoryEnvWrapper` (batched + non-batched) | ✅ | ✅ done (#24) — `train_sf.sh`, async PPO, TorchScript→ncnn, isolated `.venv-sf` | — |
 | ONNX export helper (`OnnxablePolicy`) | ✅ SB3/SAC → ONNX | ✅ `export_to_ncnn.py` ONNX+TorchScript→ncnn | Different, covered |
-| Optuna HP tuning example | ✅ | ❌ | Nice-to-have |
+| Optuna HP tuning example | ✅ | ❌ | Nice-to-have (#113) |
 
 ---
 
@@ -161,7 +171,10 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | ✅ Done | Continuous DiagGaussian action sampling via log_std sidecar | #64 |
 | ✅ Done | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
 | ✅ Done | Batched multi-agent inference — `run_inference_batch` (thread-parallel, one shared `Net`) + `CrowdController` + `chase_crowd` example | #34 |
-| 🟡 P2 | RLlib + PettingZoo wrappers / native multi-policy trainer (custom PPO example done; API wrappers still open) | #26 |
+| ✅ Done | PettingZoo `ParallelEnv` interop — `GodotParallelEnv` adapter + `parallel_api_test` conformance; live training run is a follow-up | #111 |
+| 🟡 P3 | RLlib `RayVectorGodotEnv` training-script interop | #110 |
+| ⚪ P4 | Plugin editor-DX parity: pre-built sensor `.tscn` scenes + `script_templates/AIController` | #112 |
+| ⚪ P5 | Optuna hyperparameter-tuning example (nice-to-have) | #113 |
 | ⚪ P4 | CameraSensor: configurable render res + downscale + RGBA | #36 |
 | ⚪ P4 | Grayscale camera deploy (C++ `PIXEL_GRAY` path) | #36 |
 | 🔴 P5 | `terminated`/`truncated` split — wire semantics change; blocked on upstream godot_rl TODO | #12 |

@@ -10,3 +10,4 @@ godot-rl
 onnxruntime
 ncnn
 onnxscript
+pettingzoo==1.26.1
