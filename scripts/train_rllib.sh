@@ -26,6 +26,9 @@ EXPERIMENT="${EXPERIMENT:-chase_rllib}"
 TRAIN_DIR="${TRAIN_DIR:-logs/rllib}"
 OUTDIR="${OUTDIR:-models}"
 SCENE="${SCENE:-res://examples/chase_the_target/chase_the_target_train.tscn}"
+# Fully-trained runs reach |logits| ~12 where benign fp32 torch-vs-ncnn drift slightly exceeds
+# the default 1e-2 logit atol (argmax stays exact and is enforced regardless of atol).
+ATOL="${ATOL:-5e-2}"
 
 PT_PATH="$OUTDIR/chase_rllib_policy.pt"
 
@@ -71,6 +74,6 @@ echo "Exporting RLlib checkpoint -> TorchScript..."
 	--experiment "$EXPERIMENT" --out "$PT_PATH"
 
 echo "Converting TorchScript -> ncnn (+ parity check)..."
-"$PY_TRAIN" scripts/export_to_ncnn.py "$PT_PATH" --outdir "$OUTDIR"
+"$PY_TRAIN" scripts/export_to_ncnn.py "$PT_PATH" --outdir "$OUTDIR" --atol "$ATOL"
 
 echo "Done: $OUTDIR/chase_rllib_policy.ncnn.{param,bin}"

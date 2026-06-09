@@ -99,7 +99,9 @@ def _load_actor_parts(checkpoint_dir: str):
 
     from ray.rllib.core.rl_module.rl_module import RLModule
 
-    rl_module_dir = os.path.join(checkpoint_dir, *RL_MODULE_SUBDIR)
+    # Absolute path required: from_checkpoint feeds the path to pyarrow's FileSystem.from_uri,
+    # which rejects relative paths ("URI has empty scheme").
+    rl_module_dir = os.path.abspath(os.path.join(checkpoint_dir, *RL_MODULE_SUBDIR))
     if not os.path.isdir(rl_module_dir):
         raise _structure_error(f"missing {os.path.join(*RL_MODULE_SUBDIR)} under {checkpoint_dir}")
     module = RLModule.from_checkpoint(rl_module_dir)
