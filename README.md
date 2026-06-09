@@ -41,6 +41,13 @@ web/WASM, console, mobile, desktop, and edge.
   (`train_sf.sh`, isolated `.venv-sf`, exports via TorchScript→ncnn).
 - Convert (`scripts/export_to_ncnn.py`) and INT8 quantize for deployment.
 
+## Policy Debugger
+Drop a `PolicyDebugOverlay` node (`addons/godot_native_rl/debug/policy_debug_overlay.gd`) into any
+scene running ncnn inference. With its `controllers` list left empty it auto-discovers your agents and
+overlays live observations, action probabilities, the loaded policy/model, and any `get_debug_status()`
+you expose. Press **F3** to toggle; it auto-hides in release builds unless you set
+`debug_build_only = false`. Worked example: `examples/chase_the_target/chase_the_target_debug.tscn`.
+
 ## The moat
 ncnn statically linked enables web/WASM and console deployment (ONNX/.NET can't), game-side INT8
 quantization, async inference, and Godot-native ideas (Signal→Reward, NavMesh sensor) — none

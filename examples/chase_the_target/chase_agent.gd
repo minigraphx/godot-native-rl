@@ -63,6 +63,13 @@ func get_obs() -> Dictionary:
 func get_reward() -> float:
 	return reward
 
+# Optional Policy Debugger hook (duck-typed; not part of the controller contract). Surfaces
+# game-specific progress in the PolicyDebugOverlay STATUS line. Absent -> no STATUS section.
+func get_debug_status() -> Dictionary:
+	if _game == null:
+		return {}
+	return {"dist_to_target": _game.distance(), "episode_reward": reward, "step": n_steps}
+
 func set_action(action) -> void:
 	var idx := int(action[ACTION_KEY])
 	assert(idx >= 0 and idx < ACTION_COUNT, "ChaseAgent: action index %d out of range [0, %d)" % [idx, ACTION_COUNT])

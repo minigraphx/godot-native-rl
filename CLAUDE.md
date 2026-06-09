@@ -212,6 +212,10 @@ daily:
     18 (SampleFactory training backend — async PPO, chase example, TorchScript→ncnn export,
     headless smoke; committed golden-inference regression `test_chase_sf_golden_inference.gd` +
     `models/chase_sf_policy.ncnn.*` fixture added in #79).
+    49 (in-editor Policy Debugger — drop-in PolicyDebugOverlay node + inference_step signal on
+    controllers + pure PolicyDebug formatter; live obs/action-probs/identity/get_debug_status overlay,
+    auto-discovery + F3 toggle + debug-build gate; headless helper/overlay/emit tests + chase debug
+    scene; manual viewport verification pending),
     9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 23 (deploy-side inference gap: batched multi-agent
