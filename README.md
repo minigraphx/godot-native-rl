@@ -45,7 +45,7 @@ web/WASM, console, mobile, desktop, and edge.
 Drop a `PolicyDebugOverlay` node (`addons/godot_native_rl/debug/policy_debug_overlay.gd`) into any
 scene running ncnn inference. With its `controllers` list left empty it auto-discovers your agents and
 overlays live observations, action probabilities, the loaded policy/model, and any `get_debug_status()`
-you expose. Press **F3** to toggle; it auto-hides in release builds unless you set
+you expose. Press **F3** to toggle; in release builds it removes itself at startup unless you set
 `debug_build_only = false`. Worked example: `examples/chase_the_target/chase_the_target_debug.tscn`.
 
 ## The moat
