@@ -3,6 +3,16 @@ extends SceneTree
 const Harness = preload("res://test/harness.gd")
 const NcnnControllerCore = preload("res://addons/godot_native_rl/controllers/ncnn_controller_core.gd")
 const Stub = preload("res://test/unit/stub_agent.gd")
+const ContStub = preload("res://test/unit/stub_continuous_agent.gd")
+
+# Fake runner returning a fixed 2-D continuous mean over the continuous stub's "steer" space.
+class FakeContRunner:
+	var loaded := true
+	var output := PackedFloat32Array([1.0, -1.0])
+	func is_model_loaded() -> bool:
+		return loaded
+	func run_inference(_input) -> PackedFloat32Array:
+		return output
 
 # Fake runner returning fixed logits over the stub's "move" space.
 class FakeRunner:
@@ -57,5 +67,57 @@ func _initialize() -> void:
 	var picked: int = s1.last_action["move"]
 	h.assert_true(picked >= 0 and picked < 5, "sampled action in [0,5)")
 	s1.free(); s2.free()
+
+	# --- Continuous DiagGaussian sampling wiring (action_dist_stats) ---
+	# set_action_dist_for_test populates the core field.
+	var probe := ContStub.new()
+	probe.set_action_dist_for_test({"std": PackedFloat32Array([0.3, 0.3])})
+	h.assert_true(probe._core.action_dist_stats.has("std"), "set_action_dist_for_test sets core field")
+	probe.free()
+
+	# Same seed + action_dist std on two continuous controllers -> identical sampled action,
+	# and sampling perturbs away from the fixed mean [1.0, -1.0].
+	var c1 := ContStub.new()
+	c1.set_ncnn_runner_for_test(FakeContRunner.new())
+	c1.set_stochastic_for_test(false, 55)
+	c1.set_action_dist_for_test({"std": PackedFloat32Array([0.3, 0.3])})
+	var c2 := ContStub.new()
+	c2.set_ncnn_runner_for_test(FakeContRunner.new())
+	c2.set_stochastic_for_test(false, 55)
+	c2.set_action_dist_for_test({"std": PackedFloat32Array([0.3, 0.3])})
+	c1.infer_and_act()
+	c2.infer_and_act()
+	h.assert_eq(c1.last_action, c2.last_action, "continuous: same seed -> identical sampled action")
+	h.assert_true(absf(c1.last_action["steer"][0] - 1.0) > 1e-4,
+		"continuous: controller sampling perturbs the mean")
+	c1.free()
+	c2.free()
+
+	# --- Load-time std-size cross-check (mismatched sidecar fails loud) ---
+	# Exercises the real FileAccess + JSON + ActionDist path. A sidecar whose std length (3)
+	# != the continuous action dim (steer size 2) must be rejected at load, per the design spec's
+	# "fail loud on mismatch" guarantee — otherwise deploy silently samples only some dims.
+	var bad_path := "user://test_action_dist_bad.json"
+	var bf := FileAccess.open(bad_path, FileAccess.WRITE)
+	bf.store_string('{"std": [0.1, 0.2, 0.3]}')
+	bf.close()
+	var mism := ContStub.new()
+	mism.action_dist_stats_path = bad_path
+	mism._load_action_dist_stats()
+	h.assert_true(mism._core.action_dist_stats.is_empty(),
+		"mismatched std length rejected at load (fail loud)")
+	mism.free()
+
+	# A correctly-sized sidecar (2 == continuous dim) loads through the file path.
+	var good_path := "user://test_action_dist_good.json"
+	var gf := FileAccess.open(good_path, FileAccess.WRITE)
+	gf.store_string('{"std": [0.1, 0.2]}')
+	gf.close()
+	var okc := ContStub.new()
+	okc.action_dist_stats_path = good_path
+	okc._load_action_dist_stats()
+	h.assert_true(okc._core.action_dist_stats.has("std"), "correctly-sized sidecar loads")
+	h.assert_eq(okc._core.action_dist_stats["std"].size(), 2, "loaded std has 2 entries")
+	okc.free()
 
 	h.finish(self)

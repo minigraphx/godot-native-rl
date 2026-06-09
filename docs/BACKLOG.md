@@ -248,8 +248,9 @@ the same change. New items → GitHub issue only.
     discrete actions are sampled from `softmax(logits)` rather than `argmax`. This allows
     exploration during eval or human-in-the-loop play without retraining. Add the flag to
     `NcnnAIController2D/3D` and to `NcnnControllerCore.choose_and_apply_action`; when `false`,
-    pass logits through a weighted-random draw before applying. Continuous actions are unaffected
-    (the deterministic mean output is the standard deploy path).
+    pass logits through a weighted-random draw before applying. Continuous DiagGaussian sampling via
+    a `log_std` sidecar followed (#64): when `false` and an `action_dist_stats_path` is set, continuous
+    actions are sampled as `mean + std·N(0,1)` game-side.
 44. ✅ **`INHERIT_FROM_SYNC` per-agent control mode** — when an agent's `control_mode ==
     INHERIT_FROM_SYNC` it defers to the sync node's mode; any other value overrides independently,
     enabling mixed-mode scenes (e.g. one agent TRAINING while another is NCNN_INFERENCE).

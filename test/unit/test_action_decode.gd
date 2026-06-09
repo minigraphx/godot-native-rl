@@ -114,4 +114,60 @@ func _initialize() -> void:
 	h.assert_true(absf(r_cont["steer"][0] - 0.25) < 1e-6 and absf(r_cont["steer"][1] - (-0.5)) < 1e-6,
 		"continuous unaffected by deterministic=false")
 
+	# --- Continuous DiagGaussian sampling (deterministic=false + action_dist std) ---
+	# Deterministic (default) with std present is unchanged: still the mean (regression guard).
+	var cdist := {"std": PackedFloat32Array([0.3, 0.3])}
+	var r_det := ActionDecode.decode_actions(PackedFloat32Array([0.25, -0.5]), cont, true, null, cdist)
+	h.assert_true(absf(r_det["steer"][0] - 0.25) < 1e-6 and absf(r_det["steer"][1] - (-0.5)) < 1e-6,
+		"continuous deterministic + std -> still mean")
+
+	# deterministic=false but empty action_dist -> falls back to mean (continuous unchanged).
+	var rng_nostd := RandomNumberGenerator.new(); rng_nostd.seed = 3
+	var r_nostd := ActionDecode.decode_actions(PackedFloat32Array([0.25, -0.5]), cont, false, rng_nostd, {})
+	h.assert_true(absf(r_nostd["steer"][0] - 0.25) < 1e-6 and absf(r_nostd["steer"][1] - (-0.5)) < 1e-6,
+		"continuous stochastic, empty action_dist -> mean")
+
+	# Reproducibility: same seed + std -> identical samples.
+	var rc_a := RandomNumberGenerator.new(); rc_a.seed = 11
+	var rc_b := RandomNumberGenerator.new(); rc_b.seed = 11
+	var sa := ActionDecode.decode_actions(PackedFloat32Array([1.0, -1.0]), cont, false, rc_a, cdist)
+	var sb := ActionDecode.decode_actions(PackedFloat32Array([1.0, -1.0]), cont, false, rc_b, cdist)
+	h.assert_true(absf(sa["steer"][0] - sb["steer"][0]) < 1e-9 and absf(sa["steer"][1] - sb["steer"][1]) < 1e-9,
+		"continuous same seed -> identical samples")
+
+	# Sampling actually perturbs away from the mean (not a no-op).
+	var rc_p := RandomNumberGenerator.new(); rc_p.seed = 11
+	var sp := ActionDecode.decode_actions(PackedFloat32Array([1.0, -1.0]), cont, false, rc_p, cdist)
+	h.assert_true(absf(sp["steer"][0] - 1.0) > 1e-4, "continuous sampling perturbs the mean")
+
+	# Histogram: large-N empirical mean ~ provided mean, std ~ provided sigma (loose tolerance).
+	var rc_ch := RandomNumberGenerator.new(); rc_ch.seed = 2024
+	var c_sigma := 0.5
+	var cdist_h := {"std": PackedFloat32Array([c_sigma])}
+	var c_one := {"steer": {"size": 1, "action_type": "continuous"}}
+	var c_draws := 5000
+	var c_sum_v := 0.0
+	var c_sumsq := 0.0
+	for i in range(c_draws):
+		var val: float = ActionDecode.decode_actions(PackedFloat32Array([2.0]), c_one, false, rc_ch, cdist_h)["steer"][0]
+		c_sum_v += val
+		c_sumsq += (val - 2.0) * (val - 2.0)
+	var c_emp_mean := c_sum_v / c_draws
+	var c_emp_std := sqrt(c_sumsq / c_draws)
+	h.assert_true(absf(c_emp_mean - 2.0) < 0.05, "continuous histogram: empirical mean ~ 2.0 (got %f)" % c_emp_mean)
+	h.assert_true(absf(c_emp_std - c_sigma) < 0.05, "continuous histogram: empirical std ~ 0.5 (got %f)" % c_emp_std)
+
+	# tanh applied AFTER the Gaussian draw when squash set (result stays within (-1, 1)).
+	var rc_s := RandomNumberGenerator.new(); rc_s.seed = 8
+	var cdist_s := {"std": PackedFloat32Array([0.5, 0.5])}
+	var r_csq := ActionDecode.decode_actions(PackedFloat32Array([2.0, -2.0]), cont_sq, false, rc_s, cdist_s)
+	h.assert_true(r_csq["steer"][0] > -1.0 and r_csq["steer"][0] < 1.0, "continuous sampled+squash in (-1,1)")
+
+	# Multi-continuous keys: positional std mapping (zero std -> sampling == mean, proves alignment).
+	var c_two := {"x": {"size": 1, "action_type": "continuous"}, "y": {"size": 1, "action_type": "continuous"}}
+	var cdist_two := {"std": PackedFloat32Array([0.0, 0.0])}
+	var r_ctwo := ActionDecode.decode_actions(PackedFloat32Array([0.3, -0.7]), c_two, false, RandomNumberGenerator.new(), cdist_two)
+	h.assert_true(absf(r_ctwo["x"][0] - 0.3) < 1e-6 and absf(r_ctwo["y"][0] - (-0.7)) < 1e-6,
+		"multi-continuous: zero-std positional mapping -> means")
+
 	h.finish(self)
