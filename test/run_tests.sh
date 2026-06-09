@@ -87,7 +87,7 @@ PY_TRAIN="${PY_TRAIN:-.venv-train/bin/python}"
 # Backstop cleanup: with `set -e`, a crash in export_int8.py / train_sf.sh aborts before the
 # inline `rm -rf` runs, so these temp dirs would leak. The EXIT trap reaps whichever are set.
 INT8_TMP="" SF_TMP=""
-trap 'rm -rf "${INT8_TMP:-}" "${SF_TMP:-}" 2>/dev/null || true' EXIT
+trap 'rm -rf "${INT8_TMP:-}" "${SF_TMP:-}" "${RLLIB_TMP:-}" 2>/dev/null || true' EXIT
 INT8_TMP="$(mktemp -d)"
 "$PY_TRAIN" scripts/export_int8.py models/synthetic_cnn.ncnn.param models/synthetic_cnn.ncnn.bin \
 	--width 8 --height 8 --channels 3 --samples 256 --n-verify 100 --outdir "$INT8_TMP"
@@ -110,6 +110,20 @@ if [ -x .venv-sf/bin/python ]; then
 	echo "SampleFactory smoke OK."
 else
 	echo "SKIP: .venv-sf not present (run scripts/setup_training.sh to enable the SF smoke)."
+fi
+
+echo "== RLlib backend smoke (skipped if .venv-rllib absent) =="
+if [ -x .venv-rllib/bin/python ]; then
+	RLLIB_TMP="$(mktemp -d)"
+	TIMESTEPS="${RLLIB_SMOKE_TIMESTEPS:-4000}" \
+	TRAIN_DIR="$RLLIB_TMP/logs" OUTDIR="$RLLIB_TMP/models" EXPERIMENT="chase_rllib_smoke" \
+		./scripts/train_rllib.sh
+	test -f "$RLLIB_TMP/models/chase_rllib_policy.ncnn.param" || { echo "FAIL: RLlib ncnn .param not produced" >&2; rm -rf "$RLLIB_TMP"; exit 1; }
+	test -f "$RLLIB_TMP/models/chase_rllib_policy.ncnn.bin"   || { echo "FAIL: RLlib ncnn .bin not produced" >&2; rm -rf "$RLLIB_TMP"; exit 1; }
+	rm -rf "$RLLIB_TMP"
+	echo "RLlib smoke OK."
+else
+	echo "SKIP: .venv-rllib not present (run scripts/setup_training.sh to enable the RLlib smoke)."
 fi
 
 echo "All tests passed."
