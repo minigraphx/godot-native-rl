@@ -295,7 +295,7 @@ the same change. New items → GitHub issue only.
     parameters so a trained agent drives production animation without a hand-written blending layer.
     Thin GDScript node taking an action→blend-param mapping; deploy-side only. *(from item 20;
     novel-addons spec §3 A4)*
-49. ⬜ **In-editor Policy Debugger** — during NCNN inference, overlay live sensor readings + action
+49. ✅ **In-editor Policy Debugger** — during NCNN inference, overlay live sensor readings + action
     probabilities (softmax of logits) in the Godot viewport. Pure GDScript + ncnn, zero Python;
     answers "what does the agent see and want?" visually. Needs non-`--headless` verification.
     *(from item 20; novel-addons spec §3 A5)*
