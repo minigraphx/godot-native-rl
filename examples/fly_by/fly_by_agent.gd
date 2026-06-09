@@ -10,8 +10,11 @@ const RewardBuilderScript = preload("res://addons/godot_native_rl/reward/reward_
 
 @export var game_path: NodePath
 @export var goal_bonus := 2.0
-@export var step_penalty := 0.005
-@export var exit_penalty := 1.0
+@export var step_penalty := 0.002  ## per physics frame; ~ -2.0 over a full reset_after=1000 episode
+# Must exceed the max per-episode step penalty (~2.0) so diving out of bounds to escape the step
+# penalty early is never worth it — otherwise the plane learns to leave the arena. Episode ends on
+# exit (done=true), so this fires at most once per episode.
+@export var exit_penalty := 5.0
 
 var _game  # FlyByGame (duck-typed at runtime)
 var _pitch := 0.0
