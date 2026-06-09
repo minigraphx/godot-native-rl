@@ -10,6 +10,8 @@
 #include <cstring>
 #include <limits>
 #include <vector>
+#include <thread>
+#include <algorithm>
 
 using namespace godot;
 
@@ -24,6 +26,7 @@ void NcnnRunner::_bind_methods() {
     ClassDB::bind_method(D_METHOD("run_inference", "input"), &NcnnRunner::run_inference);
     ClassDB::bind_method(D_METHOD("run_inference_image", "image", "normalize_to_zero_one"), &NcnnRunner::run_inference_image, DEFVAL(true));
     ClassDB::bind_method(D_METHOD("run_inference_multi", "inputs", "output_names"), &NcnnRunner::run_inference_multi);
+    ClassDB::bind_method(D_METHOD("run_inference_batch", "inputs", "num_threads"), &NcnnRunner::run_inference_batch, DEFVAL(-1));
     ClassDB::bind_method(D_METHOD("run_discrete_action", "input"), &NcnnRunner::run_discrete_action);
     ClassDB::bind_method(D_METHOD("is_model_loaded"), &NcnnRunner::is_model_loaded);
     ClassDB::bind_method(D_METHOD("set_input_blob_name", "name"), &NcnnRunner::set_input_blob_name);
@@ -207,6 +210,116 @@ Dictionary NcnnRunner::run_inference_multi(const Array &p_inputs, const PackedSt
         result[name] = output_mat_to_packed_float_array(out);
     }
 
+    return result;
+}
+
+Array NcnnRunner::run_inference_batch(const Array &p_inputs, int p_num_threads) {
+    Array result;
+    if (!model_loaded_ || !net_) {
+        UtilityFunctions::push_error("NcnnRunner.run_inference_batch: model is not loaded.");
+        return result;
+    }
+    const int n = p_inputs.size();
+    if (n == 0) {
+        return result; // empty crowd is not an error: empty in -> empty out.
+    }
+
+    // Build every input Mat up front on the calling thread. create_input_mat_from_array
+    // push_errors on a bad input (size mismatch when input_shape is set), so all logging stays
+    // on the main thread; worker threads below never call into Godot's error reporter.
+    std::vector<ncnn::Mat> input_mats(static_cast<size_t>(n));
+    std::vector<bool> input_ok(static_cast<size_t>(n), false);
+    for (int i = 0; i < n; ++i) {
+        const PackedFloat32Array vec = p_inputs[i];
+        if (create_input_mat_from_array(vec, input_mats[i])) {
+            input_ok[i] = true;
+        }
+    }
+
+    std::vector<PackedFloat32Array> outputs(static_cast<size_t>(n));
+
+    // Worker count: clamp(requested>0 ? requested : hardware_concurrency, 1, n). WASM is
+    // single-threaded (see docs/dev/building.md) -> always serial.
+    unsigned int hw = std::thread::hardware_concurrency();
+    if (hw == 0) {
+        hw = 1;
+    }
+    int workers = (p_num_threads > 0) ? p_num_threads : static_cast<int>(hw);
+    workers = std::min(workers, n);
+    if (workers < 1) {
+        workers = 1;
+    }
+#ifdef __EMSCRIPTEN__
+    workers = 1;
+#endif
+
+    // ncnn::Net is safe for concurrent extractors; each worker owns its Extractor and writes only
+    // its own output slots, so there is no shared mutation. The Net's opt.num_threads is pinned to 1
+    // for this call (see below) so each Extractor runs single-threaded — no nesting with ncnn's
+    // intra-layer OpenMP. Quiet on failure (no push_error off-thread): a failed slot is left empty
+    // and reported once after join.
+    // Hoist blob-name conversions: immutable for this call, so convert once on the calling thread.
+    const CharString input_blob_utf8 = input_blob_name_.utf8();
+    const CharString output_blob_utf8 = output_blob_name_.utf8();
+    auto run_slice = [&](int begin, int end) {
+        for (int i = begin; i < end; ++i) {
+            if (!input_ok[i]) {
+                continue;
+            }
+            ncnn::Extractor ex = net_->create_extractor();
+            if (ex.input(input_blob_utf8.get_data(), input_mats[i]) != 0) {
+                continue;
+            }
+            ncnn::Mat out;
+            if (ex.extract(output_blob_utf8.get_data(), out) != 0) {
+                continue;
+            }
+            outputs[i] = output_mat_to_packed_float_array(out);
+        }
+    };
+
+    // ncnn::Extractor has no per-extractor thread control in this version, so pin the Net's thread
+    // count to 1 for the duration of the batch: create_extractor() snapshots net_->opt at creation,
+    // so every worker's Extractor runs single-threaded and our std::thread fan-out is the only
+    // parallelism (no nested OpenMP oversubscription). Restored afterward so single-inference paths
+    // (run_inference / _image / _multi) keep ncnn's default intra-op threading.
+    const int prev_num_threads = net_->opt.num_threads;
+    net_->opt.num_threads = 1;
+
+    if (workers <= 1) {
+        run_slice(0, n);
+    } else {
+        std::vector<std::thread> threads;
+        threads.reserve(static_cast<size_t>(workers));
+        const int base = n / workers;
+        const int rem = n % workers;
+        int start = 0;
+        for (int w = 0; w < workers; ++w) {
+            const int count = base + (w < rem ? 1 : 0);
+            threads.emplace_back(run_slice, start, start + count);
+            start += count;
+        }
+        for (std::thread &t : threads) {
+            t.join();
+        }
+    }
+
+    net_->opt.num_threads = prev_num_threads;
+
+    int failures = 0;
+    result.resize(n);
+    for (int i = 0; i < n; ++i) {
+        if (input_ok[i] && outputs[i].is_empty()) {
+            // Input built fine but inference/extract failed (a malformed input is already
+            // reported by create_input_mat_from_array on the main thread above).
+            ++failures;
+        }
+        result[i] = outputs[i];
+    }
+    if (failures > 0) {
+        UtilityFunctions::push_error("NcnnRunner.run_inference_batch: ", failures,
+            " of ", n, " agent(s) failed inference (empty output slot).");
+    }
     return result;
 }
 
