@@ -68,4 +68,16 @@ func _initialize() -> void:
 			"hide and seek trained is persistent")
 		trained_hide.free()
 
+	var fly = _instantiate(h, "res://examples/fly_by/fly_by.tscn", "fly by")
+	if fly != null:
+		_assert_inference_agent(h, fly, NodePath("FlyByAgent"),
+			"res://examples/fly_by/models/fly_by_policy.ncnn.param",
+			"res://examples/fly_by/models/fly_by_policy.ncnn.bin", "fly by")
+		h.assert_eq(fly.get_node("FlyByAgent").action_dist_stats_path,
+			"res://examples/fly_by/models/fly_by_action_dist.json", "fly by action-dist wired")
+		h.assert_true(fly.get_node("FlyByAgent").deterministic_inference,
+			"fly by demo is deterministic by default")
+		h.assert_true(fly.get_node_or_null("Sync") != null, "fly by has inference sync")
+		fly.free()
+
 	h.finish(self)
