@@ -7,6 +7,13 @@ const ObsNormalize = preload("res://addons/godot_native_rl/controllers/obs_norma
 const ActionDist = preload("res://addons/godot_native_rl/controllers/action_dist.gd")
 const RecurrentState = preload("res://addons/godot_native_rl/controllers/recurrent_state.gd")
 
+# Emitted once per inference decision with an immutable debug payload consumed by
+# PolicyDebugOverlay. Keys: agent_name:String, obs:PackedFloat32Array (normalized vector fed to
+# the net; [] on the image path), obs_image:Dictionary ({"w","h","c"} or {}), logits:PackedFloat32Array
+# (raw network output, pre-decode), action_space:Dictionary, action:Dictionary (decoded),
+# deterministic:bool. Inert when no listener is connected.
+signal inference_step(debug: Dictionary)
+
 enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
 @export var control_mode: ControlModes = ControlModes.INHERIT_FROM_SYNC  # read/written by NcnnSync
 @export var reset_after := 1000
