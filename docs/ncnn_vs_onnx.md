@@ -230,6 +230,13 @@ list both honestly so you can plan around them.
   action keys via pure `action_decode.gd` (`run_inference` + segment decode). Continuous parity is checked
   by numerical closeness (`atol≈1e-2`), not argmax. Remaining deploy-side gaps: recurrent/LSTM state
   (item 22) and batched multi-agent inference (item 23).
+- **SAC (and distribution-based continuous actors) export via TorchScript, not ONNX.** Under torch
+  ≥2.x, `torch.onnx.export` routes the SAC actor through the dynamo / `torch.export` path, which
+  cannot guard the action-distribution construction `Normal(mean, std)`
+  (`GuardOnDataDependentSymNode`). We instead `torch.jit.trace` the deterministic actor
+  `tanh(mean)` (`scripts/export_sac_torchscript.py`) → pnnx → ncnn. The legacy `dynamo=False` ONNX
+  exporter still works (verified parity ~2e-8) but is deprecated in torch ≥2.9, so TorchScript is
+  the recommended route. (PPO/A2C discrete and continuous still export cleanly via ONNX.)
 - **No recurrent / LSTM state handling.** The controller is feed-forward and stateless per call. A
   recurrent policy would need you to carry hidden state across frames yourself. (ncnn itself supports
   LSTM/GRU layers — the gap is in this project's controller, not the runtime.)

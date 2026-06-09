@@ -64,7 +64,8 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 - **Train (BallChase, SAC):** `./scripts/train_ball_chase.sh` — SB3 SAC (continuous-control) over the
   BallChase env (port 11008). Exports the deterministic actor (tanh(mean)) as **TorchScript** (godot_rl's
   SAC ONNX export breaks under torch 2.x dynamo), then `scripts/export_to_ncnn.py models/ball_chase_sac.pt
-  --via torchscript`.
+  --via torchscript`. Re-export a saved SAC checkpoint without retraining via
+  `scripts/export_sac_torchscript.py --checkpoint models/ball_chase_sac.zip` (see issue #81 / `docs/ncnn_vs_onnx.md`).
 - **Train (chase, CleanRL backend):** `./scripts/train_cleanrl.sh` — single-file CleanRL-style PPO over
   godot_rl's `CleanRLGodotEnv` (same chase scene + port 11008; `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`
   overrides). Exports ONNX (`models/chase_cleanrl_policy.onnx`) consumable unchanged by `export_to_ncnn.py`.
@@ -198,6 +199,10 @@ daily:
     GitHub #74 (trained SB3 SAC non-PPO regression — live train → TorchScript export → ncnn →
     behavioral check; continuous BallChase env ported from godot_rl_agents_examples; the
     live-trained follow-up to #45. Note: GitHub issue #74.)
+    GitHub #81 (SAC ONNX export broken under torch 2.x — standardized on TorchScript: promoted
+    `export_sac_actor_as_torchscript` into `scripts/export_sac_torchscript.py` with a standalone
+    `--checkpoint` CLI; documented + test-guarded the `dynamo=False` legacy-ONNX fallback. Note:
+    GitHub issue #81.)
     18 (SampleFactory training backend — async PPO, chase example, TorchScript→ncnn export,
     headless smoke; committed golden-inference regression `test_chase_sf_golden_inference.gd` +
     `models/chase_sf_policy.ncnn.*` fixture added in #79).
