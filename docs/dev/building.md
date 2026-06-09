@@ -339,10 +339,21 @@ The Android `.so` depends on `libc++_shared.so`, which Godot's Android export te
 arm64-v8a covers real devices and the Apple-Silicon emulator; x86_64 covers the emulator on x86
 hosts.
 
-> **Status:** these cross-builds are verified by binary inspection (correct ELF/PE/Mach-O, the
-> `ncnn_runner_library_init` entry symbol exported, clean dependencies) but have **not yet been
-> runtime-tested** on each target OS. The macOS arm64 build is the only one exercised by the test
-> suite today.
+> **Status:** the cross-build CI (`.github/workflows/cross-build.yml`) now does more than compile +
+> link — it validates that each binary actually loads / resolves its symbols, catching the #95 bug
+> class (a binary that links but fails to *load*):
+> - **Windows x86_64** — real Godot `--headless` smoke that `ClassDB.instantiate("NcnnRunner")` on a
+>   `windows-latest` runner (the zig toolchain that produced the #95 Linux load failure).
+> - **Android x86_64** — `dlopen()` + `dlsym(ncnn_runner_library_init)` on a real KVM-accelerated
+>   Android emulator, against actual bionic (`scripts/cross/dlopen_android_smoke.sh`).
+> - **Android arm64** — static undefined-symbol audit: every strong undefined dynamic symbol must be
+>   satisfiable from the NDK sysroot runtime libs (`scripts/cross/audit_android_symbols.sh`); we
+>   can't cheaply emulate arm64, so this is the load-time proof without a device.
+> - **iOS arm64** — static test-link of each `.xcframework` slice against the iOS SDK
+>   (`scripts/cross/audit_ios_link.sh`); we can't load an iOS dylib on the macOS host.
+>
+> Android arm64 + iOS are thus **symbol-audited but not yet device-run**; the macOS arm64 build is
+> also exercised by the full test suite.
 
 ## Web (WASM)
 
