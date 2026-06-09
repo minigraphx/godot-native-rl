@@ -21,7 +21,7 @@ jobs:
     name: Version guard
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Assert tag matches plugin.cfg version
         run: |
           tag="${GITHUB_REF_NAME#v}"
@@ -42,13 +42,14 @@ jobs:
       matrix:
         target: [windows, android-arm64, android-x86_64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install build tools
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential scons cmake git python3
       - name: Install zig
         if: matrix.target == 'windows'
+        # Still Node 20 (no Node 24 release upstream yet); GitHub auto-migrates it on 2026-06-16.
         uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
@@ -64,7 +65,7 @@ jobs:
             android-arm64) ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME" scripts/cross/build_android.sh arm64 ;;
             android-x86_64) ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME" scripts/cross/build_android.sh x86_64 ;;
           esac
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bin-${{ matrix.target }}
           path: ${{ env.ADDON_BIN }}/
@@ -78,7 +79,7 @@ jobs:
     needs: guard
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install build tools
         run: |
           sudo apt-get update
@@ -90,7 +91,7 @@ jobs:
           git clone -b "${NCNN_TAG}" --depth 1 https://github.com/Tencent/ncnn.git thirdparty/ncnn
       - name: Build (native)
         run: scripts/cross/build_linux_native.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bin-linux
           path: ${{ env.ADDON_BIN }}/
@@ -102,7 +103,7 @@ jobs:
     needs: guard
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install scons
         run: brew install scons
       - name: Clone godot-cpp + ncnn
@@ -129,7 +130,7 @@ jobs:
           scons platform=macos arch=arm64 target=template_release -j"$(sysctl -n hw.ncpu)"
       - name: Build iOS (device + simulator)
         run: scripts/cross/build_ios.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bin-macos-ios
           path: ${{ env.ADDON_BIN }}/
@@ -142,13 +143,13 @@ jobs:
     needs: guard
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install build tools
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential scons cmake git python3
       - name: Setup emscripten
-        uses: mymindstorm/setup-emsdk@v14
+        uses: emscripten-core/setup-emsdk@v16   # repo moved from mymindstorm/; v16 runs on Node 24
         with:
           version: 3.1.64
       - name: Clone godot-cpp + ncnn
@@ -158,7 +159,7 @@ jobs:
           git clone -b "${NCNN_TAG}" --depth 1 https://github.com/Tencent/ncnn.git thirdparty/ncnn
       - name: Build web (wasm32)
         run: scripts/cross/build_web.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bin-web
           path: ${{ env.ADDON_BIN }}/
@@ -169,9 +170,9 @@ jobs:
     needs: [build-unix, build-linux, build-macos, build-web]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Collect all platform binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: bin-*
           merge-multiple: true
