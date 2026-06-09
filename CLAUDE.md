@@ -43,7 +43,10 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   The SF smoke auto-skips (no `.venv-sf` in CI). The **Build GDExtension** step is skipped on a
   content-addressed `bin/` cache hit (key = `hashFiles('src/**','SConstruct')` + `GODOT_CPP_BRANCH` +
   `NCNN_TAG` + `runner.os` + `CACHE_VERSION`), so Python/GDScript/docs-only PRs reuse the prior binary
-  and the `build` job drops to ~1–2 min; the `test` matrix always runs. Bump `CACHE_VERSION` in the
+  and the `build` job drops to ~1–2 min; the `test` matrix always runs. On a `bin/` miss the
+  extension build passes `build_library=no`, linking the **prebuilt** godot-cpp libs from the
+  godot-cpp cache instead of recompiling the bindings (#85) — C++-change builds are ~2–3 min, not
+  ~15. Bump `CACHE_VERSION` in the
   workflow to force a cold rebuild (also busts this `bin/` cache); bump the Godot patch versions in the
   `test` matrix to track new releases.
 - **Train (chase):** `TIMESTEPS=120000 ./scripts/train_chase.sh` (starts SB3 trainer, launches headless
