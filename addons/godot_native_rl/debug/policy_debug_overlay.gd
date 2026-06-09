@@ -8,6 +8,7 @@ extends CanvasLayer
 # pure PolicyDebug helper.
 
 const PolicyDebug = preload("res://addons/godot_native_rl/debug/policy_debug.gd")
+const MARGIN_PX := 8   # panel offset from the top-left and inner content margins
 
 @export var controllers: Array[NodePath] = []   # empty = auto-discover all inference_step emitters
 @export var toggle_key: Key = KEY_F3
@@ -32,11 +33,11 @@ func _ready() -> void:
 
 func _build_ui() -> void:
 	_panel = PanelContainer.new()
-	_panel.position = Vector2(8, 8)
+	_panel.position = Vector2(MARGIN_PX, MARGIN_PX)
 	add_child(_panel)
 	var margin := MarginContainer.new()
 	for side in ["left", "top", "right", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 8)
+		margin.add_theme_constant_override("margin_" + side, MARGIN_PX)
 	_panel.add_child(margin)
 	_label = Label.new()
 	margin.add_child(_label)
@@ -66,7 +67,7 @@ func _scene_root() -> Node:
 func _discover_all(node: Node) -> void:
 	if node == null:
 		return
-	if node != self and node.has_signal("inference_step"):
+	if node != self and node.has_signal("inference_step") and not _tracked.has(node):
 		_tracked.append(node)
 	for child in node.get_children():
 		_discover_all(child)
@@ -106,6 +107,8 @@ func _set_visible(v: bool) -> void:
 func build_text() -> String:
 	var lines := PackedStringArray()
 	for c in _tracked:
+		if not is_instance_valid(c):
+			continue
 		var id: int = c.get_instance_id()
 		if not _latest.has(id):
 			continue
