@@ -2,6 +2,12 @@
 
 **Date:** 2026-06-09
 **Status:** Designed — not yet implemented.
+
+> **Scope amendment (2026-06-09, post-design review):** the original "core only — no committed
+> golden fixture/regression" decision (§1, §9) was upgraded. Since the mandatory real end-to-end
+> run produces a trained `chase_rllib_policy.ncnn.{param,bin}` as a byproduct, the closing PR
+> **does** commit that fixture plus a golden-inference `.gd` regression (the CleanRL/SF pattern,
+> ray-free in CI). See the plan's Task 8b. §1/§9 below are kept as originally written.
 **GitHub issue:** #110 (godot_rl interop: RLlib `RayVectorGodotEnv` training script; the closing PR
 should `Closes #110` and flip the RLlib row in `docs/godot-rl-gap-analysis-2026-06-02.md`).
 **Milestone:** v0.2 — godot_rl complement.

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a fourth training backend — stock Ray/RLlib PPO on the **new API stack** (RLModule + EnvRunner) over the godot_rl wire protocol — that trains the chase example and exports the trained actor through the standard TorchScript → `export_to_ncnn.py` path, with a green (auto-skipping) end-to-end smoke in `run_tests.sh`. **Ecosystem-interop item; core-only scope** (no committed golden fixture/regression — see the spec §9).
+**Goal:** Add a fourth training backend — stock Ray/RLlib PPO on the **new API stack** (RLModule + EnvRunner) over the godot_rl wire protocol — that trains the chase example and exports the trained actor through the standard TorchScript → `export_to_ncnn.py` path, with a green (auto-skipping) end-to-end smoke in `run_tests.sh` **plus a committed golden-inference fixture captured from the real training run** (Task 8b — scope amended 2026-06-09, see the spec's amendment note). Ecosystem-interop item.
 
 **Architecture:** Isolate `ray[rllib]` in a dedicated `.venv-rllib` (current ray pins `gymnasium==1.2.2` exactly; `godot-rl==0.8.2` declares `<=1.0.0` — they cannot co-resolve, so godot-rl is installed `--no-deps` on top). The stock `RayVectorGodotEnv` is old-API-stack only, so a thin custom **gymnasium adapter** (`GodotRLlibEnv`) wraps godot_rl's env glue instead. A trainer (`scripts/train_rllib.py`) drives new-stack `PPOConfig` with `num_env_runners=0` (single socket, CleanRL-simple orchestration). An exporter (`scripts/export_rllib_to_torchscript.py`) extracts the actor from the checkpointed RLModule, traces it to TorchScript + `.pt.shape.json` sidecar. An orchestrator (`scripts/train_rllib.sh`) chains train → export → `export_to_ncnn.py` convert+parity.
 
@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-09-rllib-backend-design.md` (GitHub issue **#110**; the closing PR carries `Closes #110`).
 
-**Prerequisites:** built GDExtension (`addons/godot_native_rl/bin/`), a Godot 4.5+ binary (`GODOT=`), `.venv-train` + `.venv` present (`./scripts/setup_training.sh`). Task 2 (the live compat gate) cannot run without them.
+**Prerequisites:** built GDExtension (`addons/godot_native_rl/bin/`), a Godot 4.5+ binary (`GODOT=`), `.venv-train` + `.venv` present (`./scripts/setup_training.sh`). Task 2 (the live compat gate) cannot run without them — **execute this plan on a dev machine that already has them** (it was authored in a cloud container that doesn't).
 
 ---
 
@@ -25,6 +25,8 @@
 - **Create** `test/python/test_export_rllib_to_torchscript.py` — unit tests for the pure helpers (no ray import).
 - **Create** `scripts/train_rllib.sh` — orchestrator (train → export → ncnn).
 - **Modify** `test/run_tests.sh` — add the guarded end-to-end RLlib smoke step.
+- **Create** `models/chase_rllib_policy.ncnn.{param,bin}` — committed fp32 fixture from the real run (Task 8b).
+- **Create** `test/unit/test_chase_rllib_golden_inference.gd` — golden-inference regression (Task 8b).
 - **Modify (docs)** `README.md`, `CLAUDE.md`, `docs/godot-rl-gap-analysis-2026-06-02.md`. (**No** `docs/BACKLOG.md` change — #110 is a GitHub-only item.)
 
 **Convention reminders (from CLAUDE.md):** Python 4-space indent; heavy imports (`ray`/`torch`/`godot_rl`/`numpy`/`gymnasium`) **lazy inside `main()`**/class methods so pure helpers stay import-light and testable; tests are stdlib `unittest` auto-discovered by `run_tests.sh`. Do NOT push to `main`.
@@ -485,6 +487,52 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ---
 
+## Task 8b: Golden-inference fixture + regression (scope amendment 2026-06-09)
+
+**Files:**
+- Create: `models/chase_rllib_policy.ncnn.param`, `models/chase_rllib_policy.ncnn.bin` (committed fixture)
+- Create: `test/unit/test_chase_rllib_golden_inference.gd`
+
+The real run's byproduct becomes CI's permanent, **ray-free** regression (the test needs only the
+ncnn runner — no venv), mirroring `test_chase_sf_golden_inference.gd` / the CleanRL twin.
+
+- [ ] **Step 1: Real (non-smoke) training run into `models/`**
+
+Run: `./scripts/train_rllib.sh` (defaults: `TIMESTEPS=200000`, `OUTDIR=models`). On macOS wrap in
+`caffeinate -is`. Expected: parity check passes; `models/chase_rllib_policy.ncnn.{param,bin}`
+written. Optionally sanity-watch a deploy episode before blessing the model.
+
+- [ ] **Step 2: Generate the golden argmaxes**
+
+Run the **5 shared GOLDEN observations** (copy them verbatim from
+`test/unit/test_chase_sf_golden_inference.gd`) through the new fixture and record each argmax —
+e.g. via `.venv-train/bin/python` with the `ncnn` package, or a throwaway headless GD script using
+`NcnnRunner`. The expected actions will differ from the SF/CleanRL goldens (different trained
+weights); only the obs vectors are shared.
+
+- [ ] **Step 3: Write the failing test**
+
+Create `test/unit/test_chase_rllib_golden_inference.gd` mirroring the SF golden test exactly
+(same harness, same structure, this model's path + argmaxes). Put placeholder argmaxes first to
+see it fail, then fill in Step 2's values.
+
+- [ ] **Step 4: Run it, then the full suite**
+
+Run: `$GODOT --headless --path . --script res://test/unit/test_chase_rllib_golden_inference.gd` → PASS.
+Run: `./test/run_tests.sh` → all green (the new test is auto-discovered by the unit-test loop).
+
+- [ ] **Step 5: Commit (fixture + test together)**
+
+```bash
+git add models/chase_rllib_policy.ncnn.param models/chase_rllib_policy.ncnn.bin \
+    test/unit/test_chase_rllib_golden_inference.gd
+git commit -m "test: committed RLlib golden-inference fixture + regression (#110)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+---
+
 ## Task 9: Docs (same-change, per repo convention)
 
 **Files:**
@@ -502,7 +550,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
   `EXPERIMENT`/`TRAIN_DIR`/`OUTDIR`/`SCENE` overrides.
 ```
 
-- [ ] **Step 2: `CLAUDE.md` — venv gotcha three → four** (add `.venv-rllib` (3.13, ray[rllib] — pins `gymnasium==1.2.2`, godot-rl `--no-deps`, so isolated) to the bullet; keep it terse).
+- [ ] **Step 2: `CLAUDE.md` — venv gotcha three → four** (add `.venv-rllib` (3.13, ray[rllib] — pins `gymnasium==1.2.2`, godot-rl `--no-deps`, so isolated) to the bullet; keep it terse). Also append a `GitHub #110 (RLlib backend …)` entry to the roadmap "Done:" list (the GitHub-#NN convention used for #74/#81).
 
 - [ ] **Step 3: `README.md` — add RLlib to the training-backends list** with the interop framing (match surrounding formatting; lead with "stock RLlib works against an unmodified env").
 
@@ -537,4 +585,4 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - **Introspect-first beats the recipe** (Tasks 4 Step 1, 6 Step 1): RLlib's new-stack API surface and checkpoint layout are version-coupled; the only fixed contracts are the gymnasium env surface, the raw-logits trace, and the sidecar format.
 - **Cross-venv `.pt`:** trace in `.venv-rllib`, parity-load in `.venv-train` — the torch pins must match (Task 1 Step 3). SF already proves this contract.
 - **Ray process hygiene:** `num_env_runners=0` + `include_dashboard=False` + the trap-EXIT `pkill` keep CI/macOS clean; don't raise worker counts in this PR (multi-runner port orchestration is an explicit follow-up).
-- **No golden fixture by design** — don't "helpfully" commit `chase_rllib_policy.ncnn.*` or a golden `.gd` test; spec §9 defers that until the backend earns it.
+- **Golden fixture (Task 8b):** commit the exact fp32 `.ncnn.{param,bin}` the real run produced — never a re-trained or re-exported variant — and derive the goldens from *that* file. (This supersedes the spec's original §9 "no fixture" line; see the spec's 2026-06-09 amendment note.)
