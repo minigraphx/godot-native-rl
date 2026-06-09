@@ -87,6 +87,27 @@ across every platform, for no current payoff (ncnn still wins the decisive web/W
 keeps the decision **reversible at low cost**: add a runner when a trigger fires, don't pre-build the
 abstraction. This section *is* the contract a future backend implements.
 
+## Batched crowd inference (`run_inference_batch`)
+
+**ncnn has no CPU batch dimension.** Its `InnerProduct`/Linear layers flatten the whole input `Mat`, so a
+model exported for `[1, obs_dim]` cannot be fed `[N, obs_dim]` for N independent passes — ncnn processes
+one sample per `Extractor`. So `NcnnRunner.run_inference_batch(inputs, num_threads)` does **not** cut FLOPs;
+it loops the N forward passes and the win is: one C++ call instead of N GDScript↔C++ round-trips, the passes
+**fanned across CPU cores**, and **one shared `Net`** for the whole crowd.
+
+Contract: chunked fan-out over `W = clamp(num_threads>0 ? num_threads : hardware_concurrency, 1, N)`
+`std::thread` workers, each running a contiguous slice with its own `Extractor` (ncnn `Net` is safe for
+concurrent extractors; workers write only their own output slots — no locking). For the duration of the
+call the Net's `opt.num_threads` is pinned to 1 (extractors snapshot it at creation), so each worker is
+single-threaded — no nested OpenMP oversubscription — and it's restored afterward so single-inference paths
+keep ncnn's intra-op threading. `#ifdef __EMSCRIPTEN__` forces a serial loop (the web export is
+single-threaded). A per-agent failure (bad input size, extract error) yields an empty `PackedFloat32Array`
+in that slot; whole-batch precondition failures return an empty `Array`. All `push_error` logging stays on
+the calling thread. The GDScript `NcnnCrowdController` (`addons/godot_native_rl/controllers/crowd_controller.gd`)
+owns one shared runner, gathers child-agent obs, calls `run_inference_batch`, decodes each output via the
+same `ActionDecode` as single-agent deploy, and scatters `set_action()`. Batched **image** and **recurrent**
+inference are out of scope (single-output float path only). Example: `examples/chase_the_target/chase_crowd.tscn`.
+
 ## The deploy contract (algorithm-agnostic)
 
 **PPO is the only algorithm we've *proven*, not one we depend on.** The deploy path is a stable,
@@ -187,7 +208,9 @@ state) on a mismatch.
    never bleeds across episodes.
 
 **Scope.** Float-obs path only — image-obs + recurrent is **out of scope** (the recurrent branch
-does not run `run_inference_image`). Batched multi-agent recurrent inference is separate (issue #34).
+does not run `run_inference_image`). Batched crowd inference (#34) is the single-output float path only,
+so **batched _recurrent_** inference (carrying per-agent hidden state through `run_inference_batch`)
+remains a future follow-up, not covered by #34.
 
 **Conversion + fixture.** pnnx was confirmed to **preserve the LSTM's 3-in/3-out state blobs**
 through ONNX→ncnn conversion. The synthetic fixture (`scripts/make_synthetic_lstm.py` →

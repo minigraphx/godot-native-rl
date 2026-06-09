@@ -32,10 +32,19 @@ web/WASM, console, mobile, desktop, and edge.
 - `examples/hide_and_seek` — 2D 1v1 self-play with a persistent trained two-policy demo
 - `examples/ball_chase` — runnable 2D continuous-action SAC agent with native inference (`./scripts/train_ball_chase.sh`); exports the deterministic actor via TorchScript → ncnn
 - `examples/fly_by` — runnable 3D continuous-action plane (PPO); ships a trained ncnn net + a `fly_by_action_dist.json` std sidecar for deploy-side DiagGaussian sampling (`./scripts/train_fly_by.sh`)
+- `examples/chase_the_target/chase_crowd.tscn` — batched shared-policy crowd: many chasers driven by **one** shared net in a single `run_inference_batch` call per frame (reuses the committed chase net)
+
+## Batched / crowd inference
+For crowds of shared-policy agents, `NcnnRunner.run_inference_batch(inputs, num_threads)` runs all N
+agents' forward passes in one C++ call, fanned across CPU threads (serial fallback on WASM). ncnn has
+no CPU batch dimension, so this doesn't cut FLOPs — the win is collapsing N GDScript↔C++ round-trips
+into one, parallelizing the passes across cores, and sharing **one** loaded `Net`. The reusable
+`NcnnCrowdController` node owns the shared runner, gathers `get_obs()` from its child agents, runs one
+batch, decodes each via `ActionDecode`, and scatters `set_action()` back. See `examples/.../chase_crowd.tscn`.
 
 ## What you get
 - `NcnnRunner` C++ node: `load_model`, `run_inference`, `run_inference_image`,
-  `run_discrete_action`, `run_inference_multi` (recurrent/LSTM state-carry).
+  `run_discrete_action`, `run_inference_multi` (recurrent/LSTM state-carry), `run_inference_batch` (crowds).
 - `NcnnAIController2D` / `NcnnAIController3D` + auto-discovered sensors + a Signal→Reward builder.
 - godot_rl v0.8.2-compatible training bridge (`NcnnSync`) incl. multi-policy + parallel arenas.
   Training backends: SB3 (`train_chase.sh`), CleanRL (`train_cleanrl.sh`), SampleFactory async PPO
