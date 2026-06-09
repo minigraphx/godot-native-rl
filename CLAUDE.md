@@ -18,7 +18,7 @@ standalone headless-compatible play scenes; trained inference is available for c
 multi-policy hide & seek, and BallChase. Reusable library in
 `addons/godot_native_rl/` (`sync.gd`/`NcnnSync`, `controllers/`, `reward/`, `sensors/`,
 `training/`, `net/`); C++ GDExtension at repo root (`src/ncnn_runner.{h,cpp}`). Examples:
-`chase_the_target` (2D), `rover_3d` (3D), `hide_and_seek` (2D self-play), `ball_chase` (2D continuous-control / SAC). Wire protocol is
+`chase_the_target` (2D), `rover_3d` (3D), `hide_and_seek` (2D self-play), `ball_chase` (2D continuous-control / SAC), `fly_by` (3D continuous-control / PPO, ships the #64 DiagGaussian-sampling demo). Wire protocol is
 godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 [docs/dev/DEVELOPMENT.md](docs/dev/DEVELOPMENT.md).**
 
@@ -68,6 +68,13 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   SAC ONNX export breaks under torch 2.x dynamo), then `scripts/export_to_ncnn.py models/ball_chase_sac.pt
   --via torchscript`. Re-export a saved SAC checkpoint without retraining via
   `scripts/export_sac_torchscript.py --checkpoint models/ball_chase_sac.zip` (see issue #81 / `docs/ncnn_vs_onnx.md`).
+- **Train (FlyBy, PPO continuous):** `./scripts/train_fly_by.sh` — SB3 PPO over the FlyBy plane env
+  (port 11008), 2 continuous actions (`pitch`/`turn`), 8-dim plane-local obs. Exports the deterministic
+  actor (action mean) as **TorchScript** (the numpy<2 training stack breaks `torch.onnx`: onnx 1.19
+  needs `ml_dtypes.float4_e2m1fn` from ml_dtypes≥0.5/numpy≥2) → `export_to_ncnn.py models/fly_by_policy.pt`,
+  plus the std sidecar via `scripts/export_action_dist.py`. The play scene (`fly_by.tscn`) ships
+  `deterministic_inference=true`; flip it to `false` to demo continuous DiagGaussian sampling (#64).
+  `TIMESTEPS`/`SCENE` overrides.
 - **Train (chase, CleanRL backend):** `./scripts/train_cleanrl.sh` — single-file CleanRL-style PPO over
   godot_rl's `CleanRLGodotEnv` (same chase scene + port 11008; `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`
   overrides). Exports ONNX (`models/chase_cleanrl_policy.onnx`) consumable unchanged by `export_to_ncnn.py`.

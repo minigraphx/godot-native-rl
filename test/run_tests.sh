@@ -76,6 +76,9 @@ echo "== Trained rover check (headless) =="
 echo "== Trained BallChase (SAC) behavioral check (headless) =="
 "$GODOT" --headless --path . res://test/integration/trained_ball_chase_scene.tscn
 
+echo "== Trained FlyBy (PPO continuous) behavioral check (headless) =="
+"$GODOT" --headless --path . res://test/integration/trained_fly_by_scene.tscn
+
 echo "== INT8 quantize tools (build if missing) =="
 ./scripts/build_ncnn_tools.sh
 
