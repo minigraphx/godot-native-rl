@@ -162,6 +162,26 @@ The capability is only proven if a game dev can **run a continuous-PPO net nativ
 (no Python, no training). PR 2 ports **FlyBy** (`edbeeching/godot_rl_agents_examples/examples/FlyBy`) —
 a cartoon plane with two continuous actions (`pitch`, `turn`) — and ships its trained net.
 
+### Decisions (2026-06-09, post-brainstorm)
+- **Faithful asset port.** Vendor upstream's `cartoon_plane/` glTF (`scene.gltf` + `scene.bin` +
+  `.material`s + `texture_07.png`) and the HDR sky into `examples/fly_by/`, with an
+  `examples/fly_by/ATTRIBUTION.md` crediting `edbeeching/godot_rl_agents_examples` (MIT, © Edward
+  Beeching 2022) and carrying the MIT notice. Visuals don't affect headless runs (Godot headless skips
+  rendering), so the play/eval scenes stay headless-compatible.
+- **Faithful 8-dim obs over a goal sequence.** A ring/sequence of goal nodes flown through in order.
+  Obs mirrors upstream exactly: current-goal local-frame direction (3) + `dist/50` (1), next-goal
+  local-frame direction (3) + `next_dist/50` (1) = **8 dims**. Goal vectors are expressed in the
+  plane-local frame (`plane.global_transform.basis.inverse() * (goal_pos - plane_pos)`), which encodes
+  heading. `compute_obs` is a pure helper (unit-tested).
+- **Single-arena training only.** Ship `fly_by_train.tscn` (one world) like `train_chase`. No
+  `_train_parallel.tscn` in this PR; add later as a follow-up if single-arena throughput is too slow.
+- **Action application:** `pitch`/`turn` ∈ [-1,1] rotate the plane basis; constant forward speed.
+  `set_action` clamps to [-1,1] (PPO mean is unbounded, and the #64 DiagGaussian sample can exceed the
+  range) — no `"squash"` key, clamp game-side. Reward via `RewardBuilder`: progress shaping toward the
+  current goal + `goal_reached` event bonus + step penalty + arena-exit penalty; done on arena exit.
+- **File split** mirrors upstream's three-file structure: `fly_by_plane.gd` (CharacterBody3D movement),
+  `fly_by_game.gd` (Node3D goal/arena manager + pure helpers), `fly_by_agent.gd` (NcnnAIController3D).
+
 ## Components — PR 2
 - **`examples/fly_by/`**: port the plane env to our framework — `fly_by_agent.gd` (`get_obs`,
   `get_action_space` → `{pitch:{size 1,continuous}, turn:{size 1,continuous}}`, `set_action`),
