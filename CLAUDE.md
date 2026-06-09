@@ -106,6 +106,10 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 - **Export VecNormalize stats (deploy):** `.venv-train/bin/python scripts/export_vecnormalize.py
   vec_normalize.pkl` → JSON; set the controller's `obs_norm_stats_path` so `ObsNormalize` replays
   the obs mean/std game-side before inference (policies trained with SB3 `VecNormalize`).
+- **Export continuous action std (deploy):** `.venv-train/bin/python scripts/export_action_dist.py
+  models/policy.zip` → `*_action_dist.json`; set the controller's `action_dist_stats_path` and
+  `deterministic_inference=false` so `ActionDecode` samples `mean + std·N(0,1)` (PPO DiagGaussian,
+  game-side) instead of the mean. PPO continuous only (SAC std is state-dependent — out of scope).
 - **Quantize to INT8 (deploy):** `./scripts/build_ncnn_tools.sh` (once) then
   `.venv-train/bin/python scripts/export_int8.py models/m.ncnn.param models/m.ncnn.bin
   --width W --height H --channels C --outdir models` (optimize → KL-calibrate → ncnn2int8 →

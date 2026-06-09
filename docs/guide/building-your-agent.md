@@ -31,9 +31,12 @@ Controller export properties:
   All agents with the same `policy_name` share one policy; single-policy training works
   unchanged when every agent keeps the default.
 - `deterministic_inference` — (default `true`) when `false`, discrete actions are sampled from
-  `softmax(logits)` instead of argmax (exploration during eval).
+  `softmax(logits)`, and continuous actions are sampled from a DiagGaussian if an
+  `action_dist_stats_path` sidecar is set (else the mean).
 - `inference_seed` — (default `-1`) seed the sampler for reproducible stochastic eval.
 - `obs_norm_stats_path` — path to a VecNormalize stats JSON (see [deploying.md](deploying.md)).
+- `action_dist_stats_path` — path to a continuous-action std JSON sidecar for DiagGaussian sampling
+  (see [deploying.md](deploying.md)); only used when `deterministic_inference = false`.
 
 ## Reward
 

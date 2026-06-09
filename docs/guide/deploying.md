@@ -166,6 +166,24 @@ replays the mean/std game-side before inference:
 This writes a JSON file. Point the controller's `obs_norm_stats_path` export at it. The network
 itself does not carry the stats — this step is required for policies trained with `VecNormalize`.
 
+## Continuous action sampling (DiagGaussian std sidecar)
+
+A PPO policy with a continuous (Box) action space stores its std as a state-independent learned
+parameter (`policy.log_std`) that is never part of the network output — so an ncnn-converted policy
+emits only the action mean. To sample (explore at deploy / vary behavior) instead of always taking
+the mean, export the std to a sidecar and replay the DiagGaussian draw game-side:
+
+```bash
+.venv-train/bin/python scripts/export_action_dist.py models/policy.zip   # -> models/policy_action_dist.json
+```
+
+Point the controller's `action_dist_stats_path` export at the JSON and set
+`deterministic_inference = false`. The deploy side then samples `mean + std·N(0,1)` (seeded by
+`inference_seed` for reproducible eval), applying the optional per-key `tanh` squash after the draw.
+With `deterministic_inference = true` (default) the std is ignored and the mean is used unchanged.
+This **exceeds godot_rl**, whose export drops the std entirely. (PPO/A2C continuous only; SAC's
+state-dependent std is out of scope — its actor already exports `tanh(mean)`.)
+
 ## Recurrent (LSTM) policies (`recurrent_stats_path`)
 
 Recurrent LSTM policies deploy natively: `NcnnControllerCore` carries the network's hidden state

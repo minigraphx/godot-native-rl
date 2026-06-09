@@ -56,7 +56,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `get_action()` for demo recording | ✅ required when recording | ✅ hook on controllers | ✅ done (item 10) |
 | `expert_demo_save_path` export | ✅ | ✅ on `NcnnSync` | ✅ done (item 10) |
 | `remove_last_episode_key` binding | ✅ undo bad demonstration | ✅ `remove_last_episode_action` export on `NcnnSync` | ✅ done (item 10) |
-| Stochastic action sampling | ✅ `deterministic_inference` flag (softmax vs argmax) | ✅ `deterministic_inference` + `inference_seed`; discrete softmax-sample (continuous follow-up #64) | ✅ done (#16) |
+| Stochastic action sampling | ✅ `deterministic_inference` flag (softmax vs argmax) | ✅ `deterministic_inference` + `inference_seed`; discrete softmax-sample **+ continuous DiagGaussian sample via a `std` sidecar (godot_rl's export drops the std; we keep it game-side)** | ✅ done (#16, #64) |
 | VecNormalize obs replay | ❌ upstream | ✅ `obs_norm_stats_path` | **Advantage** |
 
 ---
