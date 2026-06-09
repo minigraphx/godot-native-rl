@@ -1,5 +1,11 @@
-# Training + verification env (.venv-train, Python 3.13 — torch wheels don't exist for 3.14).
-# Used by scripts/train_*.sh and the parity/verify scripts.
+# Training + verification env (.venv-train). Used by scripts/train_*.sh and the parity/verify scripts.
+#
+# Deliberately UNPINNED — the exact versions live in .github/ci-constraints.txt and are applied via
+# `pip install -c .github/ci-constraints.txt -r requirements-train.txt` by BOTH CI and
+# scripts/setup_training.sh. The train stack has a real version tension (godot-rl 0.8.2 caps
+# stable-baselines3<=2.4.0 -> numpy<2.0, but the onnx/ml_dtypes chain wants numpy>=2), so installing
+# this file WITHOUT those constraints backtracks into a broken ml_dtypes sdist and crashes.
+# See docs/dev/gotchas.md.
 godot-rl
 onnxruntime
 ncnn

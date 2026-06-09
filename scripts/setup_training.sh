@@ -19,6 +19,10 @@ PYTHON_SF="${PYTHON_SF:-python3.13}"
 REQ_TRAIN="requirements-train.txt"
 REQ_CONVERT="requirements-convert.txt"
 REQ_SF="requirements-sf.txt"
+# Shared with CI: pins the numpy<2 vs ml_dtypes/onnx tension deterministically for .venv-train.
+# Without it a bare `pip install -r requirements-train.txt` backtracks into a broken ml_dtypes
+# sdist and crashes (see docs/dev/gotchas.md). Convert/SF venvs install without constraints.
+CONSTRAINTS_TRAIN=".github/ci-constraints.txt"
 CHECK_ONLY=0
 [ "${1:-}" = "--check" ] && CHECK_ONLY=1
 
@@ -27,7 +31,7 @@ echo "  train venv:   .venv-train  (interpreter: $PYTHON_TRAIN, deps: $REQ_TRAIN
 echo "  convert venv: .venv        (interpreter: $PYTHON_CONVERT, deps: $REQ_CONVERT)"
 echo "  sf venv:      .venv-sf     (interpreter: $PYTHON_SF, deps: $REQ_SF)"
 
-for f in "$REQ_TRAIN" "$REQ_CONVERT" "$REQ_SF"; do
+for f in "$REQ_TRAIN" "$REQ_CONVERT" "$REQ_SF" "$CONSTRAINTS_TRAIN"; do
 	if [ ! -f "$f" ]; then
 		echo "ERROR: missing $f" >&2
 		exit 1
@@ -44,7 +48,7 @@ if [ "$CHECK_ONLY" -eq 1 ]; then
 fi
 
 create_venv() {
-	# $1 = interpreter, $2 = venv dir, $3 = requirements file
+	# $1 = interpreter, $2 = venv dir, $3 = requirements file, $4 = optional constraints file (pip -c)
 	# Reuse only a *healthy* venv (has bin/python); a half-created/corrupt dir is recreated
 	# (python -m venv repopulates an existing dir) rather than blindly trusted.
 	if [ -x "$2/bin/python" ]; then
@@ -56,10 +60,14 @@ create_venv() {
 		"$1" -m venv "$2"
 	fi
 	"$2/bin/python" -m pip install --upgrade pip
-	"$2/bin/python" -m pip install -r "$3"
+	if [ -n "${4:-}" ]; then
+		"$2/bin/python" -m pip install -c "$4" -r "$3"
+	else
+		"$2/bin/python" -m pip install -r "$3"
+	fi
 }
 
-create_venv "$PYTHON_TRAIN" ".venv-train" "$REQ_TRAIN"
+create_venv "$PYTHON_TRAIN" ".venv-train" "$REQ_TRAIN" "$CONSTRAINTS_TRAIN"
 create_venv "$PYTHON_CONVERT" ".venv" "$REQ_CONVERT"
 create_venv "$PYTHON_SF" ".venv-sf" "$REQ_SF"
 

@@ -127,6 +127,9 @@ class TestDynamoFalseFallbackGuard(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as d:
             onnx_path = Path(d) / "sac.onnx"
+            # The training stack pins onnx==1.17.0, which imports cleanly under ml_dtypes 0.4.x
+            # (numpy<2). onnx>=1.18 references ml_dtypes.float4_e2m1fn at import time and crashes
+            # here, which is exactly why requirements-train.txt pins 1.17.0 — see docs/dev/gotchas.md.
             torch.onnx.export(
                 wrapper, (obs,), str(onnx_path),
                 input_names=["input"], output_names=["output"], opset_version=17,
