@@ -95,10 +95,14 @@ func choose_and_apply_action(agent, runner) -> void:
 	var debug_img := {}
 	var img: Image = agent.get_inference_image()
 	if img != null:
+		# The recurrent path is float-obs only. If a recurrent contract is configured but the agent
+		# also supplies a live frame, hidden state is NOT used or advanced on the image path — warn
+		# once so this misconfiguration is loud instead of silently producing zero-context inference.
 		if not recurrent_contract.is_empty() and not _warned_image_recurrent:
 			push_warning("NcnnControllerCore: a recurrent contract is set but get_inference_image() returned a frame — recurrent hidden state is NOT used on the image path (float-obs only).")
 			_warned_image_recurrent = true
 		output = runner.run_inference_image(img, true)
+		# c=0: channel count is not derived from the Image format yet (debug-display only).
 		debug_img = {"w": img.get_width(), "h": img.get_height(), "c": 0}
 	else:
 		var obs_dict: Dictionary = agent.get_obs()
@@ -115,17 +119,18 @@ func choose_and_apply_action(agent, runner) -> void:
 		else:
 			output = _run_recurrent_and_advance(runner, obs_vec)
 		debug_obs = obs_vec
-	var action: Dictionary = ActionDecode.decode_actions(output, agent.get_action_space(), deterministic_inference, rng, action_dist_stats)
+	var action_space: Dictionary = agent.get_action_space()
+	var action: Dictionary = ActionDecode.decode_actions(output, action_space, deterministic_inference, rng, action_dist_stats)
 	if action.is_empty():
 		push_error("NcnnControllerCore.choose_and_apply_action: action decode failed (empty/mismatched output); skipping action.")
 		return
-	_emit_debug(agent, debug_obs, debug_img, output, action)
+	_emit_debug(agent, debug_obs, debug_img, output, action, action_space)
 	agent.set_action(action)
 
 # Emit the immutable debug payload through the agent (the node owns the signal; the core is
 # node-agnostic). Inert when nothing declares/listens for the signal — only the small Dictionary
 # is built, at decision cadence. See PolicyDebugOverlay for the consumer.
-func _emit_debug(agent, obs_vec: PackedFloat32Array, obs_image: Dictionary, logits: PackedFloat32Array, action: Dictionary) -> void:
+func _emit_debug(agent, obs_vec: PackedFloat32Array, obs_image: Dictionary, logits: PackedFloat32Array, action: Dictionary, action_space: Dictionary) -> void:
 	if not agent.has_signal("inference_step"):
 		return
 	agent.emit_signal("inference_step", {
@@ -133,7 +138,7 @@ func _emit_debug(agent, obs_vec: PackedFloat32Array, obs_image: Dictionary, logi
 		"obs": obs_vec,
 		"obs_image": obs_image,
 		"logits": logits,
-		"action_space": agent.get_action_space(),
+		"action_space": action_space,
 		"action": action,
 		"deterministic": deterministic_inference,
 	})
