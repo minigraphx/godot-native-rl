@@ -80,4 +80,18 @@ func _initialize() -> void:
 		h.assert_true(fly.get_node_or_null("Sync") != null, "fly by has inference sync")
 		fly.free()
 
+	var crowd = _instantiate(h,
+		"res://examples/chase_the_target/chase_crowd.tscn", "chase crowd")
+	if crowd != null:
+		var ctrl = crowd.get_node_or_null("CrowdController")
+		h.assert_true(ctrl != null, "chase crowd has CrowdController")
+		if ctrl != null:
+			h.assert_eq(ctrl.model_param_path,
+				"res://examples/chase_the_target/models/chase_the_target.ncnn.param",
+				"chase crowd param model configured")
+			ctrl.register_agents()
+			h.assert_true(ctrl.agent_count() >= 2, "chase crowd registered multiple agents")
+		h.assert_true(crowd.has_method("_draw"), "chase crowd has visualizer")
+		crowd.free()
+
 	h.finish(self)
