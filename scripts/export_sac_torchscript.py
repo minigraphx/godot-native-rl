@@ -24,15 +24,9 @@ import argparse
 import pathlib
 import sys
 
-# Reuse the sidecar writer from the converter (import-light: no torch at module load).
+# Reuse the sidecar writer + checkpoint picker from the converter (import-light: no torch).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from export_to_ncnn import write_shape_sidecar  # noqa: E402
-
-
-def latest_checkpoint(checkpoint_dir: str) -> str:
-    """Newest `*.zip` (by mtime) in `checkpoint_dir`, or "" if none. Pure (no torch)."""
-    zips = sorted(pathlib.Path(checkpoint_dir).glob("*.zip"), key=lambda p: p.stat().st_mtime)
-    return str(zips[-1]) if zips else ""
+from export_to_ncnn import newest_zip, write_shape_sidecar  # noqa: E402
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -80,7 +74,7 @@ def main() -> None:
     from stable_baselines3 import SAC
 
     args = parse_args()
-    ckpt = args.checkpoint or latest_checkpoint(args.checkpoint_dir)
+    ckpt = args.checkpoint or newest_zip(args.checkpoint_dir)
     if not ckpt or not pathlib.Path(ckpt).is_file():
         raise SystemExit("No checkpoint found (looked for %s)" % (args.checkpoint or args.checkpoint_dir))
 
