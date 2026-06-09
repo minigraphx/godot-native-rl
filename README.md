@@ -39,7 +39,9 @@ web/WASM, console, mobile, desktop, and edge.
 - `NcnnAIController2D` / `NcnnAIController3D` + auto-discovered sensors + a Signal→Reward builder.
 - godot_rl v0.8.2-compatible training bridge (`NcnnSync`) incl. multi-policy + parallel arenas.
   Training backends: SB3 (`train_chase.sh`), CleanRL (`train_cleanrl.sh`), SampleFactory async PPO
-  (`train_sf.sh`, isolated `.venv-sf`, exports via TorchScript→ncnn).
+  (`train_sf.sh`, isolated `.venv-sf`, exports via TorchScript→ncnn). PettingZoo `ParallelEnv`
+  interop via our own `GodotParallelEnv` adapter (`train_pettingzoo.sh`; conformance proven with
+  PettingZoo's `parallel_api_test`).
 - Convert (`scripts/export_to_ncnn.py`) and INT8 quantize for deployment.
 
 ## Policy Debugger
