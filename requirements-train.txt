@@ -1,22 +1,12 @@
-# Training + verification env (.venv-train, Python 3.13 — torch wheels don't exist for 3.14).
-# Used by scripts/train_*.sh and the parity/verify scripts.
+# Training + verification env (.venv-train). Used by scripts/train_*.sh and the parity/verify scripts.
 #
-# Pins (do not loosen without re-testing a FRESH install — and verify `import onnx` works, not just
-# that pip resolves). godot-rl 0.8.2 caps stable-baselines3<=2.4.0, which caps numpy<2.0. The onnx
-# chain must stay on the matching numpy-1.x generation:
-#   - ml-dtypes==0.4.1: the last wheel for numpy<2. (Left unpinned, pip backtracks to the ml_dtypes
-#     0.4.0 *sdist*, whose build-time numpy==2.0.0rc1 doesn't exist — the install crashes.)
-#   - onnx==1.17.0: onnx>=1.18 references ml_dtypes.float4_e2m1fn at *import* time, which only exists
-#     in ml_dtypes>=0.5 (numpy>=2). So onnx 1.19 RESOLVES under numpy<2 but crashes on `import onnx`,
-#     killing every torch.onnx.export in this venv. 1.17.0 is the last onnx that imports under
-#     ml_dtypes 0.4.x.
-# To move to numpy>=2 / newer onnx you must first move off godot-rl 0.8.2 (it pins SB3<=2.4.0).
+# Deliberately UNPINNED — the exact versions live in .github/ci-constraints.txt and are applied via
+# `pip install -c .github/ci-constraints.txt -r requirements-train.txt` by BOTH CI and
+# scripts/setup_training.sh. The train stack has a real version tension (godot-rl 0.8.2 caps
+# stable-baselines3<=2.4.0 -> numpy<2.0, but the onnx/ml_dtypes chain wants numpy>=2), so installing
+# this file WITHOUT those constraints backtracks into a broken ml_dtypes sdist and crashes.
 # See docs/dev/gotchas.md.
 godot-rl
 onnxruntime
 ncnn
-numpy<2.0
-ml-dtypes==0.4.1
-onnx==1.17.0
-onnx-ir==0.1.8
-onnxscript==0.5.0
+onnxscript
