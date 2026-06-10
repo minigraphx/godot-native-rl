@@ -21,9 +21,15 @@ func _enter_tree() -> void:
 		push_error(msg)
 	_export_plugin = ModelExportPlugin.new()
 	add_export_plugin(_export_plugin)
+	# A blanked-out templates_search_path setting would yield malformed destinations
+	# (and a push_error per editor start) — fall back to the editor default.
+	var dest_root: String = ProjectSettings.get_setting(
+		"editor/script/templates_search_path", TemplateInstaller.DEST_ROOT)
+	if dest_root.is_empty():
+		dest_root = TemplateInstaller.DEST_ROOT
 	var plan := TemplateInstaller.build_plan(
 		TemplateInstaller.TEMPLATE_SOURCES,
-		ProjectSettings.get_setting("editor/script/templates_search_path", TemplateInstaller.DEST_ROOT),
+		dest_root,
 		func(p: String) -> bool: return FileAccess.file_exists(p)
 	)
 	for err in TemplateInstaller.execute_plan(plan):

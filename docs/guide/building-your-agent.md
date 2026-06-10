@@ -17,7 +17,8 @@ sent to the trainer in the step message's `info` field (e.g. `{"is_success": tru
 success-rate metrics).
 
 Tip: with the plugin enabled, **Attach Script → Template → "NCNN AI Controller"** starts you
-from a scaffold with these four methods stubbed (the template is auto-installed to
+from a scaffold with these four methods stubbed (the template is auto-installed to your
+project's script-template folder — `editor/script/templates_search_path`, default
 `res://script_templates/`).
 
 ## Wire-up

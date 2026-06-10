@@ -110,8 +110,9 @@ New tests under `test/`, run by `run_tests.sh` auto-discovery:
 
 ## Risks / edge cases
 
-- A project with a customized `editor/script/templates_search_path` won't pick up
-  `res://script_templates/` — accepted; the README note mentions where templates are installed.
+- A project with a customized `editor/script/templates_search_path` is handled: the plugin glue
+  resolves the destination from that project setting (falling back to `res://script_templates/`),
+  an improvement over this spec's original accepted limitation (added during code review).
 - The installer reads templates from the hardcoded `res://addons/godot_native_rl/...` path. The
   addon already requires that standard location (the `.gdextension` and all `extends` paths are
   absolute `res://` references), so this adds no new constraint.
