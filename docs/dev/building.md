@@ -341,7 +341,10 @@ hosts.
 
 > **Status:** the cross-build CI (`.github/workflows/cross-build.yml`) now does more than compile +
 > link — it validates that each binary actually loads / resolves its symbols, catching the #95 bug
-> class (a binary that links but fails to *load*):
+> class (a binary that links but fails to *load*). The checks live in a reusable workflow
+> (`.github/workflows/validate-binaries.yml`) called by both `cross-build.yml` (PR-time) and
+> `release.yml` (which gates publishing a tag on them), so a release can't ship a binary that fails to
+> load:
 > - **Windows x86_64** — real Godot `--headless` smoke that `ClassDB.instantiate("NcnnRunner")` on a
 >   `windows-latest` runner (the zig toolchain that produced the #95 Linux load failure).
 > - **Android x86_64** — `dlopen()` + `dlsym(ncnn_runner_library_init)` on a real KVM-accelerated

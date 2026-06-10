@@ -13,8 +13,10 @@ Background + rationale: `docs/superpowers/specs/2026-06-07-release-shipping-desi
    git tag vX.Y.Z
    git push origin vX.Y.Z
    ```
-4. `release.yml` runs: version guard → build all platforms (debug+release) → assemble
-   `godot-native-rl-addon-vX.Y.Z.zip` + `godot-native-rl-examples-vX.Y.Z.zip` → drop-in smoke →
+4. `release.yml` runs: version guard → build all platforms (debug+release) → **validate each binary
+   loads/resolves its symbols** (shared `validate-binaries.yml`: Windows `--headless` load, Android
+   x86_64 emulator `dlopen`, Android arm64 link audit, iOS SDK test-link — publish is gated on it) →
+   assemble `godot-native-rl-addon-vX.Y.Z.zip` + `godot-native-rl-examples-vX.Y.Z.zip` → drop-in smoke →
    create the GitHub Release. (A tag/`plugin.cfg` mismatch fails the guard job.)
 5. Open the published release; copy the **addon zip sha256** from the notes (or `SHA256SUMS.txt`).
 

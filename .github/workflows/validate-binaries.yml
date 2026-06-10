@@ -1,0 +1,164 @@
+name: Validate binaries
+
+# Reusable runtime/symbol validation for the cross-built GDExtension binaries — the #95 bug class
+# (a binary that links but fails to *load*, e.g. zig's undefined libc++ symbols on Linux) caught for
+# every shipped non-host target without a physical device. Called by both cross-build.yml (PR-time)
+# and release.yml (tag-time) so the logic lives in ONE place. The caller's build jobs upload the
+# binaries as artifacts (names passed in as inputs, since cross-build and release name them
+# differently); each job here downloads the one it needs and validates it:
+#   - windows        : real Godot --headless smoke that ClassDB.instantiate("NcnnRunner")
+#   - android-x86_64 : dlopen() the .so on a real Android x86_64 emulator against bionic
+#   - android-arm64  : static link-time symbol audit via the NDK linker (can't emulate arm64 cheaply)
+#   - ios            : static test-link of the .xcframework slices against the iOS SDK
+on:
+  workflow_call:
+    inputs:
+      windows_artifact:
+        description: "Artifact name holding the windows bin/ (libncnn_runner.windows.*.dll)"
+        type: string
+        required: true
+      android_x86_64_artifact:
+        description: "Artifact name holding the android x86_64 bin/ (.../android.*.x86_64.so)"
+        type: string
+        required: true
+      android_arm64_artifact:
+        description: "Artifact name holding the android arm64 bin/ (.../android.*.arm64.so)"
+        type: string
+        required: true
+      ios_artifact:
+        description: "Artifact name holding the ios bin/ (libncnn_runner.ios.*.xcframework)"
+        type: string
+        required: true
+
+jobs:
+  # Windows runtime smoke — the highest-value check, because Windows is built with zig, the exact
+  # toolchain whose undefined-libc++ symbols made the Linux .so link-but-fail-to-load (#95). Mirror
+  # the release.yml Linux drop-in smoke: real Godot --headless, editor import pass (the only thing
+  # that writes .godot/extension_list.cfg so the GDExtension actually loads), then a SceneTree script
+  # that ClassDB.instantiate("NcnnRunner"). Runs on a real windows runner so the DLL loads for real.
+  windows-smoke:
+    name: windows-smoke
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash   # available on windows runners; far less error-prone than PowerShell here
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download windows binaries
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.windows_artifact }}
+          path: addons/godot_native_rl/bin/
+
+      - name: Set up clean drop-in project
+        run: |
+          mkdir -p smoke/proj/addons
+          cp -r addons/godot_native_rl smoke/proj/addons/
+          ls -la smoke/proj/addons/godot_native_rl/bin/
+          printf '%s\n' 'config_version=5' '[application]' 'config/features=PackedStringArray("4.5")' '[debug]' 'gdscript/warnings/enable=false' > smoke/proj/project.godot
+          cat > smoke/proj/smoke.gd <<'EOF'
+          extends SceneTree
+          func _init() -> void:
+              var r = ClassDB.instantiate("NcnnRunner")
+              if r == null:
+                  push_error("NcnnRunner not registered — extension failed to load")
+                  quit(1)
+              else:
+                  print("OK: NcnnRunner loaded from windows DLL")
+                  quit(0)
+          EOF
+
+      - name: Download Godot (windows headless)
+        run: |
+          GODOT_URL="https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_win64.exe.zip"
+          curl -fsSL "$GODOT_URL" -o godot.zip
+          unzip -q godot.zip
+          ls -la
+          # The win64 zip ships Godot_v4.5.2-stable_win64.exe (the editor/headless-capable binary).
+          mv "Godot_v4.5.2-stable_win64.exe" godot.exe
+
+      - name: Smoke — import pass + instantiate NcnnRunner
+        run: |
+          # GDExtensions only load from .godot/extension_list.cfg, which an editor import pass
+          # generates — without it a fresh --script run never registers NcnnRunner.
+          ./godot.exe --headless --path smoke/proj --editor --quit || true
+          ./godot.exe --headless --path smoke/proj --script res://smoke.gd
+
+  # Android x86_64 runtime load check — boot an x86_64 emulator (KVM-accelerated on the Linux
+  # runner) and dlopen() the freshly built release .so against *real bionic*. We don't run Godot in
+  # the emulator (out of scope); a tiny NDK-compiled C host that dlopen()s the .so + dlsym()s the
+  # entry symbol is enough to prove it loads — the exact failure mode #95 was. The .so links
+  # libc++_shared.so (godot-cpp default; see docs/dev/building.md), which the Godot APK ships but a
+  # bare emulator does not, so dlopen_android_smoke.sh pushes it from the NDK alongside the .so.
+  android-x86_64-smoke:
+    name: android-x86_64-smoke
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download android-x86_64 binaries
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.android_x86_64_artifact }}
+          path: addons/godot_native_rl/bin/
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: dlopen smoke on x86_64 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          # API 24 matches build_android.sh's ANDROID_PLATFORM=android-24 (the minSdk the .so is
+          # built against); a default x86_64 system image is the cheapest that boots reliably.
+          api-level: 24
+          arch: x86_64
+          target: default
+          force-avd-creation: false
+          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
+          disable-animations: true
+          script: scripts/cross/dlopen_android_smoke.sh x86_64
+
+  # Android arm64 — can't be emulated cheaply on a Linux runner, so we let the NDK linker prove the
+  # #95 bug class is absent: a stub is linked against the release .so with --no-allow-shlib-undefined,
+  # so lld errors if the .so imports any strong symbol none of its runtime libraries define — the
+  # exact "cannot locate symbol" abort a real dlopen() would hit. The NDK is preinstalled on the
+  # runner (ANDROID_NDK_LATEST_HOME). See scripts/cross/audit_android_symbols.sh for the rationale.
+  android-arm64-audit:
+    name: android-arm64-audit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download android-arm64 binaries
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.android_arm64_artifact }}
+          path: addons/godot_native_rl/bin/
+
+      - name: Static link-time symbol audit (android-arm64)
+        run: scripts/cross/audit_android_symbols.sh arm64
+
+  # iOS — we can't load an iOS dylib on the macOS host (wrong platform), so the equivalent #95-class
+  # proof for the .xcframework is a *test link* against the iOS SDK: compile a trivial main that calls
+  # the entry symbol and link it against each slice's dylib with -isysroot the matching SDK. The
+  # linker resolves every symbol exactly as dyld would at app launch. Xcode is preinstalled on the
+  # macOS runner. See scripts/cross/audit_ios_link.sh.
+  ios-audit:
+    name: ios-audit
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download ios binaries
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.ios_artifact }}
+          path: addons/godot_native_rl/bin/
+
+      - name: Static test-link audit (ios)
+        run: scripts/cross/audit_ios_link.sh
