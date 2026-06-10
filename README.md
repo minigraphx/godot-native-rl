@@ -49,7 +49,7 @@ batch, decodes each via `ActionDecode`, and scatters `set_action()` back. See `e
 - godot_rl v0.8.2-compatible training bridge (`NcnnSync`) incl. multi-policy + parallel arenas.
   Training backends: SB3 (`train_chase.sh`), CleanRL (`train_cleanrl.sh`), SampleFactory async PPO
   (`train_sf.sh`, isolated `.venv-sf`, exports via TorchScript→ncnn), Ray/RLlib new-API-stack PPO
-  (`train_rllib.sh`, isolated `.venv-rllib` — stock RLlib trains against an unmodified env over the
+  (`train_rllib.sh`, shares `.venv-train` — stock RLlib trains against an unmodified env over the
   godot_rl wire protocol, exports via TorchScript→ncnn). PettingZoo `ParallelEnv`
   interop via our own `GodotParallelEnv` adapter (`train_pettingzoo.sh`; conformance proven with
   PettingZoo's `parallel_api_test`).

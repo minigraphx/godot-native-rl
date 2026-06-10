@@ -1,13 +1,20 @@
-# Training + verification env (.venv-train). Used by scripts/train_*.sh and the parity/verify scripts.
+# Training + verification env (.venv-train). Used by scripts/train_*.sh (SB3, CleanRL, multi-policy,
+# PettingZoo) and the parity/verify scripts. The RLlib backend shares this venv too — see
+# requirements-rllib.txt (an optional ray add-on installed on top by setup_training.sh).
 #
-# Deliberately UNPINNED — the exact versions live in .github/ci-constraints.txt and are applied via
-# `pip install -c .github/ci-constraints.txt -r requirements-train.txt` by BOTH CI and
-# scripts/setup_training.sh. The train stack has a real version tension (godot-rl 0.8.2 caps
-# stable-baselines3<=2.4.0 -> numpy<2.0, but the onnx/ml_dtypes chain wants numpy>=2), so installing
-# this file WITHOUT those constraints backtracks into a broken ml_dtypes sdist and crashes.
-# See docs/dev/gotchas.md.
-godot-rl
+# godot-rl is installed --no-deps by scripts/setup_training.sh (and CI), NOT listed here: its
+# declared caps (stable-baselines3<=2.4.0, gymnasium<=1.0.0) conflict with ray[rllib]'s
+# gymnasium==1.2.2, but its actual runtime use is gymnasium-1.2-compatible (proven by the RLlib
+# backend, which has always run godot-rl --no-deps). Pinning godot-rl's real runtime deps here at
+# the modern versions lets the SB3 and RLlib stacks coexist in one venv (issue #126), which also
+# retires the old numpy<2 / onnx==1.17.0 pin gymnastics (numpy>=2 + modern onnx resolve cleanly).
+stable-baselines3==2.8.0
+gymnasium==1.2.2
+torch==2.12.0
+numpy
+tensorboard
 onnxruntime
+onnx
 ncnn
 onnxscript
 pettingzoo==1.26.1

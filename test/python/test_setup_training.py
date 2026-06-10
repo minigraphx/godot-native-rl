@@ -47,14 +47,24 @@ class TestSetupTraining(unittest.TestCase):
         after = os.path.isdir(venv_sf)
         self.assertEqual(before, after, "--check must not create or remove .venv-sf")
 
-    def test_check_mode_names_rllib_requirements(self):
-        # The RLlib backend lives in a fourth venv (.venv-rllib); --check must name its requirements file.
+    def test_check_mode_names_rllib_addon(self):
+        # Since #126 the RLlib backend shares .venv-train (ray add-on on top), so there is no
+        # separate .venv-rllib; --check must still name the ray add-on requirements file.
         result = subprocess.run(
             [SCRIPT, "--check"], cwd=REPO_ROOT, capture_output=True, text=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         out = result.stdout + result.stderr
         self.assertIn("requirements-rllib.txt", out)
+
+    def test_no_separate_rllib_venv_mentioned(self):
+        # Guard the consolidation: --check output must not advertise a standalone .venv-rllib.
+        result = subprocess.run(
+            [SCRIPT, "--check"], cwd=REPO_ROOT, capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = result.stdout + result.stderr
+        self.assertNotIn(".venv-rllib", out)
 
 
 if __name__ == "__main__":

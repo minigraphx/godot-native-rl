@@ -14,9 +14,10 @@ cd "$(dirname "$0")/.."
 export PYTHONUNBUFFERED=1
 
 GODOT="${GODOT:-godot}"
-PY_RLLIB="${PY_RLLIB:-.venv-rllib/bin/python}"
-# Conversion + parity runs under .venv-train: export_to_ncnn.py needs torch + the `ncnn` python
-# module for its parity check, and shells out to .venv/bin/pnnx for the pnnx step itself.
+# Since #126 the RLlib backend shares .venv-train (its ray add-on is installed there), so the
+# trainer and the conversion/parity step run in the same venv. export_to_ncnn.py needs torch + the
+# `ncnn` python module for its parity check, and shells out to .venv/bin/pnnx for the pnnx step.
+PY_RLLIB="${PY_RLLIB:-.venv-train/bin/python}"
 PY_TRAIN="${PY_TRAIN:-.venv-train/bin/python}"
 TIMESTEPS="${TIMESTEPS:-200000}"
 SPEEDUP="${SPEEDUP:-8}"
