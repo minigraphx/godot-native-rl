@@ -12,10 +12,13 @@ PY="${PY:-.venv-train/bin/python}"
 TIMESTEPS="${TIMESTEPS:-800000}"
 SPEEDUP="${SPEEDUP:-8}"
 ACTION_REPEAT="${ACTION_REPEAT:-8}"
+# Rollout length per update. Lower it (e.g. NUM_STEPS=16) for short smoke runs on the parallel
+# scene — the trainer exits loud if TIMESTEPS < NUM_STEPS x n_agents (one rollout batch, #119).
+NUM_STEPS="${NUM_STEPS:-256}"
 SCENE="${SCENE:-res://examples/hide_and_seek/hide_and_seek_multipolicy_train_parallel.tscn}"
 
 echo "Starting PettingZoo multi-policy trainer (timesteps=$TIMESTEPS)..."
-"$PY" scripts/train_pettingzoo.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" &
+"$PY" scripts/train_pettingzoo.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" --num_steps "$NUM_STEPS" &
 TRAINER_PID=$!
 
 sleep 5
