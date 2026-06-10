@@ -3,6 +3,13 @@
 Flat sensors extend `ISensor2D`/`ISensor3D` and are auto-discovered (tree order) by the
 controller's `collect_sensors()`. Add a sensor node under your agent and it joins the observation.
 
+Prefer scenes? `addons/godot_native_rl/sensors/scenes/` ships drop-in `.tscn`s —
+`RaycastSensor2D/3D` plus `CameraSensor2D/3D` with a pre-wired 36×36 `SubViewport` + camera.
+Instance one under your agent and tweak the exports. 2D caveat: a `SubViewport` owns its own
+empty `World2D`, so for `CameraSensor2D` either share your game's world in code
+(`$CameraSensor2D/SubViewport.world_2d = get_viewport().world_2d` in `_ready()`) or parent
+your playfield under the SubViewport; `CameraSensor3D` shares the parent `World3D` automatically.
+
 Reusable observation sources implementing the shared sensor interface
 (`get_observation() -> Array`, `obs_size() -> int`). Compose them manually inside your
 agent's `get_obs()` and concatenate with your other features.

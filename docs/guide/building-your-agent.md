@@ -16,6 +16,10 @@ You may optionally override `get_info() -> Dictionary` (default `{}`) to attach 
 sent to the trainer in the step message's `info` field (e.g. `{"is_success": true}` for
 success-rate metrics).
 
+Tip: with the plugin enabled, **Attach Script → Template → "NCNN AI Controller"** starts you
+from a scaffold with these four methods stubbed (the template is auto-installed to
+`res://script_templates/`).
+
 ## Wire-up
 
 1. Add one node with script `sync.gd` (`NcnnSync`) and set its `control_mode` to `Training`.
