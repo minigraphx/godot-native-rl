@@ -41,3 +41,6 @@ thirdparty/ncnn/tools-bin/
 
 # Editor export output
 /build/
+
+# Installed by the plugin from addons/godot_native_rl/script_templates/ (editor-enable side effect)
+/script_templates/
