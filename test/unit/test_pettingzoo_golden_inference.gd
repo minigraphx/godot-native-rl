@@ -22,8 +22,8 @@ const OBS: Array = [
 ]
 # Captured from the real ncnn deploy path in Task 5 of the implementation plan (run the capture
 # script against the trained fixtures, paste the printed arrays here).
-const EXPECTED_SEEKER: Array = []
-const EXPECTED_HIDER: Array  = []
+const EXPECTED_SEEKER: Array = [0, 4, 0, 0, 0]  # captured from the real ncnn deploy path (role 1.0)
+const EXPECTED_HIDER: Array  = [1, 0, 0, 1, 1]  # captured from the real ncnn deploy path (role 0.0)
 
 func _check(h, tag: String, base: String, expected: Array, role_flag: float) -> void:
 	var runner := NcnnRunner.new()
