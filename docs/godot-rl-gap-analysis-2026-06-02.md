@@ -40,6 +40,34 @@ upstream class; `train_pettingzoo.sh` drives multi-policy PPO; conformance prove
 godot_rl wire via a custom gymnasium adapter (`GodotRLlibEnv`; the stock `RayVectorGodotEnv` is
 old-API-stack only), isolated `.venv-rllib`, RLModule actor → TorchScript → ncnn, guarded smoke +
 committed golden-inference fixture.)
+(2026-06-10 strategy note: **native-ONNX-in-godot_rl is a latent moat risk** — see "Strategic note" below.)
+
+---
+
+## Strategic note — native ONNX is interesting *for godot_rl* (moat risk)
+
+godot_rl's inability to web-export is **not** an ONNX-Runtime limitation; it's a property of *how godot_rl
+integrated ONNX* — its no-Python inference path runs through Godot **Mono/.NET**, and .NET can't web-export
+([godot#70796](https://github.com/godotengine/godot/issues/70796)). ONNX Runtime itself has a native C/C++ core, so embedding ORT as a **GDExtension** (no .NET)
+would let godot_rl ship to HTML5 **without converting to ncnn and with no conversion step at all**. That makes
+a native-ORT backend the single most likely way godot_rl closes its biggest gap against this project — and the
+reason "native ONNX integration is interesting" really means "interesting *for godot_rl*."
+
+Implications for positioning:
+- **Web/WASM is our headline pillar but the most contestable one.** If godot_rl grows a native (non-.NET) ORT
+  backend, "godot_rl literally can't reach the browser" stops being true. Lean the moat narrative on the
+  pillars a native-ORT backend does **not** neutralise: console certification (no managed runtime / smaller
+  audit surface), lean edge footprint (~3.4 MB static `.so` vs ORT-WASM's heavier payload, same brittle
+  `wasm32` dlink pipeline either way), and game-side INT8 — all in the "Deploy-side inference" / "Unique to
+  this repo" tables above.
+- **We could ship it too.** The swappable inference seam (`docs/dev/DEVELOPMENT.md`, "The inference-backend
+  boundary"; ExecuTorch tracked as #54) means a native-ORT runner drops in with no GDScript/decode/protocol
+  changes. Doing so *as an upstream godot_rl contribution* fits the "complement first" strategy but narrows
+  our own differentiation. This is a deliberate positioning call, **not** a queued implementation task.
+- Neither runtime does **on-device learning** — both are forward-pass-only; training stays in Python. That's
+  not a differentiator either way.
+
+See `docs/ncnn_vs_onnx.md` §"Web / HTML5 deployment" for the same note in the deployment-decision framing.
 
 ---
 
@@ -108,7 +136,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `SBGSingleObsEnv` (SB3 + `MlpPolicy` compat) | ✅ | ✅ used by `train_ball_chase.py` (SAC) | ✅ done (#74) |
 | `CleanRLGodotEnv` | ✅ | ✅ item 17 done | — |
 | `RayVectorGodotEnv` (RLlib) | ✅ | ✅ done (#110) — `train_rllib.sh`, new-API-stack PPO via a custom gymnasium adapter (the stock wrapper is old-API-stack only), TorchScript→ncnn, isolated `.venv-rllib` | — |
-| `GDRLPettingZooEnv` (PettingZoo, multi-policy) | ✅ | ✅ `GodotParallelEnv` in `scripts/godot_pettingzoo_env.py` — `GDRLPettingZooEnv` functionality without the upstream class; `parallel_api_test` conformance; live training run is a follow-up | ✅ done (#111) |
+| `GDRLPettingZooEnv` (PettingZoo, multi-policy) | ✅ | ✅ `GodotParallelEnv` in `scripts/godot_pettingzoo_env.py` — `GDRLPettingZooEnv` functionality without the upstream class; `parallel_api_test` conformance; live-trained two-policy fixtures + golden/LOS regression shipped (#118) | ✅ done (#111) |
 | `SampleFactoryEnvWrapper` (batched + non-batched) | ✅ | ✅ done (#24) — `train_sf.sh`, async PPO, TorchScript→ncnn, isolated `.venv-sf` | — |
 | ONNX export helper (`OnnxablePolicy`) | ✅ SB3/SAC → ONNX | ✅ `export_to_ncnn.py` ONNX+TorchScript→ncnn | Different, covered |
 | Optuna HP tuning example | ✅ | ❌ | Nice-to-have (#113) |
@@ -175,7 +203,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | ✅ Done | Continuous DiagGaussian action sampling via log_std sidecar | #64 |
 | ✅ Done | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
 | ✅ Done | Batched multi-agent inference — `run_inference_batch` (thread-parallel, one shared `Net`) + `CrowdController` + `chase_crowd` example | #34 |
-| ✅ Done | PettingZoo `ParallelEnv` interop — `GodotParallelEnv` adapter + `parallel_api_test` conformance; live training run is a follow-up | #111 |
+| ✅ Done | PettingZoo `ParallelEnv` interop — `GodotParallelEnv` adapter + `parallel_api_test` conformance; live training run shipped (#118) | #111 |
 | ✅ Done | RLlib training-script interop — new-API-stack PPO, custom gymnasium adapter (stock `RayVectorGodotEnv` is old-API-stack only), `.venv-rllib` | #110 |
 | ⚪ P4 | Plugin editor-DX parity: pre-built sensor `.tscn` scenes + `script_templates/AIController` | #112 |
 | ⚪ P5 | Optuna hyperparameter-tuning example (nice-to-have) | #113 |

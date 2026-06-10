@@ -81,6 +81,19 @@ ncnn compiles to WebAssembly via Emscripten and has working in-browser demos mai
 author ([ncnn-webassembly-nanodet][ncnn-wasm]). Because it's dependency-free C++, it rides Godot's
 existing GDExtension web pipeline instead of needing .NET.
 
+> **Moat-risk note (the web edge is a *godot_rl* limitation, not an ONNX one).** godot_rl can't web-export
+> only because its no-Python inference path runs through Godot **Mono/.NET**. That's a property of *how
+> godot_rl integrated ONNX*, not of ONNX Runtime itself — ORT has a native C/C++ core, and embedding it as
+> a **GDExtension** (no .NET) would let godot_rl web-export *without* converting to ncnn, and with no
+> conversion step at all. So this row is the single most likely way godot_rl closes its biggest gap, and
+> "native ONNX is interesting" is really "interesting *for godot_rl*." It does **not** fully neutralise the
+> moat: ORT-on-WASM rides the same brittle `wasm32` dlink pipeline and carries a heavier footprint than
+> ncnn's ~3.4 MB static `.so`, and the console-certification / edge-footprint / game-side-INT8 wins below
+> survive regardless. But the positioning should lean on *those* pillars, not on "godot_rl literally can't
+> reach the browser," which a native-ORT backend would erase. (Architecturally we could ship such a backend
+> ourselves — the swappable inference seam in `docs/dev/DEVELOPMENT.md` is exactly this — but doing so as an
+> upstream godot_rl contribution narrows our own differentiation; it's a positioning call, not a code task.)
+
 **Honest caveat — this is not free:**
 - You must build a `web`/`wasm32` **dlink** GDExtension, and the extension's thread mode must match the
   export template (`dlink` vs `dlink_nothread`, [godot#94537][gh-94537]).
