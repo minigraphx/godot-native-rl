@@ -55,11 +55,9 @@ echo "-- DT_NEEDED --"
 #                    stub references nothing from it.
 #  --no-allow-shlib-undefined : error if the .so needs a symbol no library on the link line defines —
 #                    i.e. the exact dlopen-time failure #95 was. (lld defaults to *allowing* these.)
-#  -landroid -llog : the .so imports the Android asset-manager (AAsset*/AAssetManager_open) and
-#                    logging (__android_log_print) APIs but does not DT_NEEDED libandroid/liblog —
-#                    Godot's own runtime links them, so the extension leaves them to the host. They're
-#                    public NDK libs present on every device, so put them on the link line as the
-#                    runtime would (the x86_64 dlopen smoke models the same by loading them too).
+#  -landroid -llog : the .so imports + DT_NEEDEDs the Android asset-manager (AAsset*, libandroid) and
+#                    logging (__android_log_print, liblog) — public NDK libs on every device. Put them
+#                    on the link line so lld can resolve those imports for the undefined-symbol check.
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 printf 'int main(void){return 0;}\n' > "$tmp/stub.cpp"

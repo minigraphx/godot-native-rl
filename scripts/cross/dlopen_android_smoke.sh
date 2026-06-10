@@ -45,11 +45,9 @@ cat > "$work/host.c" <<'EOF'
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: host <path-to-.so>\n"); return 2; }
     /* RTLD_NOW forces every symbol to resolve immediately -- exactly the #95 failure surface.
-       The extension imports Android platform APIs (AAsset / __android_log_print) but does not
-       DT_NEEDED libandroid/liblog; Godot provides them. The host links them into its OWN DT_NEEDED
-       (see build line) so bionic loads them into the global group at process start, where a
-       dlopen'd library resolves against them -- the engine-equivalent. (RTLD_GLOBAL preloading
-       does NOT work on bionic: its symbols are not offered to later dlopens.) */
+       The extension is self-contained: it DT_NEEDEDs libc++_shared (pushed alongside) plus the
+       platform libandroid/liblog (resolved from the emulator's /system), so a bare dlopen loads
+       cleanly with no host-provided symbols. */
     void *h = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
     if (!h) { fprintf(stderr, "dlopen FAILED: %s\n", dlerror()); return 1; }
     /* The GDExtension entry symbol Godot itself looks up (see ncnn_runner.gdextension). */
@@ -60,11 +58,9 @@ int main(int argc, char **argv) {
 }
 EOF
 
-# Build the host for the emulator ABI. --no-as-needed forces libandroid/liblog into the host's
-# DT_NEEDED even though it calls nothing from them, so bionic loads them at startup (global group);
-# the dlopen'd extension then resolves its AAsset*/__android_log_print imports against them, the
-# same way Godot (which links these platform libs) provides them. -ldl for dlopen itself.
-"$clang" -o "$work/host" "$work/host.c" -ldl -Wl,--no-as-needed -landroid -llog
+# Build the host for the emulator ABI. Only -ldl is needed (for dlopen): the extension carries its
+# own DT_NEEDED (libc++_shared + libandroid/liblog), so the host provides no symbols to it.
+"$clang" -o "$work/host" "$work/host.c" -ldl
 
 dev=/data/local/tmp/gnrl_smoke
 adb wait-for-device

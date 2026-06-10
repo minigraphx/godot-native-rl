@@ -353,10 +353,11 @@ hosts.
 > - **iOS arm64** — static test-link of each `.xcframework` slice against the iOS SDK
 >   (`scripts/cross/audit_ios_link.sh`); we can't load an iOS dylib on the macOS host.
 >
-> Note: the Android extension imports a few platform APIs (`AAsset*`, `__android_log_print`) but does
-> not link `libandroid`/`liblog` itself — Godot's runtime provides them, the standard GDExtension
-> pattern. Both Android checks therefore load those platform libs (as the engine does) so they model
-> the real on-device environment; a genuine missing symbol still fails.
+> Note: ncnn's Android backend imports a few platform APIs (`AAsset*`, `__android_log_print`), so the
+> extension links `libandroid`/`liblog` into its own DT_NEEDED (see `SConstruct`) — it's self-contained
+> and loads via a plain `dlopen` against the device's `/system` libs, rather than relying on the host
+> to provide those symbols (bionic, unlike glibc, won't resolve a `dlopen`'d lib against the host
+> executable's libraries).
 >
 > Android arm64 + iOS are thus **symbol-audited but not yet device-run**; the macOS arm64 build is
 > also exercised by the full test suite.

@@ -111,6 +111,14 @@ _ncnn_openmp = str(ARGUMENTS.get("ncnn_openmp", "yes")).lower() not in ("0", "no
 if env["platform"] == "linux":
     env.Append(LIBS=(["gomp", "pthread"] if _ncnn_openmp else ["pthread"]))
 
+# ncnn's Android backend pulls in the platform asset-manager (AAsset_*, in libandroid) and logging
+# (__android_log_print, in liblog). Link them so they land in the extension's own DT_NEEDED — must
+# come after libncnn.a. Without this the symbols are left to the host, so a plain dlopen() of the
+# .so fails to load with "cannot locate symbol AAsset_seek": bionic doesn't resolve a dlopen'd
+# library against the host executable's libs the way glibc does. Self-contained = loads anywhere (#102).
+if env["platform"] == "android":
+    env.Append(LIBS=["android", "log"])
+
 # When cross-compiling from a macOS host, SCons keeps host-derived suffixes: the shared
 # library would be named ".dylib" (not ".so") and shared objects ".os" (which clang/zig
 # reject as an "unrecognized file extension"). Pin the target's own suffixes. godot-cpp's
