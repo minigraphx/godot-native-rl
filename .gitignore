@@ -16,6 +16,7 @@ thirdparty/
 __pycache__/
 models/__pycache__/
 models/*.pt
+models/*.pt.shape.json
 models/*.onnx
 models/*.onnx.data
 models/*.pnnx.*
