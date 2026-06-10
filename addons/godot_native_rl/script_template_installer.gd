@@ -32,6 +32,8 @@ static func build_plan(sources: Array, dest_root: String, file_exists: Callable)
 
 # Executes a plan from build_plan: mkdir -p the destination dir, then copy. Returns an
 # Array of error strings ([] on full success); one failed entry does not stop the others.
+# Note: copy_absolute overwrites an existing dst — never-overwrite is build_plan's job,
+# so only feed this plans built by build_plan.
 static func execute_plan(plan: Array) -> Array:
 	var errors: Array = []
 	for entry_v in plan:
@@ -40,9 +42,9 @@ static func execute_plan(plan: Array) -> Array:
 		var dst := String(entry["dst"])
 		var dir_err := DirAccess.make_dir_recursive_absolute(dst.get_base_dir())
 		if dir_err != OK and dir_err != ERR_ALREADY_EXISTS:
-			errors.append("mkdir failed for %s (error %d)" % [dst.get_base_dir(), dir_err])
+			errors.append("mkdir failed for %s (%s)" % [dst.get_base_dir(), error_string(dir_err)])
 			continue
 		var copy_err := DirAccess.copy_absolute(src, dst)
 		if copy_err != OK:
-			errors.append("copy failed %s -> %s (error %d)" % [src, dst, copy_err])
+			errors.append("copy failed %s -> %s (%s)" % [src, dst, error_string(copy_err)])
 	return errors

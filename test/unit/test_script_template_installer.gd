@@ -57,12 +57,20 @@ func _initialize() -> void:
 	DirAccess.remove_absolute("user://test_script_templates/NcnnAIController2D")
 	DirAccess.remove_absolute("user://test_script_templates")
 
-	# --- execute_plan: missing source -> error collected, not swallowed ---
+	# --- execute_plan: a failed entry is collected AND does not stop later entries ---
 	# (the engine also prints its own error line here — that's the intentional failure path)
-	var bad: Array = Installer.execute_plan(
-		[{"src": "res://addons/godot_native_rl/script_templates/does_not_exist.gd",
-			"dst": "user://test_script_templates/x.gd"}])
+	var missing_src := "res://addons/godot_native_rl/script_templates/does_not_exist.gd"
+	var ok_dst := "user://test_script_templates/NcnnAIController3D/controller_template.gd"
+	var bad: Array = Installer.execute_plan([
+		{"src": missing_src, "dst": "user://test_script_templates/x.gd"},
+		{"src": Installer.TEMPLATE_SOURCES[1], "dst": ok_dst},
+	])
 	h.assert_eq(bad.size(), 1, "execute_plan: missing source reported as one error")
+	h.assert_true(String(bad[0]).contains(missing_src), "execute_plan: error names the failing source")
+	h.assert_eq(FileAccess.get_file_as_string(ok_dst), FileAccess.get_file_as_string(Installer.TEMPLATE_SOURCES[1]),
+		"execute_plan: later entry still copied after an earlier failure")
+	DirAccess.remove_absolute(ok_dst)
+	DirAccess.remove_absolute("user://test_script_templates/NcnnAIController3D")
 	DirAccess.remove_absolute("user://test_script_templates")
 
 	# --- execute_plan: empty plan is a no-op ---
