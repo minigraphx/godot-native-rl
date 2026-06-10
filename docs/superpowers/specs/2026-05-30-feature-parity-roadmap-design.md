@@ -19,14 +19,14 @@ Godot Native RL is a GDExtension-based RL framework for Godot 4.6+ that uses Ten
 **Current state (updated 2026-06-09):**
 - ✅ Full godot_rl wire-protocol compatibility (proven by real SB3 + CleanRL + SampleFactory training)
 - ✅ `NcnnSync` + `NcnnAIController2D`/`3D` + `NcnnRunner` GDExtension
-- ✅ End-to-end examples: Chase (2D), Rover (3D), Hide & Seek (self-play + multi-policy trained), BallChase (SAC continuous)
+- ✅ End-to-end examples: Chase (2D), Rover (3D), Hide & Seek (self-play + multi-policy trained), BallChase (SAC continuous), FlyBy (PPO continuous)
 - ✅ Headless test suite (unit + protocol + inference smoke + golden regressions for all examples)
 - ✅ Conversion verification; INT8, obs-norm, TorchScript, LSTM-deploy, web/WASM paths
 - ✅ **Full sensor parity + novel sensors** — Raycast/Grid/Camera/RelativePosition (2D+3D) all shipped;
   `ObsHistoryBuffer` + `RunningNormSensor` go beyond godot_rl parity
 - ✅ Asset Library release (item 25) — `release.yml` ships prebuilt binaries including web/WASM on
   every `vX.Y.Z` tag; `EditorExportPlugin` auto-packs model files
-- ✅ Three training backends (SB3, CleanRL, SampleFactory; SKRL/RLlib queued)
+- ✅ Four training backends (SB3, CleanRL, SampleFactory, RLlib interop; SKRL queued)
 - ✅ Expert-demo recording + BC imitation learning (item 10); multi-policy trained example (item 45)
 - ✅ In-editor Policy Debugger (item 49); stochastic continuous DiagGaussian game-side (#64)
 
@@ -34,8 +34,9 @@ Godot Native RL is a GDExtension-based RL framework for Godot 4.6+ that uses Ten
 
 ## 2. Gap Analysis
 
-> **Status refreshed 2026-06-03.** The `Ours` columns below reflect shipped state as of this date;
-> see `docs/BACKLOG.md` for per-item detail. Original analysis was 2026-05-30.
+> **Status refreshed 2026-06-03; RLlib/PettingZoo rows refreshed 2026-06-10 (#110/#111 shipped).**
+> The `Ours` columns below reflect shipped state as of these dates; see `docs/BACKLOG.md` for
+> per-item detail. Original analysis was 2026-05-30.
 
 ### 2A. vs godot_rl + godot_rl_agents
 
@@ -56,8 +57,8 @@ Godot Native RL is a GDExtension-based RL framework for Godot 4.6+ that uses Ten
 | Parallel multi-agent training (tiled worlds) | ✅ | ✅ `ParallelArena`/`ParallelArena2D` (item 30, ~6.2×) |
 | Parameter-sharing self-play example | ⚠️ | ✅ Hide & Seek 2D scaffold (item 12) |
 | Per-agent `policy_name` in `env_info` | ✅ | ✅ (item 20 wire-field slice, done 2026-06-03) |
-| PettingZoo wrapper | ✅ | ⚠️ item 45 done via custom multi-policy PPO; `GDRLPettingZooEnv` wrapper open (#26) |
-| Multi-policy training (RLlib) | ✅ | ✅ custom multi-policy PPO trained example done (item 45); RLlib trainer not wired (#26) |
+| PettingZoo wrapper | ✅ | ✅ `GodotParallelEnv` ParallelEnv adapter done (#111, `parallel_api_test`-conformant); item 45 also via custom multi-policy PPO |
+| Multi-policy training (RLlib) | ✅ | ✅ custom multi-policy PPO trained example done (item 45); RLlib single-policy backend wired (#110); multi-policy-via-PettingZoo queued (#123) |
 | Expert-demo recording (RECORD_EXPERT_DEMOS) | ✅ | ✅ done (item 10) — `gnrl_v1`/`godot_rl` formats + Python loader + BC trainer |
 | Imitation learning (BC + GAIL, `imitation` lib) | ✅ | ✅ BC done (`train_bc.py`); GAIL not done |
 
@@ -67,7 +68,7 @@ Godot Native RL is a GDExtension-based RL framework for Godot 4.6+ that uses Ten
 | Stable-Baselines3 | ✅ | ✅ |
 | CleanRL | ✅ | ✅ (item 17, trained model shipped) |
 | SampleFactory | ✅ | ✅ done (#24) — `train_sf.sh`, async PPO, TorchScript→ncnn, isolated `.venv-sf` |
-| RLlib | ✅ | ⚠️ custom multi-policy PPO example done (item 45); native RLlib trainer not wired (#26) |
+| RLlib | ✅ | ✅ single-policy backend wired (#110, `train_rllib.sh`, isolated `.venv-rllib`); multi-policy-via-PettingZoo queued (#123) |
 | SKRL | ❌ | ❌ (queued — item 19) |
 
 #### Distribution & DX
@@ -133,7 +134,7 @@ Priority order:
 Sub-projects in dependency order:
 1. **`NcnnAIController3D` + base refactor** (already queued) — prerequisite for all 3D multi-agent work.
 2. **Per-agent `policy_name`** — add to `env_info`, route through `NcnnSync`. Enables godot_rl-protocol multi-policy (RLlib). *(✅ done 2026-06-03 — `agent_policy_names` wire field, item 20 slice; the trained RLlib/PettingZoo example is item 45.)*
-3. **PettingZoo wrapper** — Python-side parallel-env API. Enables MARL with any PettingZoo-compatible trainer.
+3. **PettingZoo wrapper** — Python-side parallel-env API. Enables MARL with any PettingZoo-compatible trainer. *(✅ done — `GodotParallelEnv` ParallelEnv adapter, #111; `parallel_api_test`-conformant.)*
 4. **Expert-demo recording (RECORD_EXPERT_DEMOS)** (already queued) — prerequisite for imitation learning.
 5. **Competitive self-play** — ghost controller (frozen policy snapshot), league training, ELO tracking.
 6. **MA-POCA cooperative** — shared reward, centralized critic.
@@ -195,7 +196,7 @@ The sensors that every godot_rl example uses. With raycasts, users can replicate
 ### Phase 3: Multi-agent + imitation
 
 - Expert-demo recording (already queued)
-- PettingZoo wrapper + per-agent policy_name *(policy_name wire field ✅ done — item 20; wrapper/trained example is item 45)*
+- PettingZoo wrapper + per-agent policy_name *(policy_name wire field ✅ done — item 20; wrapper ✅ done — #111; trained example is item 45)*
 - Imitation learning (BC + GAIL)
 - CleanRL + SampleFactory backends (already queued)
 
