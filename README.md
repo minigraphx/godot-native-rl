@@ -46,6 +46,10 @@ batch, decodes each via `ActionDecode`, and scatters `set_action()` back. See `e
 - `NcnnRunner` C++ node: `load_model`, `run_inference`, `run_inference_image`,
   `run_discrete_action`, `run_inference_multi` (recurrent/LSTM state-carry), `run_inference_batch` (crowds).
 - `NcnnAIController2D` / `NcnnAIController3D` + auto-discovered sensors + a Signal→Reward builder.
+- Editor DX: drop-in sensor scenes (`addons/godot_native_rl/sensors/scenes/` — raycast 2D/3D +
+  camera 2D/3D with a pre-wired `SubViewport`) and an "NCNN AI Controller" script template,
+  auto-installed to your project's script-template folder (`res://script_templates/` by
+  default) when the plugin is enabled.
 - godot_rl v0.8.2-compatible training bridge (`NcnnSync`) incl. multi-policy + parallel arenas.
   Training backends: SB3 (`train_chase.sh`), CleanRL (`train_cleanrl.sh`), SampleFactory async PPO
   (`train_sf.sh`, isolated `.venv-sf`, exports via TorchScript→ncnn), Ray/RLlib new-API-stack PPO

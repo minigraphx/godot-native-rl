@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/godot_native_rl/sensors/raycast_sensor_2d.gd" id="1"]
+
+[node name="RaycastSensor2D" type="Node2D"]
+script = ExtResource("1")

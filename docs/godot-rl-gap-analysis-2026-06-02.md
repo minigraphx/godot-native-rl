@@ -83,8 +83,8 @@ See `docs/ncnn_vs_onnx.md` §"Web / HTML5 deployment" for the same note in the d
 | `RGBCameraSensor2D/3D` | ✅ configurable render res + downscale + RGBA/RGB + editor preview | ✅ fixed viewport res, RGB only, no downscale | ⚠️ partial (#36) |
 | `GridSensor2D` | ✅ area/body occupancy grid, multi-layer, debug view | ✅ query-based, per-layer counts | ✅ done (item 11) |
 | `GridSensor3D` | ✅ | ✅ | ✅ done (item 11) |
-| Pre-built sensor `.tscn` scenes | ✅ RaycastSensor2D.tscn, RGBCameraSensor2D.tscn + examples | ❌ | Minor (#112) |
-| `script_templates/AIController` | ✅ controller scaffold template in plugin | ❌ | Minor (#112) |
+| Pre-built sensor `.tscn` scenes | ✅ RaycastSensor2D.tscn, RGBCameraSensor2D.tscn + examples | ✅ `sensors/scenes/` — Raycast2D/3D + Camera2D/3D (pre-wired SubViewport) | ✅ done (#112) |
+| `script_templates/AIController` | ✅ controller scaffold template in plugin | ✅ `NcnnAIController2D/3D` templates, auto-installed on plugin enable | ✅ done (#112) |
 
 ### CameraSensor detail gap
 Upstream `RGBCameraSensor2D` exports: `render_image_resolution` (default 36×36),
@@ -205,7 +205,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | ✅ Done | Batched multi-agent inference — `run_inference_batch` (thread-parallel, one shared `Net`) + `CrowdController` + `chase_crowd` example | #34 |
 | ✅ Done | PettingZoo `ParallelEnv` interop — `GodotParallelEnv` adapter + `parallel_api_test` conformance; live training run shipped (#118) | #111 |
 | ✅ Done | RLlib training-script interop — new-API-stack PPO, custom gymnasium adapter (stock `RayVectorGodotEnv` is old-API-stack only), shares `.venv-train` (#126) | #110 |
-| ⚪ P4 | Plugin editor-DX parity: pre-built sensor `.tscn` scenes + `script_templates/AIController` | #112 |
+| ✅ Done | Plugin editor-DX parity: drop-in sensor scenes (`sensors/scenes/`) + `NcnnAIController` script templates auto-installed on enable | #112 |
 | ⚪ P5 | Optuna hyperparameter-tuning example (nice-to-have) | #113 |
 | ⚪ P4 | CameraSensor: configurable render res + downscale + RGBA | #36 |
 | ⚪ P4 | Grayscale camera deploy (C++ `PIXEL_GRAY` path) | #36 |
