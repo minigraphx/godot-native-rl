@@ -70,6 +70,9 @@ PY="${PY:-.venv/bin/python}"
 echo "== Trained multi-policy hide&seek behavioral check (headless) =="
 "$GODOT" --headless --path . res://examples/hide_and_seek/hide_and_seek_multipolicy_eval.tscn
 
+echo "== Trained PettingZoo-path multi-policy behavioral check (headless) =="
+"$GODOT" --headless --path . res://test/integration/trained_pettingzoo_eval.tscn
+
 echo "== Trained rover check (headless) =="
 "$GODOT" --headless --path . res://test/integration/trained_rover_scene.tscn
 

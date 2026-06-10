@@ -70,7 +70,9 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   our own `GodotParallelEnv` PettingZoo `ParallelEnv` adapter (`scripts/godot_pettingzoo_env.py`; the
   godot_rl `GDRLPettingZooEnv` functionality without depending on the upstream class). Reads
   `agent_policy_names`, one learner per policy, each actor → TorchScript → `export_to_ncnn.py`. Interop
-  proven deterministically via PettingZoo's `parallel_api_test`. `SCENE`/`TIMESTEPS`/`NUM_STEPS`
+  proven deterministically via PettingZoo's `parallel_api_test`; live-trained fixtures committed
+  (`models/pettingzoo_{seeker,hider}.ncnn.*`) with golden-inference + LOS behavioral regression
+  (#118). `SCENE`/`TIMESTEPS`/`NUM_STEPS`
   overrides; exits loud if `TIMESTEPS` < one rollout batch (`NUM_STEPS` × n_agents) instead of
   silently exporting an untrained policy (#119) — lower `NUM_STEPS` for short smoke runs.
 - **Train (BallChase, SAC):** `./scripts/train_ball_chase.sh` — SB3 SAC (continuous-control) over the
@@ -246,7 +248,11 @@ daily:
     `scripts/godot_pettingzoo_env.py` provides `GDRLPettingZooEnv` functionality without depending on
     the upstream class; `train_pettingzoo.sh` drives multi-policy PPO one learner per `agent_policy_names`
     each actor → TorchScript → ncnn; conformance proven via PettingZoo's `parallel_api_test`;
-    live full training run is a follow-up).
+    live full training run shipped as #118).
+    GitHub #118 (PettingZoo live-trained two-policy regression — full multi-policy run through
+    `train_pettingzoo.sh`, committed `models/pettingzoo_{seeker,hider}.ncnn.*` fixtures,
+    `test_pettingzoo_golden_inference.gd` golden + `trained_pettingzoo_eval.tscn` LOS behavioral
+    check reusing the multipolicy checker. Note: GitHub issue #118.)
     GitHub #110 (RLlib training backend — stock Ray/RLlib PPO on the new API stack over the
     godot_rl wire via a custom gymnasium adapter (`GodotRLlibEnv` in `scripts/train_rllib.py`;
     the stock `RayVectorGodotEnv` is old-API-stack only); isolated `.venv-rllib`
