@@ -6,7 +6,8 @@
 #
 # Runs inside reactivecircus/android-emulator-runner (an emulator is already booted; adb is on PATH).
 # We don't run Godot in the emulator (out of scope) — a tiny NDK-compiled C host is enough to prove
-# the .so loads against bionic + libc++_shared.
+# the .so loads against bionic + libc++_shared. The host links libandroid + liblog so the platform
+# symbols the extension imports (but leaves to the host, as Godot does) are present in the process.
 #
 # Usage: scripts/cross/dlopen_android_smoke.sh <x86_64|arm64>
 # Requires: ANDROID_NDK_LATEST_HOME (or ANDROID_NDK_ROOT), adb (running emulator), the built .so.
@@ -55,7 +56,11 @@ int main(int argc, char **argv) {
 EOF
 
 # Build the host for the emulator ABI. Set rpath to the push dir so it finds libc++_shared.so.
-"$clang" -o "$work/host" "$work/host.c" -ldl
+# Link libandroid + liblog into the host so they're loaded in the process (the emulator has them in
+# /system/lib*): the extension imports their APIs (AAsset*/__android_log_print) but doesn't DT_NEEDED
+# them — Godot's own runtime provides them, so we model that here. A genuine #95 symbol (e.g. an
+# undefined libc++ symbol absent from libc++_shared) would still fail the dlopen.
+"$clang" -o "$work/host" "$work/host.c" -ldl -landroid -llog
 
 dev=/data/local/tmp/gnrl_smoke
 adb wait-for-device

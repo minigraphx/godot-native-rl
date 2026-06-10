@@ -57,9 +57,9 @@ echo "-- DT_NEEDED --"
 #                    i.e. the exact dlopen-time failure #95 was. (lld defaults to *allowing* these.)
 #  -landroid -llog : the .so imports the Android asset-manager (AAsset*/AAssetManager_open) and
 #                    logging (__android_log_print) APIs but does not DT_NEEDED libandroid/liblog —
-#                    the host process provides them (Godot's runtime links them; the x86_64 emulator
-#                    dlopen smoke loads cleanly without them in DT_NEEDED). They're public NDK libs
-#                    present on every device, so put them on the link line as the runtime would.
+#                    Godot's own runtime links them, so the extension leaves them to the host. They're
+#                    public NDK libs present on every device, so put them on the link line as the
+#                    runtime would (the x86_64 dlopen smoke models the same by loading them too).
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 printf 'int main(void){return 0;}\n' > "$tmp/stub.cpp"
