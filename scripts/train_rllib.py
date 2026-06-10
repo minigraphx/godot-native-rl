@@ -3,9 +3,9 @@
 
 Fourth training backend alongside SB3 (train_chase.py), CleanRL (train_cleanrl.py) and
 SampleFactory (train_sf.py). Ecosystem interop, not a replacement: it proves an unmodified
-RLlib release trains against our env over godot_rl's wire protocol. Runs in the isolated
-.venv-rllib (ray pins gymnasium==1.2.2, which godot-rl's declared deps conflict with — see
-requirements-rllib.txt; godot-rl itself is installed --no-deps and is runtime-compatible).
+RLlib release trains against our env over godot_rl's wire protocol. Runs in .venv-train
+(shared since #126; ray's gymnasium==1.2.2 matches that venv's base stack, and godot-rl is
+installed --no-deps and runtime-compatible — see requirements-rllib.txt).
 
 The stock godot_rl `RayVectorGodotEnv` targets RLlib's OLD API stack, so a thin custom
 gymnasium adapter (`GodotRLlibEnv`, built by make_godot_env_cls below) wraps `GodotEnv`

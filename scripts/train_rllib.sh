@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Orchestrates Ray/RLlib (new API stack) PPO training over the godot_rl wire protocol, then
 # exports the trained actor to ncnn:
-#   1. start the RLlib trainer in .venv-rllib (env opens server on BASE_PORT, blocks for Godot)
+#   1. start the RLlib trainer in .venv-train (shared since #126; opens server on BASE_PORT, blocks for Godot)
 #   2. launch the headless Godot chase training scene (connects on BASE_PORT)
 #   3. wait for the trainer; kill Godot (trap cleans up stray ray workers)
-#   4. export the RLlib checkpoint -> TorchScript .pt + sidecar (.venv-rllib)
+#   4. export the RLlib checkpoint -> TorchScript .pt + sidecar (.venv-train)
 #   5. convert .pt -> ncnn + parity check (export_to_ncnn.py in .venv-train -> .venv/bin/pnnx)
 # Fourth backend alongside SB3, CleanRL and SampleFactory. Ecosystem interop: see #110.
 set -euo pipefail
