@@ -29,3 +29,20 @@ static func build_plan(sources: Array, dest_root: String, file_exists: Callable)
 		if not file_exists.call(dst):
 			plan.append({"src": src, "dst": dst})
 	return plan
+
+# Executes a plan from build_plan: mkdir -p the destination dir, then copy. Returns an
+# Array of error strings ([] on full success); one failed entry does not stop the others.
+static func execute_plan(plan: Array) -> Array:
+	var errors: Array = []
+	for entry_v in plan:
+		var entry: Dictionary = entry_v
+		var src := String(entry["src"])
+		var dst := String(entry["dst"])
+		var dir_err := DirAccess.make_dir_recursive_absolute(dst.get_base_dir())
+		if dir_err != OK and dir_err != ERR_ALREADY_EXISTS:
+			errors.append("mkdir failed for %s (error %d)" % [dst.get_base_dir(), dir_err])
+			continue
+		var copy_err := DirAccess.copy_absolute(src, dst)
+		if copy_err != OK:
+			errors.append("copy failed %s -> %s (error %d)" % [src, dst, copy_err])
+	return errors

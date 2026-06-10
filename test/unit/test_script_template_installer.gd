@@ -41,4 +41,31 @@ func _initialize() -> void:
 		h.assert_true(FileAccess.file_exists(src), "%s exists" % src)
 	h.assert_eq(Installer.DEST_ROOT, "res://script_templates", "dest root is the editor default")
 
+	# --- build_plan: malformed source (no directory part) is skipped with an error ---
+	# (the engine prints the push_error line here — that's the intentional failure path)
+	h.assert_eq(Installer.build_plan(["tmpl.gd"], "res://script_templates", none_exist).size(), 0,
+		"malformed source -> skipped, not planned")
+
+	# --- execute_plan: real copy into user://, content round-trips ---
+	var src_path: String = Installer.TEMPLATE_SOURCES[0]
+	var dst := "user://test_script_templates/NcnnAIController2D/controller_template.gd"
+	var errors: Array = Installer.execute_plan([{"src": src_path, "dst": dst}])
+	h.assert_eq(errors, [], "execute_plan: no errors on a valid copy")
+	h.assert_eq(FileAccess.get_file_as_string(dst), FileAccess.get_file_as_string(src_path),
+		"execute_plan: copied content matches source")
+	DirAccess.remove_absolute(dst)
+	DirAccess.remove_absolute("user://test_script_templates/NcnnAIController2D")
+	DirAccess.remove_absolute("user://test_script_templates")
+
+	# --- execute_plan: missing source -> error collected, not swallowed ---
+	# (the engine also prints its own error line here — that's the intentional failure path)
+	var bad: Array = Installer.execute_plan(
+		[{"src": "res://addons/godot_native_rl/script_templates/does_not_exist.gd",
+			"dst": "user://test_script_templates/x.gd"}])
+	h.assert_eq(bad.size(), 1, "execute_plan: missing source reported as one error")
+	DirAccess.remove_absolute("user://test_script_templates")
+
+	# --- execute_plan: empty plan is a no-op ---
+	h.assert_eq(Installer.execute_plan([]), [], "execute_plan: empty plan -> no errors")
+
 	h.finish(self)
