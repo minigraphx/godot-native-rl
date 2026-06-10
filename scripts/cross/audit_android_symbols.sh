@@ -3,11 +3,14 @@
 # library that links fine but fails to *load* because a symbol it imports isn't provided by any of
 # its DT_NEEDED libraries) without needing to emulate the target ABI.
 #
-# How it works: every UNDEFINED dynamic symbol the .so imports must be satisfiable, at load time, by
-# some library named in its DT_NEEDED list. We resolve that list against the NDK sysroot (the same
-# system libs Godot's Android runtime provides) and fail if any *strong* (non-weak) undefined symbol
-# is not defined by any of them. This mirrors what bionic's linker does at dlopen() — a missing
-# strong symbol there aborts with "cannot locate symbol", exactly the #95 failure.
+# How it works: we ask the NDK linker to do exactly what bionic's loader does at dlopen(). A trivial
+# stub is *linked against* the built .so with `--no-allow-shlib-undefined`, which makes lld error if
+# the shared library imports any symbol that none of the libraries on the link line provides. The
+# NDK clang++ driver puts the same runtime libs on that line that the device ships (libc++_shared,
+# libc, libm, libdl), and — unlike hand-harvesting symbol tables from the sysroot — the linker
+# already knows their real locations and versioned-symbol rules. A missing strong symbol here is the
+# "cannot locate symbol" abort from #95; weak undefined symbols are left unresolved exactly as at
+# runtime, so they don't trip it.
 #
 # Usage: scripts/cross/audit_android_symbols.sh <arm64|x86_64>
 # Requires: ANDROID_NDK_LATEST_HOME (or ANDROID_NDK_ROOT); the built .so in addons/.../bin/.
@@ -34,48 +37,35 @@ test -f "$so" || { echo "::error::missing $so (build it first)"; exit 1; }
 # NDK prebuilt toolchain bin dir (host = linux-x86_64 on the GitHub runner).
 toolbin="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
 readelf="$toolbin/llvm-readelf"
-nm="$toolbin/llvm-nm"
-for t in "$readelf" "$nm"; do
+# clang++ (not clang) so the driver links libc++_shared.so by default — the same C++ runtime the
+# Android app provides, which defines the std::/operator-new/__cxa_* symbols ncnn imports.
+clangxx="$toolbin/${triple}${api}-clang++"
+for t in "$readelf" "$clangxx"; do
   test -x "$t" || { echo "::error::missing NDK tool $t"; exit 1; }
 done
 
-# System libs the .so is allowed to import from, as bionic provides at runtime. We resolve
-# DT_NEEDED against this sysroot. libc++_shared.so lives in the NDK (Godot's APK ships it too).
-sysroot="$ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/$triple/$api"
-cxxlib="$ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/$triple/libc++_shared.so"
-
 echo "== auditing $so (NDK $ndk) =="
 
-# 1) DT_NEEDED list (informational + sanity).
+# Informational: the libraries bionic will resolve this .so's imports against at load.
 echo "-- DT_NEEDED --"
 "$readelf" -d "$so" | awk '/NEEDED/{print $NF}'
 
-# 2) Collect every UNDEFINED, non-weak dynamic symbol the .so imports.
-#    llvm-nm -D -u prints undefined dynamic symbols; 'w'/'v' type = weak (ok to be missing).
-und="$(mktemp)"
-"$nm" -D -u "$so" | awk '{print $NF}' | sort -u > "$und"
-# Weak undefined symbols are allowed to stay unresolved at load (the linker just leaves them 0).
-weak="$(mktemp)"
-"$nm" -D "$so" | awk '$1 ~ /^[wv]$/ {print $NF}' | sort -u > "$weak"
-comm -23 "$und" "$weak" > "$und.strong"
-echo "-- strong undefined symbols: $(wc -l < "$und.strong") --"
+# Link a do-nothing stub against the .so and let the linker verify every import resolves.
+#  --no-as-needed  : force the linker to actually pull in (and thus inspect) our .so even though the
+#                    stub references nothing from it.
+#  --no-allow-shlib-undefined : error if the .so needs a symbol no library on the link line defines —
+#                    i.e. the exact dlopen-time failure #95 was. (lld defaults to *allowing* these.)
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+printf 'int main(void){return 0;}\n' > "$tmp/stub.c"
 
-# 3) Build the set of symbols DEFINED by the runtime libs (sysroot system libs + libc++_shared).
-defined="$(mktemp)"
-: > "$defined"
-shopt -s nullglob
-for lib in "$sysroot"/lib*.so "$cxxlib"; do
-  [ -f "$lib" ] || continue
-  # Defined dynamic symbols (T/W/B/D/R/V/i...) — anything not 'U'.
-  "$nm" -D --defined-only "$lib" 2>/dev/null | awk '{print $NF}'
-done | sort -u > "$defined"
-
-# 4) Any strong undefined symbol not defined anywhere in the runtime libs is a load-time failure.
-missing="$(comm -23 "$und.strong" "$defined" || true)"
-if [ -n "$missing" ]; then
+if ! "$clangxx" "$tmp/stub.c" -o "$tmp/stub" \
+      -Wl,--no-as-needed \
+      -L"$(dirname "$so")" -l:"$(basename "$so")" \
+      -Wl,--no-allow-shlib-undefined 2> "$tmp/link.err"; then
   echo "::error::android-$arch .so imports symbols no runtime lib provides (would fail dlopen — #95 bug class):"
-  echo "$missing" | sed 's/^/    /'
+  sed 's/^/    /' "$tmp/link.err"
   exit 1
 fi
 
-echo "OK: every strong undefined symbol in the android-$arch .so is satisfiable at load."
+echo "OK: every strong undefined symbol in the android-$arch .so resolves against the Android runtime libs."

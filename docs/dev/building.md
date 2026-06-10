@@ -346,9 +346,10 @@ hosts.
 >   `windows-latest` runner (the zig toolchain that produced the #95 Linux load failure).
 > - **Android x86_64** — `dlopen()` + `dlsym(ncnn_runner_library_init)` on a real KVM-accelerated
 >   Android emulator, against actual bionic (`scripts/cross/dlopen_android_smoke.sh`).
-> - **Android arm64** — static undefined-symbol audit: every strong undefined dynamic symbol must be
->   satisfiable from the NDK sysroot runtime libs (`scripts/cross/audit_android_symbols.sh`); we
->   can't cheaply emulate arm64, so this is the load-time proof without a device.
+> - **Android arm64** — static link-time symbol audit: a stub is linked against the `.so` with the
+>   NDK linker's `--no-allow-shlib-undefined`, which fails if any imported symbol isn't provided by
+>   the runtime libs (`scripts/cross/audit_android_symbols.sh`); we can't cheaply emulate arm64, so
+>   this is the load-time proof without a device.
 > - **iOS arm64** — static test-link of each `.xcframework` slice against the iOS SDK
 >   (`scripts/cross/audit_ios_link.sh`); we can't load an iOS dylib on the macOS host.
 >

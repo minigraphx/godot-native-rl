@@ -87,7 +87,7 @@ Building from source is covered in [CONTRIBUTING.md](CONTRIBUTING.md) → [docs/
 | iOS arm64             | Xcode       | 🧪 symbol-audited in CI; device runtime check pending |
 
 "🧪 symbol-audited" means CI statically proves the binary's symbols all resolve at load (Android
-arm64: every undefined symbol is satisfiable from the NDK sysroot; iOS: the `.xcframework` slices
+arm64: the NDK linker resolves every imported symbol against the runtime libs; iOS: the `.xcframework` slices
 test-link against the iOS SDK) — the same #95 load-failure class the verified targets catch by
 actually loading — but it hasn't yet been loaded on a physical device. Contributions running these
 on real hardware are welcome.

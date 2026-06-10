@@ -6,7 +6,7 @@ name: Cross-build
 # binaries as artifacts, AND validates that they actually load / resolve their symbols:
 #   - windows        : real Godot --headless smoke that ClassDB.instantiate("NcnnRunner") (windows-smoke job)
 #   - android-x86_64 : dlopen() the .so on a real Android x86_64 emulator against bionic (android-x86_64-smoke job)
-#   - android-arm64  : static undefined-symbol audit vs the NDK sysroot (can't emulate arm64 cheaply) (unix job)
+#   - android-arm64  : static link-time symbol audit via the NDK linker (can't emulate arm64 cheaply) (unix job)
 #   - ios            : static test-link of the .xcframework archive against the iOS SDK (ios job)
 # This is the #95 bug class (a binary that links but fails to *load*, e.g. zig's undefined libc++
 # symbols on Linux) caught for every shipped target without needing a physical device.
@@ -76,14 +76,14 @@ jobs:
           esac
 
       # arm64 can't be emulated cheaply on a Linux runner, so we can't dlopen() it here (the
-      # android-x86_64-smoke job does that for the x86_64 .so). Instead we statically prove the
-      # #95 bug class is absent: every UNDEFINED dynamic symbol in the release .so must be
-      # satisfiable by *some* library in its DT_NEEDED list, resolved against the NDK sysroot.
-      # This is the same check a real dlopen()/dlsym would do at load — if a strong symbol is
-      # missing here, the loader would abort with the exact "cannot locate symbol" error #95 was
-      # about. Weak undefined symbols are excluded (the loader leaves them unbound, no abort).
+      # android-x86_64-smoke job does that for the x86_64 .so). Instead we let the NDK linker prove
+      # the #95 bug class is absent: a stub is linked against the release .so with
+      # --no-allow-shlib-undefined, so lld errors if the .so imports any strong symbol none of its
+      # runtime libraries (libc++_shared/libc/libm/libdl, which the clang++ driver supplies) define —
+      # the exact "cannot locate symbol" abort a real dlopen() would hit. Weak undefined symbols are
+      # left unbound just as at runtime, so they don't trip it.
       # See scripts/cross/audit_android_symbols.sh for the full rationale.
-      - name: Static undefined-symbol audit (android-arm64)
+      - name: Static link-time symbol audit (android-arm64)
         if: matrix.target == 'android-arm64'
         run: scripts/cross/audit_android_symbols.sh arm64
 
