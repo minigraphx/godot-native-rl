@@ -4,8 +4,11 @@ extends SceneTree
 # models/pettingzoo_{seeker,hider}.ncnn.*). Mirrors
 # test_hide_seek_multipolicy_golden_inference.gd (the custom-PPO multi-policy example): loads each
 # model via NcnnRunner and asserts run_discrete_action() returns the captured argmax for 5 fixed
-# observations. ncnn<->torch.jit parity (50/50 argmax, atol=1e-2) was verified at conversion time
-# by export_to_ncnn.py. If this fails after a retrain/model swap, recapture the goldens from the
+# observations. ncnn<->torch.jit parity (50/50 argmax match) was verified at conversion time by
+# export_to_ncnn.py --via torchscript --atol 0.2: argmax is exact, but pnnx stores InnerProduct
+# weights as fp16, and this net's wider logits (~±4) drift past the default 1e-2 closeness gate
+# (~0.17 max), so the secondary logit-tolerance was raised. argmax (what run_discrete_action uses)
+# is the deploy guarantee. If this fails after a retrain/model swap, recapture the goldens from the
 # new models and update them here.
 #
 # obs is 15 floats; index 14 is the role flag (seeker=1.0, hider=0.0). Each policy was trained only
