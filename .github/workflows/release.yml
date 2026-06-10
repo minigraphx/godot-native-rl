@@ -165,9 +165,21 @@ jobs:
           path: ${{ env.ADDON_BIN }}/
           if-no-files-found: error
 
+  # Gate the release on runtime/symbol validation of the just-built binaries (same reusable workflow
+  # cross-build.yml uses at PR time): Windows --headless load, Android x86_64 emulator dlopen, Android
+  # arm64 link audit, iOS SDK test-link. A binary that links but fails to *load* (#95) blocks publish.
+  validate:
+    needs: [build-unix, build-macos]
+    uses: ./.github/workflows/validate-binaries.yml
+    with:
+      windows_artifact: bin-windows
+      android_x86_64_artifact: bin-android-x86_64
+      android_arm64_artifact: bin-android-arm64
+      ios_artifact: bin-macos-ios
+
   package:
     name: package + publish
-    needs: [build-unix, build-linux, build-macos, build-web]
+    needs: [build-unix, build-linux, build-macos, build-web, validate]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
