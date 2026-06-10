@@ -38,7 +38,7 @@ upstream class; `train_pettingzoo.sh` drives multi-policy PPO; conformance prove
 `parallel_api_test`. Live training run is a follow-up.)
 (2026-06-10 refresh: Ray/RLlib backend shipped (#110) — stock RLlib PPO on the new API stack over the
 godot_rl wire via a custom gymnasium adapter (`GodotRLlibEnv`; the stock `RayVectorGodotEnv` is
-old-API-stack only), isolated `.venv-rllib`, RLModule actor → TorchScript → ncnn, guarded smoke +
+old-API-stack only), shares `.venv-train` (#126), RLModule actor → TorchScript → ncnn, guarded smoke +
 committed golden-inference fixture.)
 (2026-06-10 strategy note: **native-ONNX-in-godot_rl is a latent moat risk** — see "Strategic note" below.)
 
@@ -135,7 +135,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `StableBaselinesGodotEnv` (SB3 VecEnv, n_parallel) | ✅ | ✅ proven | — |
 | `SBGSingleObsEnv` (SB3 + `MlpPolicy` compat) | ✅ | ✅ used by `train_ball_chase.py` (SAC) | ✅ done (#74) |
 | `CleanRLGodotEnv` | ✅ | ✅ item 17 done | — |
-| `RayVectorGodotEnv` (RLlib) | ✅ | ✅ done (#110) — `train_rllib.sh`, new-API-stack PPO via a custom gymnasium adapter (the stock wrapper is old-API-stack only), TorchScript→ncnn, isolated `.venv-rllib` | — |
+| `RayVectorGodotEnv` (RLlib) | ✅ | ✅ done (#110) — `train_rllib.sh`, new-API-stack PPO via a custom gymnasium adapter (the stock wrapper is old-API-stack only), TorchScript→ncnn, shares `.venv-train` (#126) | — |
 | `GDRLPettingZooEnv` (PettingZoo, multi-policy) | ✅ | ✅ `GodotParallelEnv` in `scripts/godot_pettingzoo_env.py` — `GDRLPettingZooEnv` functionality without the upstream class; `parallel_api_test` conformance; live-trained two-policy fixtures + golden/LOS regression shipped (#118) | ✅ done (#111) |
 | `SampleFactoryEnvWrapper` (batched + non-batched) | ✅ | ✅ done (#24) — `train_sf.sh`, async PPO, TorchScript→ncnn, isolated `.venv-sf` | — |
 | ONNX export helper (`OnnxablePolicy`) | ✅ SB3/SAC → ONNX | ✅ `export_to_ncnn.py` ONNX+TorchScript→ncnn | Different, covered |
@@ -204,7 +204,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | ✅ Done | SampleFactory backend (godot_rl wrapper, `SampleFactoryEnvWrapper`) | #24 |
 | ✅ Done | Batched multi-agent inference — `run_inference_batch` (thread-parallel, one shared `Net`) + `CrowdController` + `chase_crowd` example | #34 |
 | ✅ Done | PettingZoo `ParallelEnv` interop — `GodotParallelEnv` adapter + `parallel_api_test` conformance; live training run shipped (#118) | #111 |
-| ✅ Done | RLlib training-script interop — new-API-stack PPO, custom gymnasium adapter (stock `RayVectorGodotEnv` is old-API-stack only), `.venv-rllib` | #110 |
+| ✅ Done | RLlib training-script interop — new-API-stack PPO, custom gymnasium adapter (stock `RayVectorGodotEnv` is old-API-stack only), shares `.venv-train` (#126) | #110 |
 | ⚪ P4 | Plugin editor-DX parity: pre-built sensor `.tscn` scenes + `script_templates/AIController` | #112 |
 | ⚪ P5 | Optuna hyperparameter-tuning example (nice-to-have) | #113 |
 | ⚪ P4 | CameraSensor: configurable render res + downscale + RGBA | #36 |

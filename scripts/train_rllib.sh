@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Orchestrates Ray/RLlib (new API stack) PPO training over the godot_rl wire protocol, then
 # exports the trained actor to ncnn:
-#   1. start the RLlib trainer in .venv-rllib (env opens server on BASE_PORT, blocks for Godot)
+#   1. start the RLlib trainer in .venv-train (shared since #126; opens server on BASE_PORT, blocks for Godot)
 #   2. launch the headless Godot chase training scene (connects on BASE_PORT)
 #   3. wait for the trainer; kill Godot (trap cleans up stray ray workers)
-#   4. export the RLlib checkpoint -> TorchScript .pt + sidecar (.venv-rllib)
+#   4. export the RLlib checkpoint -> TorchScript .pt + sidecar (.venv-train)
 #   5. convert .pt -> ncnn + parity check (export_to_ncnn.py in .venv-train -> .venv/bin/pnnx)
 # Fourth backend alongside SB3, CleanRL and SampleFactory. Ecosystem interop: see #110.
 set -euo pipefail
@@ -14,9 +14,10 @@ cd "$(dirname "$0")/.."
 export PYTHONUNBUFFERED=1
 
 GODOT="${GODOT:-godot}"
-PY_RLLIB="${PY_RLLIB:-.venv-rllib/bin/python}"
-# Conversion + parity runs under .venv-train: export_to_ncnn.py needs torch + the `ncnn` python
-# module for its parity check, and shells out to .venv/bin/pnnx for the pnnx step itself.
+# Since #126 the RLlib backend shares .venv-train (its ray add-on is installed there), so the
+# trainer and the conversion/parity step run in the same venv. export_to_ncnn.py needs torch + the
+# `ncnn` python module for its parity check, and shells out to .venv/bin/pnnx for the pnnx step.
+PY_RLLIB="${PY_RLLIB:-.venv-train/bin/python}"
 PY_TRAIN="${PY_TRAIN:-.venv-train/bin/python}"
 TIMESTEPS="${TIMESTEPS:-200000}"
 SPEEDUP="${SPEEDUP:-8}"

@@ -115,8 +115,10 @@ else
 	echo "SKIP: .venv-sf not present (run scripts/setup_training.sh to enable the SF smoke)."
 fi
 
-echo "== RLlib backend smoke (skipped if .venv-rllib absent) =="
-if [ -x .venv-rllib/bin/python ]; then
+echo "== RLlib backend smoke (skipped if ray not installed in .venv-train) =="
+# Since #126 the RLlib backend shares .venv-train (ray add-on). Gate on ray being importable rather
+# than a separate venv: setup_training.sh installs ray locally (smoke runs), CI omits it (smoke skips).
+if [ -x .venv-train/bin/python ] && .venv-train/bin/python -c "import ray" >/dev/null 2>&1; then
 	RLLIB_TMP="$(mktemp -d)"
 	TIMESTEPS="${RLLIB_SMOKE_TIMESTEPS:-4000}" \
 	TRAIN_DIR="$RLLIB_TMP/logs" OUTDIR="$RLLIB_TMP/models" EXPERIMENT="chase_rllib_smoke" \
@@ -126,7 +128,7 @@ if [ -x .venv-rllib/bin/python ]; then
 	rm -rf "$RLLIB_TMP"
 	echo "RLlib smoke OK."
 else
-	echo "SKIP: .venv-rllib not present (run scripts/setup_training.sh to enable the RLlib smoke)."
+	echo "SKIP: ray not installed in .venv-train (run scripts/setup_training.sh to enable the RLlib smoke)."
 fi
 
 echo "All tests passed."

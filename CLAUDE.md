@@ -82,9 +82,10 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   `scripts/export_sac_torchscript.py --checkpoint models/ball_chase_sac.zip` (see issue #81 / `docs/ncnn_vs_onnx.md`).
 - **Train (FlyBy, PPO continuous):** `./scripts/train_fly_by.sh` — SB3 PPO over the FlyBy plane env
   (port 11008), 2 continuous actions (`pitch`/`turn`), 8-dim plane-local obs. Exports the deterministic
-  actor (action mean) as **TorchScript** (the numpy<2 training stack breaks `torch.onnx`: onnx 1.19
-  needs `ml_dtypes.float4_e2m1fn` from ml_dtypes≥0.5/numpy≥2) → `export_to_ncnn.py models/fly_by_policy.pt`,
-  plus the std sidecar via `scripts/export_action_dist.py`. The play scene (`fly_by.tscn`) ships
+  actor (action mean) as **TorchScript** → `export_to_ncnn.py models/fly_by_policy.pt`,
+  plus the std sidecar via `scripts/export_action_dist.py`. (The original numpy<2/onnx-1.19 blocker
+  that forced TorchScript here is gone since #126 moved `.venv-train` to numpy≥2 + onnx 1.21, but
+  TorchScript still works fine, so the script is unchanged.) The play scene (`fly_by.tscn`) ships
   `deterministic_inference=true`; flip it to `false` to demo continuous DiagGaussian sampling (#64).
   `TIMESTEPS`/`SCENE` overrides.
 - **Train (chase, CleanRL backend):** `./scripts/train_cleanrl.sh` — single-file CleanRL-style PPO over
@@ -97,8 +98,8 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`/`BASE_PORT`/`EXPERIMENT`/`TRAIN_DIR`/`OUTDIR` overrides.
 - **Train (chase, RLlib backend):** `./scripts/train_rllib.sh` — stock Ray/RLlib PPO (new API
   stack) over the godot_rl wire protocol via a thin custom gymnasium adapter (the stock
-  `RayVectorGodotEnv` is old-API-stack only). Runs in the isolated **`.venv-rllib`** (ray pins
-  `gymnasium==1.2.2`, godot-rl installed `--no-deps`); single socket (`num_env_runners=0`);
+  `RayVectorGodotEnv` is old-API-stack only). Shares **`.venv-train`** (ray add-on installed on top;
+  `gymnasium==1.2.2`, godot-rl `--no-deps` — #126); single socket (`num_env_runners=0`);
   exports the RLModule actor → TorchScript → `export_to_ncnn.py`. Ecosystem interop (#110), not a
   replacement for the custom trainers. `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`/`BASE_PORT`/
   `EXPERIMENT`/`TRAIN_DIR`/`OUTDIR`/`SCENE` overrides.
@@ -150,11 +151,12 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 Full list (learned the hard way): **[docs/dev/gotchas.md](docs/dev/gotchas.md)**. The few that bite
 daily:
 - **`class_name` is unreliable headless** — prefer path-based `extends "res://addons/..."`.
-- **Four venvs** — `.venv` (3.14, pnnx+torch) convert; `.venv-train` (3.13, godot-rl+SB3) train
-  (also runs `export_to_ncnn.py`); `.venv-sf` (3.13, SampleFactory — pins `gymnasium<1.0`, so
-  isolated) for the SF backend only; `.venv-rllib` (3.13, ray[rllib] — pins `gymnasium==1.2.2`,
-  godot-rl `--no-deps`, so isolated) for the RLlib backend only. Create all four with
-  `./scripts/setup_training.sh`.
+- **Three venvs** — `.venv` (3.14, pnnx+torch) convert; `.venv-train` (3.13) train + verify +
+  **RLlib** (SB3 2.8.0 + gymnasium 1.2.2 + numpy≥2 + ray add-on; godot-rl `--no-deps`; also runs
+  `export_to_ncnn.py`); `.venv-sf` (3.13, SampleFactory — pins `gymnasium<1.0`, so still isolated)
+  for the SF backend only. Create all with `./scripts/setup_training.sh`. (RLlib folded into
+  `.venv-train` in #126, retiring `.venv-rllib` and the old numpy<2/onnx==1.17.0 pin hack; SF stays
+  separate until SampleFactory ships a gymnasium-1.x release.)
 - **macOS: never sleep during training** — wrap in `caffeinate -is`.
 - **Rebuild the extension on a fresh clone** — `addons/godot_native_rl/bin/` is gitignored.
 
@@ -255,7 +257,7 @@ daily:
     check reusing the multipolicy checker. Note: GitHub issue #118.)
     GitHub #110 (RLlib training backend — stock Ray/RLlib PPO on the new API stack over the
     godot_rl wire via a custom gymnasium adapter (`GodotRLlibEnv` in `scripts/train_rllib.py`;
-    the stock `RayVectorGodotEnv` is old-API-stack only); isolated `.venv-rllib`
+    the stock `RayVectorGodotEnv` is old-API-stack only); shares `.venv-train` since #126
     (gymnasium 1.2.2, godot-rl `--no-deps`); RLModule actor → TorchScript →
     `export_to_ncnn.py`; guarded end-to-end smoke in `run_tests.sh` + committed
     golden-inference fixture `models/chase_rllib_policy.ncnn.*` +

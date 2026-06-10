@@ -176,8 +176,8 @@ jobs:
           key: ncnn-${{ runner.os }}-${{ env.NCNN_TAG }}-${{ env.CACHE_VERSION }}
           fail-on-cache-miss: true
 
-      # .venv-train runs on 3.12 (not the local 3.13): on 3.13, ml_dtypes needs numpy>=2.1 while
-      # stable-baselines3 needs numpy<2.0 — unsatisfiable. On 3.12 numpy 1.26.4 satisfies both.
+      # .venv-train runs on 3.12 (matches the validated wheel set: numpy 2.4.6 + onnx 1.21 + SB3
+      # 2.8.0 + gymnasium 1.2.2, all available as 3.12 wheels so nothing builds from source).
       - name: Set up Python 3.12 (.venv-train)
         uses: actions/setup-python@v6
         with:
@@ -211,12 +211,16 @@ jobs:
           .venv/bin/pip install --upgrade pip
           .venv/bin/pip install --index-url "$TORCH_CPU_INDEX" torch
           .venv/bin/pip install -r requirements-convert.txt
-          # Train venv (3.12): -c pins numpy 1.26.4 + ml_dtypes 0.5.4 so the sb3 (numpy<2) vs
-          # ml_dtypes (numpy>=1.26 on 3.12) tension resolves deterministically from wheels.
+          # Train venv (3.12): -c freezes numpy 2.4.6 + onnx 1.21 (issue #126 retired the old
+          # numpy<2/ml_dtypes hack). godot-rl is installed --no-deps (its SB3<=2.4.0 / gymnasium
+          # <=1.0.0 caps conflict with the SB3 2.8.0 / gymnasium 1.2.2 stack; runtime-compatible).
+          # CI omits the ray add-on (requirements-rllib.txt) to keep the cached venv small — the
+          # RLlib smoke in run_tests.sh skips when ray is absent.
           python3.12 -m venv .venv-train
           .venv-train/bin/pip install --upgrade pip
           .venv-train/bin/pip install --index-url "$TORCH_CPU_INDEX" torch
           .venv-train/bin/pip install -c .github/ci-constraints.txt -r requirements-train.txt
+          .venv-train/bin/pip install --no-deps "godot-rl==0.8.2"
 
       - name: Download Godot ${{ matrix.godot.version }} (headless)
         run: |

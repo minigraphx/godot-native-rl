@@ -4,37 +4,30 @@
 > here for the rest. Contributor-facing.
 
 - **Three venvs:** `.venv` (Python 3.14) has `pnnx`+torch for conversion. `.venv-train` (Python
-  **3.13** — torch wheels don't exist for 3.14) has `godot-rl onnxruntime ncnn onnxscript` for SB3 +
-  CleanRL training (and runs `export_to_ncnn.py`). `.venv-sf` (Python 3.13) has SampleFactory for the
-  SF backend only — isolated because SF pins `gymnasium<1.0`, which would downgrade the SB3/CleanRL
-  stack. Keep them separate. All gitignored.
+  **3.13** — torch wheels don't exist for 3.14) is the training + verification venv: SB3 2.8.0 +
+  gymnasium 1.2.2 + numpy≥2, plus the optional `ray[rllib]` add-on (the RLlib backend shares this
+  venv since #126 — `requirements-rllib.txt` installed on top), and it runs `export_to_ncnn.py`.
+  `godot-rl` is installed `--no-deps` here (its `stable-baselines3<=2.4.0` / `gymnasium<=1.0.0` caps
+  conflict with that stack; its runtime use is gymnasium-1.2-compatible). `.venv-sf` (Python 3.13)
+  has SampleFactory for the SF backend only — still isolated because SF pins `gymnasium<1.0`, which
+  would downgrade the rest of the stack. Keep them separate. All gitignored.
 - **`onnxscript` is required** for ONNX export (torch 2.12 dynamo exporter needs it) — not pulled
   in by godot-rl automatically.
-- **`.venv-train` MUST be installed with the shared constraints — `pip install -c
-  .github/ci-constraints.txt -r requirements-train.txt`.** `requirements-train.txt` is intentionally
-  unpinned; the exact versions live in `.github/ci-constraints.txt`, applied via `pip -c` by **both**
-  CI (`ci.yml`) and `scripts/setup_training.sh`. A bare `pip install -r requirements-train.txt` (no
-  `-c`) is the bug that bites — it hits two traps:
-  1. **The sdist trap (install crash).** `godot-rl 0.8.2` → `stable-baselines3<=2.4.0` → `numpy<2.0`.
-     With `ml_dtypes` unpinned, pip backtracks to the old `ml_dtypes 0.4.0` **sdist**, whose
-     build-time `numpy==2.0.0rc1` doesn't exist → the whole install crashes (seen on a fresh macOS
-     arm64 / Python 3.13 box). The constraint `ml-dtypes==0.4.1` (last wheel for numpy<2) dodges it.
-  2. **The import trap (resolves but `import onnx` crashes).** `onnx>=1.18` references
-     `ml_dtypes.float4_e2m1fn` at **import** time, which only exists in `ml_dtypes>=0.5` (numpy>=2).
-     So a newer `onnx` *resolves* fine under `numpy<2`, but `import onnx` raises
-     `AttributeError: module 'ml_dtypes' has no attribute 'float4_e2m1fn'` — killing **every**
-     `torch.onnx.export` in `.venv-train` (chase/rover/cleanrl training + the `make_synthetic_*`
-     fixture generators), not just SAC. The constraint `onnx==1.17.0` is the last onnx that imports
-     under `ml_dtypes 0.4.x`.
-  The constraint set (`numpy==1.26.4`, `ml-dtypes==0.4.1`, `onnx==1.17.0`, `onnx-ir==0.1.8`,
-  `onnxscript==0.5.0`) is the **lowest common denominator that installs on both Python versions we
-  use** — local **3.13** and CI **3.12**. (On 3.13, `ml_dtypes>=0.5` needs `numpy>=2.1`, so the
-  numpy-2 generation is simply not an option there; 0.4.1 + onnx 1.17 works everywhere.) **Verify a
-  change by import + a real export, not `pip --dry-run`** (dry-run only proves *resolvability*, which
-  is what hid the import trap): in a fresh venv run the `-c` install, then `python -c "import onnx"`
-  (must not raise) and `python scripts/make_synthetic_dqn.py` (self-checks ONNX↔eager parity). To
-  move to `numpy>=2` / newer onnx you must first move off `godot-rl 0.8.2` (it pins
-  `stable-baselines3<=2.4.0`).
+- **`.venv-train` install: `pip install -c .github/ci-constraints.txt -r requirements-train.txt`,
+  then `pip install --no-deps godot-rl==0.8.2`** (and, locally, `-r requirements-rllib.txt` for the
+  ray add-on). `scripts/setup_training.sh` does all of this; CI (`ci.yml`) mirrors it minus the ray
+  add-on. The `-c` file now just freezes `numpy==2.4.6` + `onnx==1.21.0` for reproducibility.
+  **Why `godot-rl --no-deps`:** its declared `stable-baselines3<=2.4.0` / `gymnasium<=1.0.0` caps
+  conflict with the SB3 2.8.0 / gymnasium 1.2.2 / ray stack, but its actual runtime use is
+  gymnasium-1.2-compatible (proven end-to-end in #126). Pulling godot-rl *with* deps would drag the
+  stack back to `numpy<2`.
+  **Historical (pre-#126):** the venv used to install godot-rl with deps → `stable-baselines3<=2.4.0`
+  → `numpy<2.0`, which fought the onnx/ml_dtypes chain and forced an `onnx==1.17.0` / `ml-dtypes==0.4.1`
+  pin hack (newer onnx referenced `ml_dtypes.float4_e2m1fn` at import time, crashing every
+  `torch.onnx.export` under numpy<2). Moving godot-rl to `--no-deps` let the whole stack go `numpy≥2`
+  + modern onnx, retiring that hack. **Verify an install change by import + a real export, not
+  `pip --dry-run`:** after installing, run `python -c "import onnx"` (must not raise) and
+  `python scripts/make_synthetic_dqn.py` (self-checks ONNX↔eager parity).
 - **Do NOT pass `seed=` to `PPO()`** — godot-rl's env wrapper raises `NotImplementedError` on
   `env.seed()`. Seed via the env constructor only.
 - **pnnx `inputshape` must be quoted** (`'inputshape=[1,5],[1]'`) or zsh globs the brackets. The

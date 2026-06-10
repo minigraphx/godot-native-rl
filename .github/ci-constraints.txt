@@ -1,25 +1,12 @@
 # Shared constraints for the .venv-train install (pip `-c`), used by BOTH the CI workflow and
-# scripts/setup_training.sh. requirements-train.txt is intentionally unpinned; these are the exact
-# versions.
+# scripts/setup_training.sh. requirements-train.txt pins the headline packages; this file freezes
+# the transitive numpy/onnx versions so CI and local resolve identically.
 #
-# The train stack has a real tension: stable-baselines3 (pulled by godot-rl 0.8.2) caps numpy<2.0,
-# but the onnx/ml_dtypes chain wants numpy>=2. This set is the lowest common denominator that
-# installs AND imports on every Python we use — local 3.13 and CI 3.12 (all have matching wheels,
-# so nothing builds from source):
-#   - numpy==1.26.4  : newest numpy<2 (satisfies SB3 2.4.0).
-#   - ml-dtypes==0.4.1: last ml_dtypes wheel for numpy<2. Without it pip backtracks to the ml_dtypes
-#                       0.4.0 *sdist*, whose build-time numpy==2.0.0rc1 doesn't exist → install crash.
-#                       (ml_dtypes>=0.5 needs numpy>=2.1 on py3.13, so it is NOT an option locally.)
-#   - onnx==1.17.0   : onnx>=1.18 references ml_dtypes.float4_e2m1fn at *import* time (only in
-#                       ml_dtypes>=0.5 / numpy>=2). So onnx 1.19 RESOLVES under numpy<2 but crashes on
-#                       `import onnx`, killing every torch.onnx.export. 1.17.0 imports under 0.4.x.
-#   - onnx-ir==0.1.8, onnxscript==0.5.0: the dynamo-exporter chain compatible with onnx 1.17.0.
-#
-# To move to numpy>=2 / newer onnx you must first move off godot-rl 0.8.2 (it pins SB3<=2.4.0).
-# The convert venv (.venv, py3.14) is installed WITHOUT these constraints (no sb3/ml_dtypes there;
-# numpy resolves to 2.x cleanly). See docs/dev/gotchas.md.
-numpy==1.26.4
-ml-dtypes==0.4.1
-onnx==1.17.0
-onnx-ir==0.1.8
-onnxscript==0.5.0
+# Since issue #126 the train stack moved OFF the old numpy<2 / onnx==1.17.0 hack: godot-rl is now
+# installed --no-deps, so its stable-baselines3<=2.4.0 cap no longer forces numpy<2. The stack is
+# SB3 2.8.0 + gymnasium 1.2.2 + numpy>=2 + modern onnx (the versions the RLlib backend already
+# used), so the ml_dtypes.float4_e2m1fn import crash that pinned onnx to 1.17.0 is gone. These pins
+# simply freeze the validated versions for reproducibility. The convert venv (.venv, py3.14) still
+# installs WITHOUT constraints. See docs/dev/gotchas.md.
+numpy==2.4.6
+onnx==1.21.0

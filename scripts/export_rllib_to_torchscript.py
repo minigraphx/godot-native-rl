@@ -7,9 +7,9 @@ TorchScript module, then writes a `<model>.pt.shape.json` sidecar so
 `scripts/export_to_ncnn.py <model>.pt` auto-derives the inputshape and runs pnnx -> ncnn with
 a torch.jit-vs-ncnn parity check. The deploy-side ActionDecode argmaxes per logit segment.
 
-TorchScript (not ONNX) because the export runs in .venv-rllib (the only venv with ray), and
-the repo's preferred ONNX-free path is TorchScript -> pnnx (see CLAUDE.md). torch there is
-pinned to match .venv-train (requirements-rllib.txt) so the traced .pt loads for the parity
+TorchScript (not ONNX) because the export runs in .venv-train (the venv carrying the ray
+add-on since #126), and the repo's preferred ONNX-free path is TorchScript -> pnnx (see
+CLAUDE.md). torch is pinned (requirements-rllib.txt) so the traced .pt loads for the parity
 check.
 
 RLModule internals are version-coupled: this exporter is pinned to the requirements-rllib.txt
