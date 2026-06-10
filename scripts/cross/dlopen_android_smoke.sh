@@ -44,6 +44,12 @@ cat > "$work/host.c" <<'EOF'
 #include <stdio.h>
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: host <path-to-.so>\n"); return 2; }
+    /* The extension imports Android platform APIs (AAsset*/__android_log_print) but doesn't
+       DT_NEEDED libandroid/liblog — Godot's runtime provides them. Preload them RTLD_GLOBAL so
+       those symbols are in the global scope when we load the extension, mirroring the engine.
+       (Linking the host against them wouldn't work: --as-needed drops unreferenced DT_NEEDEDs.) */
+    dlopen("libandroid.so", RTLD_NOW | RTLD_GLOBAL);
+    dlopen("liblog.so", RTLD_NOW | RTLD_GLOBAL);
     /* RTLD_NOW forces every symbol to resolve immediately — exactly the #95 failure surface. */
     void *h = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
     if (!h) { fprintf(stderr, "dlopen FAILED: %s\n", dlerror()); return 1; }
@@ -55,12 +61,9 @@ int main(int argc, char **argv) {
 }
 EOF
 
-# Build the host for the emulator ABI. Set rpath to the push dir so it finds libc++_shared.so.
-# Link libandroid + liblog into the host so they're loaded in the process (the emulator has them in
-# /system/lib*): the extension imports their APIs (AAsset*/__android_log_print) but doesn't DT_NEEDED
-# them — Godot's own runtime provides them, so we model that here. A genuine #95 symbol (e.g. an
-# undefined libc++ symbol absent from libc++_shared) would still fail the dlopen.
-"$clang" -o "$work/host" "$work/host.c" -ldl -landroid -llog
+# Build the host for the emulator ABI. Only -ldl is linked; the Android platform libs are pulled in
+# at runtime via dlopen(RTLD_GLOBAL) above (the emulator ships them in /system/lib*).
+"$clang" -o "$work/host" "$work/host.c" -ldl
 
 dev=/data/local/tmp/gnrl_smoke
 adb wait-for-device
