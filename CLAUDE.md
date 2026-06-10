@@ -70,7 +70,9 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   our own `GodotParallelEnv` PettingZoo `ParallelEnv` adapter (`scripts/godot_pettingzoo_env.py`; the
   godot_rl `GDRLPettingZooEnv` functionality without depending on the upstream class). Reads
   `agent_policy_names`, one learner per policy, each actor → TorchScript → `export_to_ncnn.py`. Interop
-  proven deterministically via PettingZoo's `parallel_api_test`. `SCENE`/`TIMESTEPS` overrides.
+  proven deterministically via PettingZoo's `parallel_api_test`. `SCENE`/`TIMESTEPS`/`NUM_STEPS`
+  overrides; exits loud if `TIMESTEPS` < one rollout batch (`NUM_STEPS` × n_agents) instead of
+  silently exporting an untrained policy (#119) — lower `NUM_STEPS` for short smoke runs.
 - **Train (BallChase, SAC):** `./scripts/train_ball_chase.sh` — SB3 SAC (continuous-control) over the
   BallChase env (port 11008). Exports the deterministic actor (tanh(mean)) as **TorchScript** (godot_rl's
   SAC ONNX export breaks under torch 2.x dynamo), then `scripts/export_to_ncnn.py models/ball_chase_sac.pt

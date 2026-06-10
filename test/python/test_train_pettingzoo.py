@@ -48,6 +48,22 @@ class TestActionNvec(unittest.TestCase):
             tp.action_nvec(spaces.MultiDiscrete([5, 3]))
 
 
+class TestRequirePositiveUpdates(unittest.TestCase):
+    def test_passes_through_positive_updates(self):
+        self.assertEqual(tp.require_positive_updates(3, timesteps=6144, num_steps=256, n_agents=8), 3)
+
+    def test_zero_updates_raises_system_exit(self):
+        # timesteps < num_steps * n_agents -> num_updates rounds to 0; the trainer would
+        # silently export a randomly-initialized policy (issue #119). Must fail loud.
+        with self.assertRaises(SystemExit) as ctx:
+            tp.require_positive_updates(0, timesteps=1000, num_steps=256, n_agents=8)
+        msg = str(ctx.exception)
+        self.assertIn("0 updates", msg)
+        self.assertIn("1000", msg)  # names the offending timesteps
+        self.assertIn("2048", msg)  # names the minimum (num_steps * n_agents)
+        self.assertIn("--num_steps", msg)  # suggests the remedies
+
+
 class TestUnwrapObs(unittest.TestCase):
     def test_extracts_inner_obs_key(self):
         # godot_rl GodotEnv returns per-agent Dict obs {'obs': vec}; unwrap to {agent: vec}.

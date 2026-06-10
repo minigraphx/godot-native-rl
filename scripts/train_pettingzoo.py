@@ -46,6 +46,25 @@ def action_nvec(action_space) -> list:
     return [int(s.n) for s in action_space.spaces]
 
 
+def require_positive_updates(updates: int, timesteps: int, num_steps: int, n_agents: int) -> int:
+    """Fail loud when the update count rounds to 0 (issue #119).
+
+    num_updates = timesteps // (num_steps * n_agents) hits 0 whenever timesteps is small relative
+    to the rollout batch — easy on the default 8-tiled parallel scene. The loop would then be
+    skipped entirely and a randomly-initialized policy exported, with only a quiet
+    "running 0 updates" hint. Raise SystemExit with the actual numbers and the remedies instead.
+    """
+    if updates <= 0:
+        batch = num_steps * n_agents
+        raise SystemExit(
+            f"train_pettingzoo: 0 updates — timesteps={timesteps} is below one rollout batch "
+            f"(num_steps × n_agents = {num_steps} × {n_agents} = {batch}). The trainer would export "
+            f"a randomly-initialized policy. Raise TIMESTEPS to at least {batch}, or lower "
+            f"--num_steps (NUM_STEPS= via train_pettingzoo.sh), or use a scene with fewer agents."
+        )
+    return updates
+
+
 def unwrap_obs(obs_dict: Dict, key: str = "obs") -> Dict:
     """godot_rl exposes Dict obs spaces and returns per-agent Dict obs ({key: vector}); pull the inner
     array so it can be stacked. {agent: {key: vec}} -> {agent: vec}. Mirrors CleanRLGodotEnv's obs[key]
@@ -155,10 +174,12 @@ def main(argv: Sequence[str] | None = None) -> None:
             values=torch.zeros((num_steps, np_), device=device),
         )
 
-    updates = tc.num_updates(cfg.timesteps, num_steps, n_agents)
-    print(f"running {updates} updates over {n_agents} agents")
-
     try:
+        # Guard inside try so env.close() still runs when this exits loud (#119).
+        updates = require_positive_updates(
+            tc.num_updates(cfg.timesteps, num_steps, n_agents), cfg.timesteps, num_steps, n_agents)
+        print(f"running {updates} updates over {n_agents} agents")
+
         obs_dict, _ = env.reset(seed=cfg.seed)
         next_obs = torch.tensor(stack_by_agent(unwrap_obs(obs_dict), agents_list).astype(np.float32), device=device)
         next_done = torch.zeros(n_agents, device=device)
