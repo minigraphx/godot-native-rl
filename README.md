@@ -92,12 +92,16 @@ Building from source is covered in [CONTRIBUTING.md](CONTRIBUTING.md) → [docs/
 | Linux x86_64          | native GCC  | ✅ verified (CI smoke + tests)  |
 | macOS arm64           | native      | ✅ verified                     |
 | Web / WASM            | emscripten  | ✅ verified (in-browser)        |
-| Windows x86_64        | zig         | 🔨 builds; runtime check pending |
-| Android arm64/x86_64  | Android NDK | 🔨 builds; runtime check pending |
-| iOS arm64             | Xcode       | 🔨 builds; runtime check pending |
+| Windows x86_64        | zig         | ✅ verified (CI: Godot --headless loads NcnnRunner) |
+| Android x86_64        | Android NDK | ✅ verified (CI: dlopen on a real emulator) |
+| Android arm64         | Android NDK | 🧪 symbol-audited in CI; device runtime check pending |
+| iOS arm64             | Xcode       | 🧪 symbol-audited in CI; device runtime check pending |
 
-"🔨 builds" means the binary compiles and links in CI but hasn't yet been loaded on a real
-device/runtime — contributions verifying these are welcome.
+"🧪 symbol-audited" means CI statically proves the binary's symbols all resolve at load (Android
+arm64: the NDK linker resolves every imported symbol against the runtime libs; iOS: the `.xcframework` slices
+test-link against the iOS SDK) — the same #95 load-failure class the verified targets catch by
+actually loading — but it hasn't yet been loaded on a physical device. Contributions running these
+on real hardware are welcome.
 
 ## Contributing / building from source
 Building the GDExtension, architecture, and dev notes:
