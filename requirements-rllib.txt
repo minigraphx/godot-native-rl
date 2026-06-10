@@ -1,0 +1,9 @@
+# Ray/RLlib training backend (new API stack) — isolated venv (.venv-rllib).
+# ray[rllib] pins gymnasium==1.2.2 EXACTLY; godot-rl==0.8.2 declares gymnasium<=1.0.0 (+ SB3),
+# so they cannot co-resolve: godot-rl is installed --no-deps by setup_training.sh on top of this.
+# Its actual runtime use (spaces.{Discrete,Box,Dict,Tuple}, 5-tuple step) is gym-1.2-compatible.
+# torch is pinned to match .venv-train so the traced .pt loads there for the ncnn parity check.
+# See docs/superpowers/specs/2026-06-09-rllib-backend-design.md
+ray[rllib]==2.55.*
+torch==2.12.0
+numpy          # godot_rl runtime dep (godot-rl itself installed --no-deps)

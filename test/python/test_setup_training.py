@@ -47,6 +47,15 @@ class TestSetupTraining(unittest.TestCase):
         after = os.path.isdir(venv_sf)
         self.assertEqual(before, after, "--check must not create or remove .venv-sf")
 
+    def test_check_mode_names_rllib_requirements(self):
+        # The RLlib backend lives in a fourth venv (.venv-rllib); --check must name its requirements file.
+        result = subprocess.run(
+            [SCRIPT, "--check"], cwd=REPO_ROOT, capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = result.stdout + result.stderr
+        self.assertIn("requirements-rllib.txt", out)
+
 
 if __name__ == "__main__":
     unittest.main()

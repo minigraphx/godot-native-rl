@@ -91,6 +91,13 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   MLP). Runs in the isolated **`.venv-sf`** (SF pins `gymnasium<1.0`); exports the SF checkpoint to
   **TorchScript** via `export_sf_to_torchscript.py` → ncnn (`.venv-sf` can't onnx-export).
   `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`/`BASE_PORT`/`EXPERIMENT`/`TRAIN_DIR`/`OUTDIR` overrides.
+- **Train (chase, RLlib backend):** `./scripts/train_rllib.sh` — stock Ray/RLlib PPO (new API
+  stack) over the godot_rl wire protocol via a thin custom gymnasium adapter (the stock
+  `RayVectorGodotEnv` is old-API-stack only). Runs in the isolated **`.venv-rllib`** (ray pins
+  `gymnasium==1.2.2`, godot-rl installed `--no-deps`); single socket (`num_env_runners=0`);
+  exports the RLModule actor → TorchScript → `export_to_ncnn.py`. Ecosystem interop (#110), not a
+  replacement for the custom trainers. `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`/`BASE_PORT`/
+  `EXPERIMENT`/`TRAIN_DIR`/`OUTDIR`/`SCENE` overrides.
 - **Throughput check:** `./scripts/throughput_compare.sh` — short fresh runs of the parallel vs
   single-agent scene into temp dirs (never touches `models/`); prints samples/sec + speedup **plus a
   per-step phase breakdown** (`collect_obs` / `serialize_send` / `await_action`) so you can see whether
@@ -139,9 +146,11 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 Full list (learned the hard way): **[docs/dev/gotchas.md](docs/dev/gotchas.md)**. The few that bite
 daily:
 - **`class_name` is unreliable headless** — prefer path-based `extends "res://addons/..."`.
-- **Three venvs** — `.venv` (3.14, pnnx+torch) convert; `.venv-train` (3.13, godot-rl+SB3) train
+- **Four venvs** — `.venv` (3.14, pnnx+torch) convert; `.venv-train` (3.13, godot-rl+SB3) train
   (also runs `export_to_ncnn.py`); `.venv-sf` (3.13, SampleFactory — pins `gymnasium<1.0`, so
-  isolated) for the SF backend only. Create all three with `./scripts/setup_training.sh`.
+  isolated) for the SF backend only; `.venv-rllib` (3.13, ray[rllib] — pins `gymnasium==1.2.2`,
+  godot-rl `--no-deps`, so isolated) for the RLlib backend only. Create all four with
+  `./scripts/setup_training.sh`.
 - **macOS: never sleep during training** — wrap in `caffeinate -is`.
 - **Rebuild the extension on a fresh clone** — `addons/godot_native_rl/bin/` is gitignored.
 
@@ -236,6 +245,13 @@ daily:
     the upstream class; `train_pettingzoo.sh` drives multi-policy PPO one learner per `agent_policy_names`
     each actor → TorchScript → ncnn; conformance proven via PettingZoo's `parallel_api_test`;
     live full training run is a follow-up).
+    GitHub #110 (RLlib training backend — stock Ray/RLlib PPO on the new API stack over the
+    godot_rl wire via a custom gymnasium adapter (`GodotRLlibEnv` in `scripts/train_rllib.py`;
+    the stock `RayVectorGodotEnv` is old-API-stack only); isolated `.venv-rllib`
+    (gymnasium 1.2.2, godot-rl `--no-deps`); RLModule actor → TorchScript →
+    `export_to_ncnn.py`; guarded end-to-end smoke in `run_tests.sh` + committed
+    golden-inference fixture `models/chase_rllib_policy.ncnn.*` +
+    `test_chase_rllib_golden_inference.gd`. Note: GitHub issue #110.)
     9 partial (socket
     timeout + per-agent `info`; `terminated`/`truncated` blocked upstream).
   - **Newer items surfaced this work:** 23 (deploy-side inference gap: batched multi-agent
