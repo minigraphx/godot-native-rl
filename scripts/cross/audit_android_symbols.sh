@@ -55,13 +55,19 @@ echo "-- DT_NEEDED --"
 #                    stub references nothing from it.
 #  --no-allow-shlib-undefined : error if the .so needs a symbol no library on the link line defines —
 #                    i.e. the exact dlopen-time failure #95 was. (lld defaults to *allowing* these.)
+#  -landroid -llog : the .so imports the Android asset-manager (AAsset*/AAssetManager_open) and
+#                    logging (__android_log_print) APIs but does not DT_NEEDED libandroid/liblog —
+#                    the host process provides them (Godot's runtime links them; the x86_64 emulator
+#                    dlopen smoke loads cleanly without them in DT_NEEDED). They're public NDK libs
+#                    present on every device, so put them on the link line as the runtime would.
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-printf 'int main(void){return 0;}\n' > "$tmp/stub.c"
+printf 'int main(void){return 0;}\n' > "$tmp/stub.cpp"
 
-if ! "$clangxx" "$tmp/stub.c" -o "$tmp/stub" \
+if ! "$clangxx" "$tmp/stub.cpp" -o "$tmp/stub" \
       -Wl,--no-as-needed \
       -L"$(dirname "$so")" -l:"$(basename "$so")" \
+      -landroid -llog \
       -Wl,--no-allow-shlib-undefined 2> "$tmp/link.err"; then
   echo "::error::android-$arch .so imports symbols no runtime lib provides (would fail dlopen — #95 bug class):"
   sed 's/^/    /' "$tmp/link.err"
