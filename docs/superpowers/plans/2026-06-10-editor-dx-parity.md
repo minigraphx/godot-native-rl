@@ -675,7 +675,10 @@ In `docs/guide/sensors.md`, after the opening paragraph (the one ending `...it j
 ```markdown
 Prefer scenes? `addons/godot_native_rl/sensors/scenes/` ships drop-in `.tscn`s —
 `RaycastSensor2D/3D` plus `CameraSensor2D/3D` with a pre-wired 36×36 `SubViewport` + camera.
-Instance one under your agent and tweak the exports.
+Instance one under your agent and tweak the exports. 2D caveat: a `SubViewport` owns its own
+empty `World2D`, so for `CameraSensor2D` either share your game's world in code
+(`$CameraSensor2D/SubViewport.world_2d = get_viewport().world_2d` in `_ready()`) or parent
+your playfield under the SubViewport; `CameraSensor3D` shares the parent `World3D` automatically.
 ```
 
 - [ ] **Step 3: Agent guide — template note**
