@@ -40,6 +40,34 @@ upstream class; `train_pettingzoo.sh` drives multi-policy PPO; conformance prove
 godot_rl wire via a custom gymnasium adapter (`GodotRLlibEnv`; the stock `RayVectorGodotEnv` is
 old-API-stack only), isolated `.venv-rllib`, RLModule actor → TorchScript → ncnn, guarded smoke +
 committed golden-inference fixture.)
+(2026-06-10 strategy note: **native-ONNX-in-godot_rl is a latent moat risk** — see "Strategic note" below.)
+
+---
+
+## Strategic note — native ONNX is interesting *for godot_rl* (moat risk)
+
+godot_rl's inability to web-export is **not** an ONNX-Runtime limitation; it's a property of *how godot_rl
+integrated ONNX* — its no-Python inference path runs through Godot **Mono/.NET**, and .NET can't web-export
+([godot#70796](https://github.com/godotengine/godot/issues/70796)). ONNX Runtime itself has a native C/C++ core, so embedding ORT as a **GDExtension** (no .NET)
+would let godot_rl ship to HTML5 **without converting to ncnn and with no conversion step at all**. That makes
+a native-ORT backend the single most likely way godot_rl closes its biggest gap against this project — and the
+reason "native ONNX integration is interesting" really means "interesting *for godot_rl*."
+
+Implications for positioning:
+- **Web/WASM is our headline pillar but the most contestable one.** If godot_rl grows a native (non-.NET) ORT
+  backend, "godot_rl literally can't reach the browser" stops being true. Lean the moat narrative on the
+  pillars a native-ORT backend does **not** neutralise: console certification (no managed runtime / smaller
+  audit surface), lean edge footprint (~3.4 MB static `.so` vs ORT-WASM's heavier payload, same brittle
+  `wasm32` dlink pipeline either way), and game-side INT8 — all in the "Deploy-side inference" / "Unique to
+  this repo" tables above.
+- **We could ship it too.** The swappable inference seam (`docs/dev/DEVELOPMENT.md`, "The inference-backend
+  boundary"; ExecuTorch tracked as #54) means a native-ORT runner drops in with no GDScript/decode/protocol
+  changes. Doing so *as an upstream godot_rl contribution* fits the "complement first" strategy but narrows
+  our own differentiation. This is a deliberate positioning call, **not** a queued implementation task.
+- Neither runtime does **on-device learning** — both are forward-pass-only; training stays in Python. That's
+  not a differentiator either way.
+
+See `docs/ncnn_vs_onnx.md` §"Web / HTML5 deployment" for the same note in the deployment-decision framing.
 
 ---
 
