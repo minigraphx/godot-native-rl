@@ -44,10 +44,10 @@ cat > "$work/host.c" <<'EOF'
 #include <stdio.h>
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: host <path-to-.so>\n"); return 2; }
-    /* The extension imports Android platform APIs (AAsset*/__android_log_print) but doesn't
-       DT_NEEDED libandroid/liblog — Godot's runtime provides them. Preload them RTLD_GLOBAL so
+    /* The extension imports Android platform APIs (AAsset / __android_log_print) but does not
+       DT_NEEDED libandroid/liblog -- Godot's runtime provides them. Preload them RTLD_GLOBAL so
        those symbols are in the global scope when we load the extension, mirroring the engine.
-       (Linking the host against them wouldn't work: --as-needed drops unreferenced DT_NEEDEDs.) */
+       Linking the host against them would not work: --as-needed drops unreferenced DT_NEEDEDs. */
     dlopen("libandroid.so", RTLD_NOW | RTLD_GLOBAL);
     dlopen("liblog.so", RTLD_NOW | RTLD_GLOBAL);
     /* RTLD_NOW forces every symbol to resolve immediately — exactly the #95 failure surface. */
