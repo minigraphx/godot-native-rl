@@ -7,11 +7,10 @@ extends _BASE_
 # forgotten override surfaces immediately instead of silently training on garbage.
 
 func get_obs() -> Dictionary:
-	# Compose a flat float Array. With ISensor2D/3D children, auto-discovery does it:
-	#     var obs := []
-	#     for sensor in collect_sensors():
-	#         obs.append_array(sensor.get_observation())
-	#     return {"obs": obs}
+	# Compose a flat float Array. With ISensor2D/3D children, auto-discovery
+	# concatenates them for you — collect_sensors() returns the flat float Array:
+	#     return {"obs": collect_sensors()}
+	# Mix in your own features by appending to it before returning.
 	push_error("get_obs() not implemented — return {\"obs\": [floats...]}")
 	return {"obs": []}
 
