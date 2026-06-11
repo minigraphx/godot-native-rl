@@ -82,6 +82,11 @@ func _initialize() -> void:
 	get_root().add_child(lod2)
 	h.assert_true(lod2.decide(OBS)["ran_deliberative"], "interval=1 -> frame 0 deliberative")
 	h.assert_true(lod2.decide(OBS)["ran_deliberative"], "interval=1 -> frame 1 deliberative (live change took)")
+	# #169: the setter clamps to >= 1, so the stored value matches the effective cadence.
+	lod2.deliberative_interval = 0
+	h.assert_eq(lod2.deliberative_interval, 1, "deliberative_interval = 0 clamps to 1 in the setter")
+	lod2.deliberative_interval = -5
+	h.assert_eq(lod2.deliberative_interval, 1, "negative deliberative_interval clamps to 1")
 	lod2.free()
 
 	h.finish(self)
