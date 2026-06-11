@@ -101,12 +101,15 @@ if env["platform"] == "macos":
 # Link ncnn statically into the extension.
 env.Append(LIBS=[File(ncnn_static_lib)])
 
-# ncnn is built with OpenMP enabled by default, so libncnn.a references the GNU OpenMP runtime
-# (GOMP_parallel) and pthreads. These must be linked AFTER libncnn.a — so the linker's default
-# --as-needed keeps libgomp in DT_NEEDED — or the extension fails to load on Linux with
+# An ncnn built with OpenMP makes libncnn.a reference the GNU OpenMP runtime (GOMP_parallel)
+# and pthreads. Those must be linked AFTER libncnn.a — so the linker's default --as-needed
+# keeps libgomp in DT_NEEDED — or the extension fails to load on Linux with
 # "undefined symbol: GOMP_parallel". (macOS resolves its own OpenMP runtime, so scope to Linux.)
-# ncnn built with OpenMP (the native default) needs libgomp; a build with NCNN_OPENMP=OFF
-# (e.g. the zig cross-compile, which has no libgomp) must not link it. Gate with ncnn_openmp=.
+# Since #103 the project's Linux builds (build_linux_native.sh, ci.yml, the zig cross-compile)
+# all build ncnn with NCNN_OPENMP=OFF and pass ncnn_openmp=no, shipping a self-contained .so
+# with no libgomp runtime dependency. The default stays "yes" so a plain `scons platform=linux`
+# against a stock OpenMP ncnn still links correctly — set ncnn_openmp=no to match an
+# NCNN_OPENMP=OFF static lib.
 _ncnn_openmp = str(ARGUMENTS.get("ncnn_openmp", "yes")).lower() not in ("0", "no", "false")
 if env["platform"] == "linux":
     env.Append(LIBS=(["gomp", "pthread"] if _ncnn_openmp else ["pthread"]))
