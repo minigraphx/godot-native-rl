@@ -43,7 +43,12 @@ func _initialize() -> void:
 			h.assert_eq(out.size(), golden.size(), "case %d output size (8 motor means)" % i)
 			var close := true
 			for j in range(min(out.size(), golden.size())):
-				if absf(out[j] - float(golden[j])) > 1e-2 * absf(float(golden[j])) + 1e-3:
+				# rtol 1e-2 with an atol floor of 1e-2: the baseline is recorded on macOS arm64;
+				# CI runs Linux x86 ncnn whose SIMD paths drift more than a 1e-3 floor allows on
+				# small-magnitude outputs. 1e-2 matches the continuous-mean tolerance the
+				# algorithm-agnostic golden test uses (CI-proven cross-platform); real regressions
+				# (wrong weights/conversion) differ by orders of magnitude more.
+				if absf(out[j] - float(golden[j])) > 1e-2 * absf(float(golden[j])) + 1e-2:
 					close = false
 			h.assert_true(close, "case %d outputs within tolerance of golden" % i)
 	runner.free()
