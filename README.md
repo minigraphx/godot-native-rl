@@ -30,7 +30,7 @@ web/WASM, console, mobile, desktop, and edge.
 - `examples/chase_the_target` — 2D discrete-action agent, trained with SB3 PPO
 - `examples/rover_3d` — runnable 3D discrete-action rover with native inference, trained with SB3 PPO
 - `examples/hide_and_seek` — 2D 1v1 self-play with a persistent trained two-policy demo
-- `examples/ball_chase` — runnable 2D continuous-action SAC agent with native inference (`./scripts/train_ball_chase.sh`); exports the deterministic actor via TorchScript → ncnn
+- `examples/ball_chase` — runnable 2D continuous-action SAC agent with native inference (`./scripts/train_ball_chase.sh`); exports the deterministic actor via TorchScript → ncnn; `SCENE=res://examples/ball_chase/ball_chase_train_parallel.tscn` tiles 8 worlds (`ParallelArena2D`) for ~3.4× measured training throughput
 - `examples/fly_by` — runnable 3D continuous-action plane (PPO); ships a trained ncnn net + a `fly_by_action_dist.json` std sidecar for deploy-side DiagGaussian sampling (`./scripts/train_fly_by.sh`)
 - `examples/quadruped_walk` — 3D continuous-control locomotion: a code-built articulated quadruped (8 hinge-joint motors, Jolt physics) that learns to walk forward (PPO, `./scripts/train_quadruped.sh`). **Harness landed** (rig, RL agent, train/track scenes, headless physics smoke); the trained walking ncnn net + a track demo are the follow-up training run ([#60](https://github.com/minigraphx/godot-native-rl/issues/60))
 - `examples/chase_the_target/chase_crowd.tscn` — batched shared-policy crowd: many chasers driven by **one** shared net in a single `run_inference_batch` call per frame (reuses the committed chase net)
