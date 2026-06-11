@@ -98,6 +98,11 @@ func body_local_velocity() -> Vector3:
 func forward_velocity() -> float:
 	return _rig["torso"].linear_velocity.z
 
+# World-frame lateral speed (X). Penalized so the gait tracks straight toward the finish
+# instead of drifting sideways.
+func lateral_velocity() -> float:
+	return _rig["torso"].linear_velocity.x
+
 # Hinge has no direct angle read; estimate each child segment's pitch relative to its parent
 # about the hinge (local X). Order matches the builder's joints array.
 func joint_angles() -> Array:

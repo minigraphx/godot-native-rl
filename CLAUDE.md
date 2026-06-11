@@ -18,7 +18,7 @@ standalone headless-compatible play scenes; trained inference is available for c
 multi-policy hide & seek, and BallChase. Reusable library in
 `addons/godot_native_rl/` (`sync.gd`/`NcnnSync`, `controllers/`, `reward/`, `sensors/` (+ drop-in `scenes/`),
 `training/`, `net/`, `script_templates/` (controller scaffold, auto-installed on plugin enable)); C++ GDExtension at repo root (`src/ncnn_runner.{h,cpp}`). Examples:
-`chase_the_target` (2D, + `chase_crowd.tscn` batched shared-policy crowd via `run_inference_batch` + `NcnnCrowdController`), `rover_3d` (3D), `hide_and_seek` (2D self-play), `ball_chase` (2D continuous-control / SAC), `fly_by` (3D continuous-control / PPO, ships the #64 DiagGaussian-sampling demo), `quadruped_walk` (3D continuous-control locomotion — code-built 8-hinge-joint articulated quadruped on the **Jolt** backend; #60 M1 done: ships a trained PPO ncnn net that walks ~10m, deployed in `quadruped_walk_track.tscn`, + a 500k/2M/5M learning-stage spread in `models/stages/`, behavioral + golden regressions). Wire protocol is
+`chase_the_target` (2D, + `chase_crowd.tscn` batched shared-policy crowd via `run_inference_batch` + `NcnnCrowdController`), `rover_3d` (3D), `hide_and_seek` (2D self-play), `ball_chase` (2D continuous-control / SAC), `fly_by` (3D continuous-control / PPO, ships the #64 DiagGaussian-sampling demo), `quadruped_walk` (3D continuous-control locomotion — code-built 8-hinge-joint articulated quadruped on the **Jolt** backend; #60 M1 done: ships a trained PPO ncnn net that walks ~21m straight at ~1.1 m/s, deployed in `quadruped_walk_track.tscn`, + a 500k/2.5M/6M learning-stage spread in `models/stages/`, behavioral + golden regressions). Wire protocol is
 godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 [docs/dev/DEVELOPMENT.md](docs/dev/DEVELOPMENT.md).**
 
@@ -101,13 +101,15 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   ~29-dim obs: joint angles/vels + torso up + body-local velocity + dir-to-finish + foot contacts).
   Defaults to the tiled `quadruped_walk_train_parallel.tscn` (8 worlds via `ParallelArena`); **Jolt**
   backend (set in `project.godot`). Exports the deterministic actor as **TorchScript** →
-  `export_to_ncnn.py models/quadruped_walk.pt`. The reward is **forward-velocity-driven**
-  (`forward_weight` dominates small upright/alive bonuses) so the policy walks rather than balancing
-  in place — the first reward (survival-only) found a balance-in-place local optimum (~3m); the
-  forward-velocity reshape gets ~10m. `CHECKPOINT_FREQ=N` saves SB3 `.zip` snapshots every N
-  env-steps (learning-stage demos → `models/stages/`). `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`/`SCENE`
-  overrides; wrap in `caffeinate -is` on macOS. The committed 5M-step net (walks ~10m) ships in
-  `examples/quadruped_walk/models/`, deploy-watched via `quadruped_walk_track.tscn`.
+  `export_to_ncnn.py models/quadruped_walk.pt --atol 0.05` (strong policies emit larger logits — the
+  default 0.01 atol is marginally too tight). The reward is **forward-velocity-driven with a lateral
+  penalty** (the v1 survival-only reward found a balance-in-place optimum ~3m; v2 forward-only lunged,
+  fell early and drifted sideways/backward in some Jolt realizations ~2–10m; v3 forward + |lateral|
+  penalty + rebalanced upright/alive/fall walks ~21m straight at ~1.1 m/s). `CHECKPOINT_FREQ=N` saves
+  SB3 `.zip` snapshots every N env-steps (learning-stage demos → `models/stages/`).
+  `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`/`SCENE` overrides; wrap in `caffeinate -is` on macOS. The
+  committed 6M-step net ships in `examples/quadruped_walk/models/`, deploy-watched via
+  `quadruped_walk_track.tscn`.
 - **Train (chase, CleanRL backend):** `./scripts/train_cleanrl.sh` — single-file CleanRL-style PPO over
   godot_rl's `CleanRLGodotEnv` (same chase scene + port 11008; `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`
   overrides). Exports ONNX (`models/chase_cleanrl_policy.onnx`) consumable unchanged by `export_to_ncnn.py`.

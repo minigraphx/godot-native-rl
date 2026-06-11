@@ -10,16 +10,19 @@ const RewardBuilderScript = preload("res://addons/godot_native_rl/reward/reward_
 # RewardAdapterScript is inherited from the controller — do not redeclare.
 
 @export var game_path: NodePath
-# Locomotion reward (tuned 2026-06-11): a dense forward-velocity term is the main driver so the
-# policy is rewarded for *moving* toward the finish, not just surviving. The upright/alive bonuses
-# are kept small — just enough to bootstrap standing — so balancing-in-place is no longer the
-# optimum (the v1 weights, upright 0.05 / alive 0.01 with no velocity term, produced a creature
-# that balanced and shuffled ~3m instead of walking).
-@export var forward_weight := 0.2
-@export var upright_weight := 0.02
-@export var alive_bonus := 0.005
+# Locomotion reward (tuned 2026-06-11, v3 robustness pass). The arc:
+#   v1 (upright 0.05 + alive 0.01, no velocity): balanced in place (~3m).
+#   v2 (forward 0.2, upright 0.02, alive 0.005): walked but lunged + fell fast (ep_len ~64) and
+#       drifted sideways/backward in some physics realizations (unreliable).
+#   v3 (this): keep forward velocity as the driver but penalize LATERAL drift (track straight),
+#       and restore enough upright/alive + a stronger fall penalty that the creature stays up
+#       AND moves — for a robust, consistently-forward gait.
+@export var forward_weight := 0.15   ## reward +Z (toward finish) velocity — main driver
+@export var lateral_weight := 0.06   ## penalize |X| velocity — go straight, don't drift sideways
+@export var upright_weight := 0.04
+@export var alive_bonus := 0.02
 @export var energy_penalty := 0.0005
-@export var fall_penalty := 1.0
+@export var fall_penalty := 2.0
 @export var fall_height := 0.45      ## torso below this Y = fallen
 @export var fall_upright := 0.2      ## upright dot below this = fallen
 
@@ -97,6 +100,7 @@ func _physics_process(delta: float) -> void:
 	# applied directly. Forward velocity is the dense locomotion signal: reward moving toward +Z.
 	accumulate_reward()
 	reward += forward_weight * _game.forward_velocity()
+	reward -= lateral_weight * absf(_game.lateral_velocity())
 	reward += upright_weight * _game.upright()
 	reward -= energy_penalty * _sum_abs(_action)
 	# A fall is a terminal state: signal `done` (and `needs_reset`) so the trainer gets a real

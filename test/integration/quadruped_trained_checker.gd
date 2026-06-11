@@ -15,6 +15,7 @@ var _frames := 0
 var _max_forward := 0.0
 var _max_radial := 0.0
 var _min_dist := 1e20
+var _vel_sum := 0.0
 
 func _ready() -> void:
 	_game = get_node_or_null(game_path)
@@ -32,9 +33,11 @@ func _physics_process(_delta: float) -> void:
 	_max_forward = maxf(_max_forward, p.z)
 	_max_radial = maxf(_max_radial, Vector2(p.x, p.z).length())
 	_min_dist = minf(_min_dist, _game.distance())
+	_vel_sum += _game.forward_velocity()
 	_frames += 1
 	if _frames >= frames_to_run:
-		print("DIAG: max_forward=%.2f  max_radial=%.2f  min_dist_to_finish=%.2f (start ~40)" % [_max_forward, _max_radial, _min_dist])
+		var mean_vel := _vel_sum / float(_frames)
+		print("DIAG: max_forward=%.2f  max_radial=%.2f  min_dist=%.2f  mean_fwd_vel=%.3f" % [_max_forward, _max_radial, _min_dist, mean_vel])
 		if _max_forward >= min_forward:
 			print("TRAINED QUADRUPED PASSED (max forward = %.2f m in %d frames)" % [_max_forward, _frames])
 			get_tree().quit(0)
