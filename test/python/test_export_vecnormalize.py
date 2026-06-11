@@ -10,6 +10,17 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import export_vecnormalize as ev  # noqa: E402
 
+# Guarded heavy imports (#141): missing deps -> skips, not errors, under bare python.
+try:
+    import numpy  # noqa: F401
+    import gymnasium  # noqa: F401
+    import stable_baselines3  # noqa: F401
+    HAVE_SB3 = True
+except ImportError:
+    HAVE_SB3 = False
+
+needs_sb3 = unittest.skipUnless(HAVE_SB3, "numpy/gymnasium/SB3 not installed")
+
 
 def _make_vecnormalize(seed: int = 0, obs_dim: int = 4):
     import gymnasium as gym
@@ -37,6 +48,7 @@ def _make_vecnormalize(seed: int = 0, obs_dim: int = 4):
 
 
 class TestStatsFromVecNormalize(unittest.TestCase):
+    @needs_sb3
     def test_extracts_mean_var_epsilon_clip(self):
         vn = _make_vecnormalize()
         stats = ev.stats_from_vecnormalize(vn)
@@ -50,6 +62,7 @@ class TestStatsFromVecNormalize(unittest.TestCase):
         self.assertAlmostEqual(stats["epsilon"], float(vn.epsilon))
         self.assertAlmostEqual(stats["clip_obs"], float(vn.clip_obs))
 
+    @needs_sb3
     def test_rejects_norm_obs_disabled(self):
         vn = _make_vecnormalize()
         vn.norm_obs = False
@@ -60,12 +73,14 @@ class TestStatsFromVecNormalize(unittest.TestCase):
         with self.assertRaises(ValueError):
             ev.stats_from_vecnormalize(object())
 
+    @needs_sb3
     def test_rejects_dict_obs_rms(self):
         vn = _make_vecnormalize()
         vn.obs_rms = {"a": vn.obs_rms}
         with self.assertRaises(ValueError):
             ev.stats_from_vecnormalize(vn)
 
+    @needs_sb3
     def test_write_and_reread(self):
         vn = _make_vecnormalize()
         stats = ev.stats_from_vecnormalize(vn)

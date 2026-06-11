@@ -12,6 +12,13 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import export_action_dist as ead  # noqa: E402
 
+# Guarded heavy import (#141): missing torch -> skip, not error, under bare python.
+try:
+    import torch  # noqa: F401
+    HAVE_TORCH = True
+except ImportError:
+    HAVE_TORCH = False
+
 
 class TestStdFromLogStd(unittest.TestCase):
     def test_exp_of_log_std(self):
@@ -27,6 +34,7 @@ class TestStdFromLogStd(unittest.TestCase):
 
 
 class TestStdFromModel(unittest.TestCase):
+    @unittest.skipUnless(HAVE_TORCH, "torch not installed")
     def test_extracts_from_policy_log_std(self):
         import torch
         model = SimpleNamespace(policy=SimpleNamespace(log_std=torch.tensor([0.0, math.log(3.0)])))

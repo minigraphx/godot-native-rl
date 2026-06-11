@@ -7,6 +7,15 @@ sys.path.insert(0, str(SCRIPTS))
 
 import train_sf as ts  # noqa: E402
 
+# Guarded heavy import (#141): missing numpy -> skips, not errors, under bare python.
+try:
+    import numpy  # noqa: F401
+    HAVE_NUMPY = True
+except ImportError:
+    HAVE_NUMPY = False
+
+needs_numpy = unittest.skipUnless(HAVE_NUMPY, "numpy not installed")
+
 
 class TestParseArgs(unittest.TestCase):
     def test_defaults(self):
@@ -71,17 +80,20 @@ class TestNestScalarActions(unittest.TestCase):
         # Multi-key action spaces already arrive as per-key sequences; leave them alone.
         self.assertEqual(ts.nest_scalar_actions([[1, 2], [3, 4]]), [[1, 2], [3, 4]])
 
+    @needs_numpy
     def test_numpy_bare_zero_d_scalar(self):
         import numpy as np
 
         self.assertEqual(ts.nest_scalar_actions(np.int64(7)), [[7]])
 
+    @needs_numpy
     def test_numpy_zero_d_scalars_are_wrapped(self):
         import numpy as np
 
         out = ts.nest_scalar_actions([np.int32(3), np.int64(1)])
         self.assertEqual(out, [[3], [1]])
 
+    @needs_numpy
     def test_numpy_1d_per_agent_passes_through(self):
         import numpy as np
 

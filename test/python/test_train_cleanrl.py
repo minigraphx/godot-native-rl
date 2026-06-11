@@ -2,14 +2,20 @@ import sys
 import unittest
 from pathlib import Path
 
-import numpy as np
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-import train_cleanrl as tc  # noqa: E402
+# Guarded heavy imports (#141): missing deps -> skips, not errors, under bare python.
+try:
+    import numpy as np  # noqa: E402
+    import train_cleanrl as tc  # noqa: E402
+    HAVE_DEPS = True
+except ImportError:
+    HAVE_DEPS = False
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy not installed")
 class TestComputeGae(unittest.TestCase):
     """GAE advantages + returns against hand-computed values (gamma=0.99, lam=0.95)."""
 
@@ -60,6 +66,7 @@ class TestComputeGae(unittest.TestCase):
         self.assertEqual(ret.shape, (3, 4))
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy not installed")
 class TestDiscreteActionDims(unittest.TestCase):
     def test_single_head(self):
         total, nvec = tc.discrete_action_dims([5])
@@ -80,6 +87,7 @@ class TestDiscreteActionDims(unittest.TestCase):
             tc.discrete_action_dims([3, 0])
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy not installed")
 class TestNumUpdates(unittest.TestCase):
     def test_chase_default(self):
         self.assertEqual(tc.num_updates(300_000, 256, 1), 1171)
@@ -91,6 +99,7 @@ class TestNumUpdates(unittest.TestCase):
         self.assertEqual(tc.num_updates(10, 256, 1), 0)
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy not installed")
 class TestObsAndActLayout(unittest.TestCase):
     class _FakeBox:
         def __init__(self, shape):
@@ -109,6 +118,7 @@ class TestObsAndActLayout(unittest.TestCase):
         self.assertEqual(nvec, [5])
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy not installed")
 class TestParseArgs(unittest.TestCase):
     def test_defaults(self):
         cfg = tc.parse_args([])
@@ -134,6 +144,7 @@ class TestParseArgs(unittest.TestCase):
             tc.parse_args(["--not-a-real-arg", "1"])
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy not installed")
 class TestLayerInit(unittest.TestCase):
     def test_orthogonal_and_bias(self):
         try:

@@ -6,9 +6,15 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-import train_bc as bc  # noqa: E402
+# Guarded heavy imports (#141): missing deps -> skips, not errors, under bare python.
+try:
+    import train_bc as bc  # noqa: E402
+    HAVE_DEPS = True
+except ImportError:
+    HAVE_DEPS = False
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy not installed")
 class TrainBCTest(unittest.TestCase):
     def test_resolve_branches_from_action_space(self):
         space = {"move": {"size": 5, "action_type": "discrete"}}

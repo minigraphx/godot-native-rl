@@ -7,7 +7,12 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-import load_expert_demos as ld  # noqa: E402
+# Guarded heavy imports (#141): missing deps -> skips, not errors, under bare python.
+try:
+    import load_expert_demos as ld  # noqa: E402
+    HAVE_DEPS = True
+except ImportError:
+    HAVE_DEPS = False
 
 
 def _write(tmp, name, obj):
@@ -20,6 +25,7 @@ def _write(tmp, name, obj):
 TRAJ = [[[0.0, 1.0], [0.1, 1.1], [0.2, 1.2]], [[1.0], [2.0]]]
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy not installed")
 class DemoLoaderTest(unittest.TestCase):
     def test_loads_gnrl_v1_with_action_space(self):
         with tempfile.TemporaryDirectory() as tmp:
