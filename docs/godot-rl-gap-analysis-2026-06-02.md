@@ -205,7 +205,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | ✅ Done | Batched multi-agent inference — `run_inference_batch` (thread-parallel, one shared `Net`) + `CrowdController` + `chase_crowd` example | #34 |
 | ✅ Done | PettingZoo `ParallelEnv` interop — `GodotParallelEnv` adapter + `parallel_api_test` conformance; live training run shipped (#118) | #111 |
 | ✅ Done | RLlib training-script interop — new-API-stack PPO, custom gymnasium adapter (stock `RayVectorGodotEnv` is old-API-stack only), shares `.venv-train` (#126) | #110 |
-| 🟡 In progress | Continuous-control **locomotion** showcase (Unity Crawler/Walker territory): `quadruped_walk` — code-built 8-hinge-joint articulated quadruped on the Jolt backend; PR1 harness landed (rig+agent+train/track scenes+physics smoke), trained walking net is the follow-up run | #60 |
+| 🟡 M1 done | Continuous-control **locomotion** showcase (Unity Crawler/Walker territory): `quadruped_walk` — code-built 8-hinge-joint articulated quadruped on Jolt; M1 ships a trained PPO ncnn net that walks ~10m (forward-velocity reward) + learning-stage spread + behavioral/golden regressions. Epic ongoing (hurdles, race, morphologies, video = M2–M5) | #60 |
 | ✅ Done | Plugin editor-DX parity: drop-in sensor scenes (`sensors/scenes/`) + `NcnnAIController` script templates auto-installed on enable | #112 |
 | ⚪ P5 | Optuna hyperparameter-tuning example (nice-to-have) | #113 |
 | ⚪ P4 | CameraSensor: configurable render res + downscale + RGBA | #36 |
