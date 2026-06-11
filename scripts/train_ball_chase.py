@@ -20,7 +20,8 @@ import sys
 # Reuse the shared SAC actor-export helper + checkpoint picker (import-light: no torch).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from export_sac_torchscript import export_sac_actor_as_torchscript  # noqa: E402
-from checkpoints import select_checkpoint  # noqa: E402
+from checkpoints import select_checkpoint, sync_manifest_checkpoints  # noqa: E402
+from reward_checkpoint import make_reward_gated_checkpoint  # noqa: E402
 
 
 def remaining_timesteps(total: int, done: int) -> int:
@@ -40,6 +41,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--checkpoint_freq", type=int, default=25_000)
     p.add_argument("--checkpoint_dir", type=str, default="models/ball_chase_checkpoints")
     p.add_argument("--fresh", action="store_true", help="ignore any checkpoint and start over")
+    p.add_argument("--best_checkpoint", action="store_true",
+                   help="also save ball_chase_ckpt_best.zip whenever the rolling mean episode "
+                        "reward improves (#138); the deploy-side exporters prefer it")
     return p.parse_args(argv)
 
 
@@ -66,11 +70,17 @@ def main() -> None:
     # Periodic checkpoints so an interrupted run (e.g. shutdown) can resume.
     # CheckpointCallback's save_freq counts env.step() calls; divide by the number of
     # parallel envs so --checkpoint_freq stays in total-timestep units (n_parallel=1 today).
-    checkpoint_cb = CheckpointCallback(
+    callbacks = [CheckpointCallback(
         save_freq=max(args.checkpoint_freq // env.num_envs, 1),
         save_path=args.checkpoint_dir,
         name_prefix="ball_chase_ckpt",
-    )
+    )]
+    if args.best_checkpoint:
+        # Additive reward-gated best checkpoint (#138). Note SAC's collect_rollouts is
+        # train_freq-sized (1 step here), so the gate is evaluated per step -- still
+        # cheap (saves only on rolling-mean improvement), just a denser check than PPO.
+        callbacks.append(make_reward_gated_checkpoint(
+            args.checkpoint_dir, name_prefix="ball_chase_ckpt", verbose=1))
 
     ckpt = None if args.fresh else select_checkpoint(args.checkpoint_dir, policy="resume")
     if ckpt is not None:
@@ -81,7 +91,7 @@ def main() -> None:
         steps = remaining_timesteps(args.timesteps, model.num_timesteps)
         print("Resuming from %s at %d steps; %d remaining" % (ckpt, model.num_timesteps, steps))
         if steps > 0:
-            model.learn(steps, reset_num_timesteps=False, callback=checkpoint_cb)
+            model.learn(steps, reset_num_timesteps=False, callback=callbacks)
     else:
         print("Starting fresh (%d timesteps)" % args.timesteps)
         # Do NOT pass seed= to SAC — the godot_rl env's seed() raises NotImplementedError;
@@ -97,7 +107,10 @@ def main() -> None:
             gradient_steps=1,
             tensorboard_log="logs/sb3",
         )
-        model.learn(args.timesteps, callback=checkpoint_cb)
+        model.learn(args.timesteps, callback=callbacks)
+
+    # Record this run's step checkpoints in the manifest (#105 part B).
+    sync_manifest_checkpoints(args.checkpoint_dir)
 
     zip_path = pathlib.Path(args.save_model_path).with_suffix(".zip")
     zip_path.parent.mkdir(parents=True, exist_ok=True)

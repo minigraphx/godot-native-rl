@@ -13,8 +13,15 @@ SPEEDUP="${SPEEDUP:-8}"
 ACTION_REPEAT="${ACTION_REPEAT:-4}"
 SCENE="${SCENE:-res://examples/fly_by/fly_by_train.tscn}"
 
+# BEST_CHECKPOINT=1 saves a reward-gated best checkpoint (#138); the deploy-side
+# exporters prefer it over the final model. ($BEST_FLAG intentionally unquoted.)
+BEST_FLAG=""
+if [ -n "${BEST_CHECKPOINT:-}" ]; then
+	BEST_FLAG="--best_checkpoint"
+fi
+
 echo "Starting SB3 PPO trainer (timesteps=$TIMESTEPS)..."
-"$PY" scripts/train_fly_by.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" &
+"$PY" scripts/train_fly_by.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" $BEST_FLAG &
 TRAINER_PID=$!
 
 # Give the trainer a moment to bind the server socket before Godot connects.

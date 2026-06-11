@@ -6,12 +6,17 @@ training scene which connects as the client. See scripts/train_chase.sh for orch
 """
 import argparse
 import pathlib
+import sys
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env.vec_monitor import VecMonitor
 
 from godot_rl.wrappers.stable_baselines_wrapper import StableBaselinesGodotEnv
 from godot_rl.wrappers.onnx.stable_baselines_export import export_model_as_onnx
+
+# Reward-gated best-checkpoint helper (import-light: no torch at module load).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from reward_checkpoint import make_reward_gated_checkpoint  # noqa: E402
 
 
 def main() -> None:
@@ -22,6 +27,11 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--save_model_path", type=str, default="models/chase_policy.zip")
     parser.add_argument("--onnx_export_path", type=str, default="models/chase_policy.onnx")
+    parser.add_argument("--checkpoint_dir", type=str, default="models/chase_checkpoints",
+                        help="where --best_checkpoint writes chase_ckpt_best.zip + manifest")
+    parser.add_argument("--best_checkpoint", action="store_true",
+                        help="save chase_ckpt_best.zip whenever the rolling mean episode "
+                             "reward improves (#138); the deploy-side exporters prefer it")
     args = parser.parse_args()
 
     # env_path=None => in-editor training: opens the server and waits for a Godot client.
@@ -45,7 +55,13 @@ def main() -> None:
         batch_size=64,
         tensorboard_log="logs/sb3",
     )
-    model.learn(args.timesteps)
+    # Chase has no periodic checkpoints (short runs); the reward-gated best (#138)
+    # is its only checkpoint artifact, opt-in.
+    callbacks = []
+    if args.best_checkpoint:
+        callbacks.append(make_reward_gated_checkpoint(
+            args.checkpoint_dir, name_prefix="chase_ckpt", verbose=1))
+    model.learn(args.timesteps, callback=callbacks or None)
 
     zip_path = pathlib.Path(args.save_model_path).with_suffix(".zip")
     zip_path.parent.mkdir(parents=True, exist_ok=True)

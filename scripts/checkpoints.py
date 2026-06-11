@@ -161,6 +161,9 @@ def write_manifest(checkpoint_dir: str, manifest: dict) -> None:
     manifest["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     fd, tmp = tempfile.mkstemp(prefix=".manifest-", suffix=".json", dir=str(d))
     try:
+        # mkstemp creates 0600; make the manifest world-readable like a normal file
+        # (it's the human-readable run record).
+        os.fchmod(fd, 0o644)
         with os.fdopen(fd, "w") as f:
             f.write(json.dumps(manifest, indent=1, sort_keys=True))
         os.replace(tmp, manifest_path(checkpoint_dir))
@@ -177,8 +180,10 @@ def record_best_in_manifest(
 ) -> None:
     """Bless `best_file` as the run's best in the manifest (single commit point).
 
-    Called by reward_checkpoint.py after the best zip is saved; the manifest entry --
-    not the zip's existence -- is what records the reward the gate must beat next.
+    `best_file` must be a BARE filename (e.g. "rover_ckpt_best.zip"), not a path --
+    readers join it to `checkpoint_dir`, so a path here would store a non-portable
+    entry. Called by reward_checkpoint.py after the best zip is saved; the manifest
+    entry -- not the zip's existence -- records the reward the gate must beat next.
     """
     manifest = load_manifest(checkpoint_dir) or {}
     manifest["best"] = {
