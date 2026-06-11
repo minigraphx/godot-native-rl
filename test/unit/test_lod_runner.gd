@@ -89,4 +89,12 @@ func _initialize() -> void:
 	h.assert_eq(lod2.deliberative_interval, 1, "negative deliberative_interval clamps to 1")
 	lod2.free()
 
+	# #174: decide() before init (no _ready / setup_for_test) returns a safe empty result, not a crash.
+	var lod3 := NcnnLODRunner.new()
+	var d3: Dictionary = lod3.decide(OBS)
+	h.assert_eq(d3["logits"], PackedFloat32Array(), "decide() before init returns empty logits (no crash)")
+	h.assert_eq(d3["tier"], "reflex", "decide() before init reports reflex tier")
+	h.assert_true(not d3["ran_deliberative"], "decide() before init did not run deliberative")
+	lod3.free()
+
 	h.finish(self)
