@@ -18,8 +18,12 @@ const LodScheduler = preload("res://addons/godot_native_rl/controllers/lod_sched
 @export var input_blob_name: String = "in0"
 @export var output_blob_name: String = "out0"
 ## The deliberative net runs every `deliberative_interval` frames (>= 1). 1 disables LOD (the
-## deliberative net runs every frame).
-@export var deliberative_interval: int = 4
+## deliberative net runs every frame). Changing it at runtime updates the live cadence.
+@export var deliberative_interval: int = 4:
+	set(value):
+		deliberative_interval = value
+		if _scheduler != null:
+			_scheduler.set_interval(value)
 
 var _scheduler: LodScheduler
 var _reflex
@@ -27,6 +31,10 @@ var _deliberative
 var _last_deliberative_logits := PackedFloat32Array()
 
 func _ready() -> void:
+	# Idempotent: if already configured (e.g. setup_for_test injected runners + scheduler before
+	# the node was added to the tree), don't clobber them — mirrors NcnnCrowdController's guard.
+	if _scheduler != null:
+		return
 	_scheduler = LodScheduler.new(deliberative_interval)
 	_reflex = _make_runner(reflex_param_path, reflex_bin_path)
 	_deliberative = _make_runner(deliberative_param_path, deliberative_bin_path)
