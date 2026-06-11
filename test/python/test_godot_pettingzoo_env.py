@@ -6,14 +6,17 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-# Guarded heavy imports (#141): missing deps -> skips, not errors, under bare python.
+# Dep probe (#141/#148): only third-party deps live in the try, so a missing dep
+# skips while a real ImportError inside the script under test stays loud.
 try:
     import numpy as np  # noqa: E402
     from gymnasium import spaces  # noqa: E402
-    from godot_pettingzoo_env import GodotParallelEnv  # noqa: E402
+    import pettingzoo  # noqa: F401, E402  (godot_pettingzoo_env needs it)
     HAVE_DEPS = True
 except ImportError:
     HAVE_DEPS = False
+if HAVE_DEPS:
+    from godot_pettingzoo_env import GodotParallelEnv  # noqa: E402
 
 
 class StubGodotEnv:

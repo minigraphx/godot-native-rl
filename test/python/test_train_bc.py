@@ -6,12 +6,15 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-# Guarded heavy imports (#141): missing deps -> skips, not errors, under bare python.
+# Dep probe (#141/#148): only third-party deps live in the try, so a missing dep
+# skips while a real ImportError inside the script under test stays loud.
 try:
-    import train_bc as bc  # noqa: E402
+    import numpy  # noqa: F401  (train_bc -> load_expert_demos needs it)
     HAVE_DEPS = True
 except ImportError:
     HAVE_DEPS = False
+if HAVE_DEPS:
+    import train_bc as bc  # noqa: E402
 
 
 @unittest.skipUnless(HAVE_DEPS, "numpy not installed")
