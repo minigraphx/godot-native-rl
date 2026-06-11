@@ -18,8 +18,10 @@ import argparse
 import pathlib
 import sys
 
-# Reuse the deterministic-actor TorchScript tracer (import stays light at module load: no torch).
+# Reuse the deterministic-actor TorchScript tracer + best-checkpoint helper (import stays
+# light at module load: no torch).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from reward_checkpoint import make_reward_gated_checkpoint  # noqa: E402
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -30,6 +32,11 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--save_model_path", type=str, default="models/fly_by_policy.zip")
     p.add_argument("--pt_export_path", type=str, default="models/fly_by_policy.pt")
+    p.add_argument("--checkpoint_dir", type=str, default="models/fly_by_checkpoints",
+                   help="where --best_checkpoint writes fly_by_ckpt_best.zip + manifest")
+    p.add_argument("--best_checkpoint", action="store_true",
+                   help="save fly_by_ckpt_best.zip whenever the rolling mean episode "
+                        "reward improves (#138); the deploy-side exporters prefer it")
     return p.parse_args(argv)
 
 
@@ -65,7 +72,13 @@ def main() -> None:
         learning_rate=3e-4,
         tensorboard_log="logs/sb3",
     )
-    model.learn(args.timesteps)
+    # FlyBy has no periodic checkpoints; the reward-gated best (#138) is its only
+    # checkpoint artifact, opt-in.
+    callbacks = []
+    if args.best_checkpoint:
+        callbacks.append(make_reward_gated_checkpoint(
+            args.checkpoint_dir, name_prefix="fly_by_ckpt", verbose=1))
+    model.learn(args.timesteps, callback=callbacks or None)
 
     zip_path = pathlib.Path(args.save_model_path).with_suffix(".zip")
     zip_path.parent.mkdir(parents=True, exist_ok=True)

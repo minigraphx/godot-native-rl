@@ -31,12 +31,15 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(a.checkpoint_freq, 25_000)
         self.assertEqual(a.checkpoint_dir, "models/ball_chase_checkpoints")
         self.assertFalse(a.fresh)
+        self.assertFalse(a.best_checkpoint)
 
     def test_overrides(self):
-        a = t.parse_args(["--timesteps", "1234", "--speedup", "4", "--fresh"])
+        a = t.parse_args(["--timesteps", "1234", "--speedup", "4", "--fresh",
+                          "--best_checkpoint"])
         self.assertEqual(a.timesteps, 1234)
         self.assertEqual(a.speedup, 4)
         self.assertTrue(a.fresh)
+        self.assertTrue(a.best_checkpoint)
 
 
 if __name__ == "__main__":

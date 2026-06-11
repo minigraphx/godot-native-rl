@@ -13,8 +13,15 @@ SPEEDUP="${SPEEDUP:-8}"
 ACTION_REPEAT="${ACTION_REPEAT:-8}"
 SCENE="res://examples/chase_the_target/chase_the_target_train.tscn"
 
+# BEST_CHECKPOINT=1 saves a reward-gated best checkpoint (#138); the deploy-side
+# exporters prefer it over the final model. ($BEST_FLAG intentionally unquoted.)
+BEST_FLAG=""
+if [ -n "${BEST_CHECKPOINT:-}" ]; then
+	BEST_FLAG="--best_checkpoint"
+fi
+
 echo "Starting SB3 trainer (timesteps=$TIMESTEPS)..."
-"$PY" scripts/train_chase.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" &
+"$PY" scripts/train_chase.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" $BEST_FLAG &
 TRAINER_PID=$!
 
 # Give the trainer a moment to bind the server socket before Godot connects.

@@ -57,7 +57,8 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   `TIMESTEPS=N` raise the target to **refine** an existing model further; `BEST_CHECKPOINT=1`
   additionally saves `rover_ckpt_best.zip` whenever the rolling mean episode reward improves
   (#138 — reward-gated via `scripts/reward_checkpoint.py`, best persisted across resumes in the
-  run manifest; the deploy-policy exporters prefer it). On macOS/Apple Silicon wrap
+  run manifest; the deploy-policy exporters prefer it; **all four SB3 trainers** — chase,
+  rover, ball_chase, fly_by — accept `BEST_CHECKPOINT=1`). On macOS/Apple Silicon wrap
   it: `caffeinate -is ./scripts/train_rover.sh` (see sleep gotcha below).
 - **Train (rover, parallel — fast):** `SCENE=res://examples/rover_3d/rover_3d_train_parallel.tscn
   ./scripts/train_rover.sh` — tiles 8 rover worlds in one process (`ParallelArena`), so godot-rl

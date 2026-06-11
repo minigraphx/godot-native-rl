@@ -16,11 +16,17 @@ FRESH_FLAG=""
 if [ -n "${FRESH:-}" ]; then
 	FRESH_FLAG="--fresh"
 fi
+# BEST_CHECKPOINT=1 additionally saves ball_chase_ckpt_best.zip on rolling-mean-reward
+# improvement (#138); the deploy-side exporters prefer it over the latest checkpoint.
+BEST_FLAG=""
+if [ -n "${BEST_CHECKPOINT:-}" ]; then
+	BEST_FLAG="--best_checkpoint"
+fi
 SCENE="${SCENE:-res://examples/ball_chase/ball_chase_train.tscn}"
 
 echo "Starting SB3 SAC trainer (timesteps=$TIMESTEPS)..."
-# $FRESH_FLAG is intentionally unquoted: empty when FRESH is unset, "--fresh" when set.
-"$PY" scripts/train_ball_chase.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" --checkpoint_freq "$CHECKPOINT_FREQ" $FRESH_FLAG &
+# $FRESH_FLAG/$BEST_FLAG are intentionally unquoted: empty when unset, the flag when set.
+"$PY" scripts/train_ball_chase.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" --checkpoint_freq "$CHECKPOINT_FREQ" $FRESH_FLAG $BEST_FLAG &
 TRAINER_PID=$!
 
 # Give the trainer a moment to bind the server socket before Godot connects.

@@ -15,11 +15,14 @@ class TestParseArgs(unittest.TestCase):
         self.assertGreater(a.timesteps, 0)
         self.assertTrue(a.save_model_path.endswith(".zip"))
         self.assertTrue(a.pt_export_path.endswith(".pt"))
+        self.assertEqual(a.checkpoint_dir, "models/fly_by_checkpoints")
+        self.assertFalse(a.best_checkpoint)
 
     def test_overrides(self):
-        a = tfb.parse_args(["--timesteps", "1234", "--speedup", "4"])
+        a = tfb.parse_args(["--timesteps", "1234", "--speedup", "4", "--best_checkpoint"])
         self.assertEqual(a.timesteps, 1234)
         self.assertEqual(a.speedup, 4)
+        self.assertTrue(a.best_checkpoint)
 
 
 if __name__ == "__main__":
