@@ -91,10 +91,17 @@ func _physics_process(delta: float) -> void:
 	accumulate_reward()
 	reward += upright_weight * _game.upright()
 	reward -= energy_penalty * _sum_abs(_action)
-	if needs_reset or _is_fallen():
+	# A fall is a terminal state: signal `done` (and `needs_reset`) so the trainer gets a real
+	# episode boundary — mirrors the core's reset_after timeout (which sets done+needs_reset on
+	# step()). WITHOUT this, the constant early-training falls reset n_steps every few frames, so
+	# the 1000-step timeout never fires and `done` never reaches the trainer → no episode ever
+	# completes → no learning signal (SB3 logs no ep_rew_mean).
+	if _is_fallen():
+		reward -= fall_penalty
+		done = true
+		needs_reset = true
+	if needs_reset:
 		needs_reset = false
-		if _is_fallen():
-			reward -= fall_penalty
 		_game.reset_positions()
 		reset()
 		zero_reward()
