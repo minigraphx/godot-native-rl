@@ -110,6 +110,25 @@ class TestSelectCheckpoint(unittest.TestCase):
                 str(Path(d) / "rover_ckpt_50000_steps.zip"),
             )
 
+    def test_resume_best_only_dir_starts_fresh(self):
+        # A dir containing ONLY a best zip must not be resumed from via the mtime
+        # fallback (#139 review carry-over): best is a deploy artifact.
+        with tempfile.TemporaryDirectory() as d:
+            _touch(d, "rover_ckpt_best.zip")
+            self.assertIsNone(cp.select_checkpoint(d, policy="resume"))
+            # ...while deploy still finds it.
+            self.assertEqual(
+                cp.select_checkpoint(d, policy="deploy"),
+                str(Path(d) / "rover_ckpt_best.zip"),
+            )
+
+    def test_resume_mtime_fallback_skips_best(self):
+        # Non-step zips fall back to mtime for resume, but a newer best zip never wins.
+        with tempfile.TemporaryDirectory() as d:
+            plain = _touch(d, "model.zip", mtime=1000)
+            _touch(d, "rover_ckpt_best.zip", mtime=2000)
+            self.assertEqual(cp.select_checkpoint(d, policy="resume"), str(plain))
+
     def test_deploy_prefers_best(self):
         with tempfile.TemporaryDirectory() as d:
             _touch(d, "rover_ckpt_50000_steps.zip")
@@ -142,6 +161,16 @@ class TestSelectCheckpoint(unittest.TestCase):
     def test_unknown_policy_raises(self):
         with self.assertRaises(ValueError):
             cp.select_checkpoint("/tmp", policy="bogus")
+
+
+class TestBestZipPath(unittest.TestCase):
+    def test_naming_matches_best_suffix(self):
+        # The writer's path must be discoverable by the deploy picker.
+        with tempfile.TemporaryDirectory() as d:
+            best = cp.best_zip_path(d, "rover_ckpt")
+            self.assertEqual(best, Path(d) / "rover_ckpt_best.zip")
+            best.touch()
+            self.assertEqual(cp.best_reward_checkpoint(d), str(best))
 
 
 if __name__ == "__main__":
