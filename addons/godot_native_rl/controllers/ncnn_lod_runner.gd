@@ -79,6 +79,11 @@ func reset() -> void:
 ## On a deliberative frame the deliberative net runs (and its logits are cached); otherwise the
 ## reflex net runs. `state_changed=true` forces the deliberative net this frame.
 func decide(obs: PackedFloat32Array, state_changed: bool = false) -> Dictionary:
+	if _scheduler == null:
+		# decide() before _ready()/setup_for_test() — fail with a diagnostic, not a raw null crash
+		# (mirrors the runner-null branch below; reset() guards the same way).
+		push_error("NcnnLODRunner.decide: node not initialized (add it to the tree or call setup_for_test).")
+		return {"logits": PackedFloat32Array(), "tier": "reflex", "ran_deliberative": false}
 	var due: bool = _scheduler.tick(state_changed)
 	var runner = _deliberative if due else _reflex
 	if runner == null:
