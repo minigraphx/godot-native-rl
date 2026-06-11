@@ -10,9 +10,15 @@ const RewardBuilderScript = preload("res://addons/godot_native_rl/reward/reward_
 # RewardAdapterScript is inherited from the controller — do not redeclare.
 
 @export var game_path: NodePath
-@export var upright_weight := 0.05
-@export var alive_bonus := 0.01
-@export var energy_penalty := 0.002
+# Locomotion reward (tuned 2026-06-11): a dense forward-velocity term is the main driver so the
+# policy is rewarded for *moving* toward the finish, not just surviving. The upright/alive bonuses
+# are kept small — just enough to bootstrap standing — so balancing-in-place is no longer the
+# optimum (the v1 weights, upright 0.05 / alive 0.01 with no velocity term, produced a creature
+# that balanced and shuffled ~3m instead of walking).
+@export var forward_weight := 0.2
+@export var upright_weight := 0.02
+@export var alive_bonus := 0.005
+@export var energy_penalty := 0.0005
 @export var fall_penalty := 1.0
 @export var fall_height := 0.45      ## torso below this Y = fallen
 @export var fall_upright := 0.2      ## upright dot below this = fallen
@@ -87,8 +93,10 @@ func _physics_process(delta: float) -> void:
 		return
 	if _action.size() == ACTION_COUNT:
 		_game.apply_motors(_action)
-	# Progress + alive come from reward_source; upright + energy applied directly.
+	# Progress + alive come from reward_source; forward velocity (main driver) + upright + energy
+	# applied directly. Forward velocity is the dense locomotion signal: reward moving toward +Z.
 	accumulate_reward()
+	reward += forward_weight * _game.forward_velocity()
 	reward += upright_weight * _game.upright()
 	reward -= energy_penalty * _sum_abs(_action)
 	# A fall is a terminal state: signal `done` (and `needs_reset`) so the trainer gets a real
