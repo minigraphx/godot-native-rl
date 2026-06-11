@@ -70,6 +70,7 @@ you get**. Pick by deployment target, not by benchmark.
 | Recurrent / LSTM deploy | — | — | 🟢 hidden-state carry |
 | VecNormalize obs parity | on you | on you | 🟢 replayed game-side |
 | Scope | inference runtime | inference runtime | full train→convert→deploy pipeline (wire protocol, sensors, reward authoring, golden tests) |
+| Maintenance / maturity | ORT actively maintained (Microsoft); shipped in godot_rl | ORT is rock-solid, but the **Godot glue is a stale one-dev POC** — last commit Feb 2024, no releases, godot-cpp pinned to a 2024-era commit (likely needs reviving for Godot 4.5+) | actively maintained: CI across all platforms, tagged releases, Godot 4.5/4.6 |
 | License | MIT | MIT (ORT) | BSD-3 (ncnn) |
 
 **How to choose:**
@@ -137,12 +138,13 @@ existing GDExtension web pipeline instead of needing .NET.
 
 > **Moat-risk note (the web edge is a *godot_rl* limitation, not an ONNX one).** godot_rl can't web-export
 > only because its *stock* no-Python path runs through Godot **Mono/.NET** — a property of *how it integrated
-> ONNX*, not of ONNX Runtime itself. A community **native C++ ORT GDExtension** already exists
+> ONNX*, not of ONNX Runtime itself. A community **native C++ ORT GDExtension** has been demonstrated
 > ([`godot_onnx_extension`][godot-onnx-ext], the subject of godot_rl issue [#249][grl-249]): it drops .NET
 > and reaches desktop + Android, but **does not ship a WASM build today**, so as of now **ncnn is still the
-> only one of the three native paths proven in the browser**. The latent risk is that a native-ORT
-> GDExtension *adds* a web target — at which point "godot_rl literally can't reach the browser" stops being
-> true. Even then it would not fully neutralise the moat: ORT-on-WASM would ride the same brittle `wasm32`
+> only one of the three native paths proven in the browser**. It's also an **unmaintained proof-of-concept**
+> (last commit Feb 2024, no releases, godot-cpp pinned to a 2024-era commit — likely needs reviving for
+> Godot 4.5+), so the risk is doubly latent: someone must first *revive* it **and** then *add* a web target
+> before "godot_rl literally can't reach the browser" stops being true. Even then it would not fully neutralise the moat: ORT-on-WASM would ride the same brittle `wasm32`
 > dlink pipeline and carry a heavier footprint than ncnn's ~3.4 MB static `.so`, and the
 > console-certification / edge-footprint / game-side-INT8 wins below survive regardless. So lean the
 > positioning on *those* pillars, not on the browser alone. (We could also ship a native-ORT backend

@@ -51,10 +51,11 @@ integrated ONNX* — its *stock* no-Python path runs through Godot **Mono/.NET**
 ([godot#70796](https://github.com/godotengine/godot/issues/70796)). ONNX Runtime itself has a native C/C++ core,
 and a community **native ORT GDExtension already exists** ([`godot_onnx_extension`](https://github.com/joemarshall/godot_onnx_extension),
 the subject of godot_rl issue [#249](https://github.com/edbeeching/godot_rl_agents/issues/249)): it drops .NET
-and reaches desktop + Android **with no conversion step**, but **does not web-export today**. So right now ncnn
-is still the only native path proven in the browser; the risk is that this (or a successor) *adds* a WASM
-target, closing godot_rl's biggest gap against this project — which is why "native ONNX integration is
-interesting" really means "interesting *for godot_rl*."
+and reaches desktop + Android **with no conversion step**, but **does not web-export today** — and it's an
+**unmaintained POC** (last commit Feb 2024, no releases, godot-cpp pinned to a 2024-era commit). So right now
+ncnn is still the only native path proven in the browser, and the risk is doubly latent: someone must *revive*
+that extension **and** *add* a WASM target before godot_rl's biggest gap against this project closes — which is
+why "native ONNX integration is interesting" really means "interesting *for godot_rl*."
 
 Implications for positioning:
 - **Web/WASM is our headline pillar but the most contestable one.** If godot_rl grows a native (non-.NET) ORT
