@@ -60,4 +60,42 @@ func _initialize() -> void:
 	tgt3.free()
 	s3.free()
 
+	# --- #168: egocentric frame + opt-out ---
+	var se := NavMeshSensor2D.new()
+	se.position = Vector2.ZERO
+	se.rotation = PI / 2  # facing "down"; egocentric direction is rotated by -PI/2
+	se.max_distance = 40.0
+	var te := Node2D.new()
+	te.position = Vector2(0, 10)
+	se.target = te
+	se.set_path_fn_for_test(func(_f, _t): return PackedVector2Array([Vector2(0, 0), Vector2(0, 10)]))
+	var oe := se.get_observation()  # egocentric default true: world +Y -> local +X
+	h.assert_true(Vector2(oe[1], oe[2]).is_equal_approx(Vector2(1, 0)),
+		"egocentric (default) rotates the direction into the sensor frame")
+	se.egocentric = false
+	var ow := se.get_observation()  # world frame: +Y
+	h.assert_true(Vector2(ow[1], ow[2]).is_equal_approx(Vector2(0, 1)),
+		"egocentric=false emits the world-frame direction")
+	te.free()
+	se.free()
+
+	# --- #168: require_reachable gates a partial path (disconnected island) ---
+	var sr := NavMeshSensor2D.new()
+	sr.position = Vector2.ZERO
+	sr.max_distance = 100.0
+	sr.require_reachable = true
+	sr.reachable_tolerance = 1.0
+	var tr := Node2D.new()
+	tr.position = Vector2(90, 0)  # "walled off"
+	sr.target = tr
+	# Partial path: ends at (5,0), nowhere near the (90,0) target -> reads as unreachable.
+	sr.set_path_fn_for_test(func(_f, _t): return PackedVector2Array([Vector2(0, 0), Vector2(5, 0)]))
+	h.assert_eq(sr.get_observation(), [0.0, 0.0, 0.0],
+		"require_reachable: partial path to a walled-off target zero-fills")
+	# A path that actually reaches the target encodes normally.
+	sr.set_path_fn_for_test(func(_f, _t): return PackedVector2Array([Vector2(0, 0), Vector2(90, 0)]))
+	h.assert_true(sr.get_observation()[0] > 0.0, "require_reachable: a reaching path encodes closeness")
+	tr.free()
+	sr.free()
+
 	h.finish(self)
