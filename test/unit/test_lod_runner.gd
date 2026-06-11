@@ -97,4 +97,18 @@ func _initialize() -> void:
 	h.assert_true(not d3["ran_deliberative"], "decide() before init did not run deliberative")
 	lod3.free()
 
+	# #178: a null runner on its due frame reports ran_deliberative=false (nothing ran), not true,
+	# so a caller can't adopt the empty logits as the latest deliberative output. tier still reports
+	# which net was due.
+	var lod4 := NcnnLODRunner.new()
+	lod4.setup_for_test(reflex, null, 1)  # interval 1 -> frame 0 due (deliberative), but it's null
+	get_root().add_child(lod4)
+	var d4: Dictionary = lod4.decide(OBS)
+	h.assert_eq(d4["tier"], "deliberative", "null deliberative frame still reports the due tier")
+	h.assert_true(not d4["ran_deliberative"], "null deliberative runner -> ran_deliberative false")
+	h.assert_eq(d4["logits"], PackedFloat32Array(), "null deliberative runner -> empty logits")
+	h.assert_eq(lod4.last_deliberative_logits(), PackedFloat32Array(),
+		"null deliberative frame does not poison the cached deliberative output")
+	lod4.free()
+
 	h.finish(self)
