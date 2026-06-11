@@ -18,12 +18,14 @@ const LodScheduler = preload("res://addons/godot_native_rl/controllers/lod_sched
 @export var input_blob_name: String = "in0"
 @export var output_blob_name: String = "out0"
 ## The deliberative net runs every `deliberative_interval` frames (>= 1). 1 disables LOD (the
-## deliberative net runs every frame). Changing it at runtime updates the live cadence.
+## deliberative net runs every frame). Changing it at runtime updates the live cadence. Clamped to
+## >= 1 in the setter so the stored/inspector value matches the effective cadence (LodScheduler
+## clamps too, but the export would otherwise show e.g. 0 while the scheduler runs at 1).
 @export var deliberative_interval: int = 4:
 	set(value):
-		deliberative_interval = value
+		deliberative_interval = maxi(value, 1)
 		if _scheduler != null:
-			_scheduler.set_interval(value)
+			_scheduler.set_interval(deliberative_interval)
 
 var _scheduler: LodScheduler
 var _reflex
