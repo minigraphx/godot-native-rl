@@ -297,8 +297,11 @@ the same change. New items → GitHub issue only.
     with a completion signal (C++ GDExtension work). *(novel-addons spec §3 B4)*
 15. ⬜ **NavMesh integration sensor** — NavigationServer path distance + next-waypoint direction
     (navigable, not line-of-sight). *(novel-addons spec §3 A3)*
-16. ⬜ **LOD policy switching (`NcnnLODRunner`)** — cheap reflex net every frame, accurate net every
-    N frames / on state change. Genuinely new in game RL. *(novel-addons spec §3 B5)*
+16. ✅ **LOD policy switching (`NcnnLODRunner`)** — cheap reflex net every frame, accurate net every
+    N frames / on state change. Genuinely new in game RL. **Done 2026-06-11** (#21) — pure
+    `LodScheduler` cadence (interval + force-on-state-change + reset) + thin `NcnnLODRunner` node
+    holding two `NcnnRunner`s; one inference/frame (reflex most frames, deliberative every Nth,
+    cached); headless scheduler + two-net integration tests. *(novel-addons spec §3 B5)*
 48. ⬜ **Animation Policy Adapter** — map continuous action outputs to `AnimationTree` blend
     parameters so a trained agent drives production animation without a hand-written blending layer.
     Thin GDScript node taking an action→blend-param mapping; deploy-side only. *(from item 20;
