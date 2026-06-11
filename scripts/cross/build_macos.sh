@@ -32,8 +32,10 @@ fi
 # Guard: a libncnn.a left over from a pre-#152 build (OpenMP on) would have undefined OpenMP
 # runtime symbols that scons pulls libomp in to satisfy at link time — fail loud instead.
 # Anchor on the symbol name (last nm field) so e.g. `_compute_*` can't false-match `omp_`.
+# `grep ... >/dev/null`, NOT `grep -q`: -q exits on first match, SIGPIPEing the still-writing
+# nm/awk under `pipefail` (status 141 -> no-match branch *exactly when* OpenMP symbols exist) (#158).
 if nm "$ncnn_build/install/lib/libncnn.a" 2>/dev/null | awk '{print $NF}' \
-    | grep -Eq '^(_GOMP_|_omp_|___kmpc_)'; then
+    | grep -E '^(_GOMP_|_omp_|___kmpc_)' >/dev/null; then
   echo "ERROR: stale OpenMP-enabled libncnn.a at $ncnn_build/install/lib/libncnn.a." >&2
   echo "       rm -rf $ncnn_build and re-run to rebuild with NCNN_OPENMP=OFF (#152)." >&2
   exit 1
@@ -49,8 +51,10 @@ done
 # whose basename looks like an OpenMP runtime (libomp/libgomp/libiomp5) regardless of path; flag
 # any other non-system dependency. Then dlopen with eager symbol resolution.
 self_basename_ok() { [ "$(basename "$1")" = "$2" ]; }
+audited=0
 for dylib in addons/godot_native_rl/bin/libncnn_runner.macos.*.dylib; do
   [ -f "$dylib" ] || continue
+  audited=$((audited + 1))
   self="$(basename "$dylib")"
   bad=""
   while IFS= read -r dep; do
@@ -77,6 +81,8 @@ ctypes.CDLL(sys.argv[1], mode=ctypes.RTLD_GLOBAL | 2)  # RTLD_NOW
 print("OK: %s is self-contained (no OpenMP/non-system deps) and dlopens" % sys.argv[1])
 PY
 done
+# Fail if the glob matched nothing (#155) — an unaudited "pass" would silently re-open the #152 gap.
+[ "$audited" -ge 2 ] || { echo "ERROR: expected debug+release dylib to audit, found $audited (glob matched nothing?)" >&2; exit 1; }
 
 echo "== built macos arm64 (native) =="
 ls -la addons/godot_native_rl/bin/ | grep macos || true
