@@ -159,20 +159,6 @@ def write_shape_sidecar(model_path: Path, shape: Sequence[int]) -> Path:
     return side
 
 
-def newest_zip(checkpoint_dir: str) -> str:
-    """Newest `*.zip` (by mtime) in `checkpoint_dir`, or "" if none. Pure (no torch).
-
-    The default checkpoint picker for the export scripts (`export_torchscript.py`,
-    `export_sac_torchscript.py`), which re-export the most recently written checkpoint.
-    Deliberately distinct from the trainers' `latest_checkpoint` (which parses the highest
-    `*_<N>_steps.zip` step count for deterministic resume) -- the different name keeps the
-    two selection policies from being confused for one another.
-    """
-    zips = sorted(Path(checkpoint_dir).glob("*.zip"), key=lambda p: p.stat().st_mtime)
-    return str(zips[-1]) if zips else ""
-
-
-
 def inputshape_from_torchscript(pt_path: str) -> str:
     """Best-effort `inputshape` from a TorchScript model's first weight layer.
 

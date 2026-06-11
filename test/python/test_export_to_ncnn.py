@@ -195,26 +195,9 @@ class TestRunExport(unittest.TestCase):
             self.assertFalse((Path(src) / "m.ncnn.param").is_file())
 
 
-class TestNewestZip(unittest.TestCase):
-    """Canonical checkpoint picker shared by the export scripts (mtime-based, returns "")."""
-
-    def test_missing_dir_returns_empty(self):
-        self.assertEqual(ex.newest_zip("/nonexistent/dir/xyz"), "")
-
-    def test_empty_dir_returns_empty(self):
-        with tempfile.TemporaryDirectory() as d:
-            self.assertEqual(ex.newest_zip(d), "")
-
-    def test_picks_newest_by_mtime(self):
-        import os
-        with tempfile.TemporaryDirectory() as d:
-            old = Path(d) / "ckpt_100.zip"
-            new = Path(d) / "ckpt_200.zip"
-            old.write_text("a")
-            new.write_text("b")
-            os.utime(old, (1000, 1000))
-            os.utime(new, (2000, 2000))
-            self.assertEqual(ex.newest_zip(d), str(new))
+# Checkpoint selection moved to the shared `checkpoints` module (see test_checkpoints.py);
+# the export scripts now call select_checkpoint(..., policy="deploy"). The old mtime-based
+# `newest_zip` here is retired in favor of step-count selection (#105).
 
 
 if __name__ == "__main__":

@@ -365,8 +365,9 @@ class TestShapeHelpers(unittest.TestCase):
 class TestExportTorchscriptHelpers(unittest.TestCase):
     """Torch-free helpers of the standalone TorchScript writer (export_torchscript.py).
 
-    The checkpoint picker now lives in export_to_ncnn.newest_zip (tested in
-    test_export_to_ncnn.py); export_torchscript imports it rather than redefining it.
+    The checkpoint picker now lives in the shared `checkpoints` module (tested in
+    test_checkpoints.py); export_torchscript calls select_checkpoint(..., policy="deploy")
+    rather than redefining it.
     """
 
     def test_obs_key_and_box_dict_obs(self):
