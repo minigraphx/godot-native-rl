@@ -1,0 +1,18 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://examples/ball_chase/ball_chase_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/ball_chase/ball_chase_agent.gd" id="2"]
+
+[node name="BallChaseWorld" type="Node2D"]
+script = ExtResource("1")
+agent_body_path = NodePath("AgentBody")
+target_path = NodePath("Target")
+
+[node name="AgentBody" type="Node2D" parent="."]
+
+[node name="Target" type="Node2D" parent="."]
+
+[node name="BallChaseAgent" type="Node2D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+control_mode = 2
