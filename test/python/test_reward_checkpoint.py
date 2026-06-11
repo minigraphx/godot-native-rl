@@ -49,28 +49,45 @@ class TestIsNewBest(unittest.TestCase):
         self.assertFalse(rc.is_new_best(float("nan"), float("-inf")))
 
 
-class TestSidecarPersistence(unittest.TestCase):
-    def test_round_trip(self):
+class TestBestRewardPersistence(unittest.TestCase):
+    def test_manifest_is_the_source_of_truth(self):
+        with tempfile.TemporaryDirectory() as d:
+            rc.record_best_in_manifest(d, "rover_ckpt_best.zip", 3.25, 125_000)
+            self.assertEqual(rc.load_best_reward(d, "rover_ckpt"), 3.25)
+
+    def test_no_record_is_neg_inf(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(rc.load_best_reward(d, "rover_ckpt"), float("-inf"))
+
+    def test_legacy_sidecar_fallback(self):
+        # A pre-manifest run (only the old *_best.zip.json sidecar) is still honored.
         with tempfile.TemporaryDirectory() as d:
             side = pathlib.Path(d) / "rover_ckpt_best.zip.json"
-            rc.save_best_meta(side, 3.25, 125_000)
-            self.assertEqual(rc.load_best_reward(side), 3.25)
-            data = json.loads(side.read_text())
-            self.assertEqual(data["num_timesteps"], 125_000)
-            self.assertIn("saved_at", data)
+            side.write_text(json.dumps({"best_mean_reward": 2.5}))
+            self.assertEqual(rc.load_best_reward(d, "rover_ckpt"), 2.5)
 
-    def test_missing_is_neg_inf(self):
-        self.assertEqual(
-            rc.load_best_reward(pathlib.Path("/no/such/sidecar.json")), float("-inf")
-        )
+    def test_manifest_wins_over_legacy_sidecar(self):
+        with tempfile.TemporaryDirectory() as d:
+            side = pathlib.Path(d) / "rover_ckpt_best.zip.json"
+            side.write_text(json.dumps({"best_mean_reward": 2.5}))
+            rc.record_best_in_manifest(d, "rover_ckpt_best.zip", 4.0, 200_000)
+            self.assertEqual(rc.load_best_reward(d, "rover_ckpt"), 4.0)
 
-    def test_malformed_is_neg_inf(self):
+    def test_malformed_manifest_best_falls_back(self):
+        with tempfile.TemporaryDirectory() as d:
+            from checkpoints import write_manifest
+            write_manifest(d, {"best": {"file": "x.zip", "mean_reward": "not-a-num"}})
+            side = pathlib.Path(d) / "rover_ckpt_best.zip.json"
+            side.write_text(json.dumps({"best_mean_reward": 1.5}))
+            self.assertEqual(rc.load_best_reward(d, "rover_ckpt"), 1.5)
+
+    def test_legacy_sidecar_malformed_is_neg_inf(self):
         with tempfile.TemporaryDirectory() as d:
             side = pathlib.Path(d) / "bad.json"
             side.write_text("not json{")
-            self.assertEqual(rc.load_best_reward(side), float("-inf"))
+            self.assertEqual(rc.legacy_sidecar_reward(side), float("-inf"))
             side.write_text('{"wrong_key": 1}')
-            self.assertEqual(rc.load_best_reward(side), float("-inf"))
+            self.assertEqual(rc.legacy_sidecar_reward(side), float("-inf"))
 
     def test_sidecar_path_naming(self):
         best = pathlib.Path("/m/rover_ckpt_best.zip")
@@ -115,12 +132,12 @@ class TestRewardGatedCheckpoint(unittest.TestCase):
             cb.model.ep_info_buffer = [{"r": 0.0}, {"r": 1.0}]
             cb.on_rollout_end()
             self.assertEqual(len(cb.model.saved_to), 1)
-            # Better mean -> saves again and updates the sidecar.
+            # Better mean -> saves again and re-blesses in the manifest.
             cb.model.ep_info_buffer = [{"r": 3.0}, {"r": 3.0}]
             cb.model.num_timesteps = 1024
             cb.on_rollout_end()
             self.assertEqual(len(cb.model.saved_to), 2)
-            self.assertEqual(rc.load_best_reward(cb.sidecar), 3.0)
+            self.assertEqual(rc.load_best_reward(d, "rover_ckpt"), 3.0)
 
     def test_respects_min_episodes(self):
         with tempfile.TemporaryDirectory() as d:
@@ -129,7 +146,7 @@ class TestRewardGatedCheckpoint(unittest.TestCase):
             cb.on_rollout_end()
             self.assertEqual(cb.model.saved_to, [])
 
-    def test_resume_reloads_best_from_sidecar(self):
+    def test_resume_reloads_best_from_manifest(self):
         with tempfile.TemporaryDirectory() as d:
             first = self._make(d)
             first.model.ep_info_buffer = [{"r": 5.0}, {"r": 5.0}]
@@ -142,6 +159,14 @@ class TestRewardGatedCheckpoint(unittest.TestCase):
             resumed.model.ep_info_buffer = [{"r": 2.0}, {"r": 2.0}]
             resumed.on_rollout_end()
             self.assertEqual(resumed.model.saved_to, [])
+
+    def test_resume_honors_legacy_sidecar(self):
+        # A run started before the manifest existed left only the old sidecar.
+        with tempfile.TemporaryDirectory() as d:
+            side = pathlib.Path(d) / "rover_ckpt_best.zip.json"
+            side.write_text(json.dumps({"best_mean_reward": 7.0}))
+            cb = self._make(d)
+            self.assertEqual(cb.best, 7.0)
 
 
 if __name__ == "__main__":

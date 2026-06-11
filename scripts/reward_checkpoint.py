@@ -12,9 +12,11 @@ Design (decided on #138):
     so SB3's EvalCallback (which wants a parallel eval env) is a poor fit.
   - Cadence: `_on_rollout_end` (once per rollout), NOT `_on_step` -- early in training
     the mean rises fast and a per-step gate would hammer the disk.
-  - Resume correctness: the best mean reward is persisted to a JSON sidecar next to
-    the best zip and reloaded on construction, so resuming a run can't overwrite a
-    better `*_best.zip` with a worse post-restart one.
+  - Resume correctness: the best mean reward is persisted in the run manifest
+    (`<checkpoint_dir>/manifest.json`, #105 part B -- atomic write, single commit
+    point) and reloaded on construction, so resuming a run can't overwrite a better
+    `*_best.zip` with a worse post-restart one. Runs from before the manifest are
+    still honored via the legacy `*_best.zip.json` sidecar fallback.
   - Opt-in and additive: wired behind a trainer flag, alongside (not replacing) the
     periodic checkpoints. Stable PPO usually ends near its peak; the gate earns its
     keep on noisy SAC / self-play runs.
@@ -28,10 +30,13 @@ import json
 import math
 import pathlib
 import sys
-import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from checkpoints import best_zip_path  # noqa: E402
+from checkpoints import (  # noqa: E402
+    best_zip_path,
+    load_manifest,
+    record_best_in_manifest,
+)
 
 
 def rolling_mean_reward(ep_infos, min_episodes: int) -> float | None:
@@ -54,15 +59,15 @@ def is_new_best(mean_reward: float, best: float) -> bool:
 
 
 def sidecar_path(best_zip: pathlib.Path) -> pathlib.Path:
-    """The JSON sidecar persisting the best mean reward across resumes."""
+    """The LEGACY JSON sidecar path (pre-manifest runs); read-only fallback now."""
     return best_zip.with_name(best_zip.name + ".json")
 
 
-def load_best_reward(sidecar: pathlib.Path) -> float:
-    """Best mean reward recorded in `sidecar`, or -inf when missing/malformed.
+def legacy_sidecar_reward(sidecar: pathlib.Path) -> float:
+    """Best mean reward from a pre-manifest `*_best.zip.json` sidecar, or -inf.
 
-    -inf (not an error) so a fresh run and a corrupt sidecar both just mean "no best
-    yet"; the next improvement rewrites both files.
+    -inf (not an error) so a missing and a corrupt sidecar both just mean "no best
+    yet". Kept for runs started before the manifest absorbed this record (#105 B).
     """
     try:
         data = json.loads(sidecar.read_text())
@@ -71,18 +76,15 @@ def load_best_reward(sidecar: pathlib.Path) -> float:
         return float("-inf")
 
 
-def save_best_meta(sidecar: pathlib.Path, mean_reward: float, num_timesteps: int) -> None:
-    """Record the newly blessed best (reward + step count + wall-clock) to `sidecar`."""
-    sidecar.parent.mkdir(parents=True, exist_ok=True)
-    sidecar.write_text(
-        json.dumps(
-            {
-                "best_mean_reward": mean_reward,
-                "num_timesteps": int(num_timesteps),
-                "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-            }
-        )
-    )
+def load_best_reward(checkpoint_dir: str, name_prefix: str) -> float:
+    """The reward the gate must beat: manifest best, else legacy sidecar, else -inf."""
+    manifest = load_manifest(checkpoint_dir)
+    if manifest is not None and isinstance(manifest.get("best"), dict):
+        try:
+            return float(manifest["best"]["mean_reward"])
+        except (ValueError, TypeError, KeyError):
+            pass
+    return legacy_sidecar_reward(sidecar_path(best_zip_path(checkpoint_dir, name_prefix)))
 
 
 def make_reward_gated_checkpoint(
@@ -93,9 +95,9 @@ def make_reward_gated_checkpoint(
 ):
     """Build the RewardGatedCheckpoint callback (lazy SB3 import).
 
-    Saves `<checkpoint_dir>/<name_prefix>_best.zip` (+ `.json` sidecar) whenever the
-    rolling mean episode reward improves; combine with the periodic CheckpointCallback
-    by passing both in the `callback=[...]` list to `model.learn`.
+    Saves `<checkpoint_dir>/<name_prefix>_best.zip` and blesses it in the run manifest
+    whenever the rolling mean episode reward improves; combine with the periodic
+    CheckpointCallback by passing both in the `callback=[...]` list to `model.learn`.
     """
     from stable_baselines3.common.callbacks import BaseCallback
 
@@ -103,9 +105,8 @@ def make_reward_gated_checkpoint(
         def __init__(self):
             super().__init__(verbose)
             self.zip_path = best_zip_path(checkpoint_dir, name_prefix)
-            self.sidecar = sidecar_path(self.zip_path)
             # Reload the prior best so a resumed run can't bless a worse policy.
-            self.best = load_best_reward(self.sidecar)
+            self.best = load_best_reward(checkpoint_dir, name_prefix)
 
         def _on_step(self) -> bool:  # required abstract; the gate runs per rollout
             return True
@@ -117,7 +118,12 @@ def make_reward_gated_checkpoint(
             self.best = mean
             self.zip_path.parent.mkdir(parents=True, exist_ok=True)
             self.model.save(self.zip_path)
-            save_best_meta(self.sidecar, mean, self.model.num_timesteps)
+            # Manifest entry is the commit point: the recorded reward is what the
+            # gate must beat next (atomic write; a crash between save and bless
+            # just re-saves on the next improvement).
+            record_best_in_manifest(
+                checkpoint_dir, self.zip_path.name, mean, self.model.num_timesteps
+            )
             if self.verbose > 0:
                 print(
                     "New best mean reward %.3f at %d steps -> %s"
