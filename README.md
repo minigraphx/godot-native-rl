@@ -23,7 +23,7 @@ web/WASM, console, mobile, desktop, and edge.
 - [Running the examples](docs/guide/running-examples.md) — chase / rover / hide & seek / ball chase
 - [Training your own AI](docs/guide/training.md) — setup, train, the parallel-training fast path
 - [Deploying](docs/guide/deploying.md) — NcnnRunner, INT8, VecNormalize, continuous action sampling, platform targets
-- [Sensors](docs/guide/sensors.md) — raycast, relative-position, camera, grid
+- [Sensors](docs/guide/sensors.md) — raycast, relative-position, camera, grid, navmesh
 - [Building an agent in your scene](docs/guide/building-your-agent.md)
 
 ## Examples
