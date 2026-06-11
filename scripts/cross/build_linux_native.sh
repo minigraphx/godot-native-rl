@@ -35,7 +35,10 @@ fi
 
 # Guard: a libncnn.a left over from a pre-#103 build (OpenMP on) would make the .so carry
 # undefined GOMP_* symbols once we stop linking gomp — link succeeds, load fails. Fail loud.
-if nm "$ncnn_build/install/lib/libncnn.a" 2>/dev/null | grep -q "GOMP_"; then
+# Anchor on the symbol name (last nm field) — stricter than an unanchored grep, and
+# covers libgomp (GOMP_*) + LLVM/Intel libomp (omp_*/__kmpc_*), matching build_macos.sh.
+if nm "$ncnn_build/install/lib/libncnn.a" 2>/dev/null | awk '{print $NF}' \
+    | grep -Eq '^(GOMP_|omp_|__kmpc_)'; then
   echo "ERROR: stale OpenMP-enabled libncnn.a at $ncnn_build/install/lib/libncnn.a." >&2
   echo "       rm -rf $ncnn_build and re-run to rebuild with NCNN_OPENMP=OFF (#103)." >&2
   exit 1
@@ -53,7 +56,7 @@ for so in addons/godot_native_rl/bin/libncnn_runner.linux.*.so; do
     echo "ERROR: $so still has a libgomp DT_NEEDED entry" >&2
     exit 1
   fi
-  if nm -D --undefined-only "$so" | grep -qE " (GOMP_|omp_)"; then
+  if nm -D --undefined-only "$so" | awk '{print $NF}' | grep -Eq '^(GOMP_|omp_|__kmpc_)'; then
     echo "ERROR: $so has undefined OpenMP symbols (stale OpenMP libncnn.a?)" >&2
     exit 1
   fi

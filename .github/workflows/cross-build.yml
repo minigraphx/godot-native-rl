@@ -112,8 +112,7 @@ jobs:
           path: addons/godot_native_rl/bin/
           if-no-files-found: error
 
-  # iOS device + simulator — needs the iOS SDK, so a macOS runner.
-  # macОС host dylib + iOS slices, both on the macos-14 runner. The macOS host build is the only
+  # macOS host dylib + iOS slices, both on the macos-14 runner. The macOS host build is the only
   # PR-time check that the shipped dylib stays self-contained (#152) — build_macos.sh fails the
   # job if otool -L shows a non-system load path (e.g. a homebrew libomp.dylib).
   macos-ios:
