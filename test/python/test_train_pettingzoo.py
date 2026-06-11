@@ -2,15 +2,21 @@ import sys
 import unittest
 from pathlib import Path
 
-import numpy as np
-from gymnasium import spaces
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-import train_pettingzoo as tp  # noqa: E402
+# Guarded heavy imports (#141): missing deps -> skips, not errors, under bare python.
+try:
+    import numpy as np  # noqa: E402
+    from gymnasium import spaces  # noqa: E402
+    import train_pettingzoo as tp  # noqa: E402
+    HAVE_DEPS = True
+except ImportError:
+    HAVE_DEPS = False
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy/gymnasium not installed")
 class TestStackByAgent(unittest.TestCase):
     def test_orders_by_agent_list(self):
         per_agent = {0: np.array([1.0, 2.0]), 1: np.array([3.0, 4.0])}
@@ -24,6 +30,7 @@ class TestStackByAgent(unittest.TestCase):
         np.testing.assert_array_equal(out[0], np.array([2.0]))
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy/gymnasium not installed")
 class TestToActionDict(unittest.TestCase):
     def test_scatters_rows_to_agents(self):
         full = np.array([[1], [2]], dtype=np.int64)
@@ -38,6 +45,7 @@ class TestToActionDict(unittest.TestCase):
         np.testing.assert_array_equal(d[0], np.array([2]))
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy/gymnasium not installed")
 class TestActionNvec(unittest.TestCase):
     def test_reads_tuple_of_discrete(self):
         space = spaces.Tuple((spaces.Discrete(5), spaces.Discrete(3)))
@@ -48,6 +56,7 @@ class TestActionNvec(unittest.TestCase):
             tp.action_nvec(spaces.MultiDiscrete([5, 3]))
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy/gymnasium not installed")
 class TestRequirePositiveUpdates(unittest.TestCase):
     def test_passes_through_positive_updates(self):
         self.assertEqual(tp.require_positive_updates(3, timesteps=6144, num_steps=256, n_agents=8), 3)
@@ -64,6 +73,7 @@ class TestRequirePositiveUpdates(unittest.TestCase):
         self.assertIn("--num_steps", msg)  # suggests the remedies
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy/gymnasium not installed")
 class TestUnwrapObs(unittest.TestCase):
     def test_extracts_inner_obs_key(self):
         # godot_rl GodotEnv returns per-agent Dict obs {'obs': vec}; unwrap to {agent: vec}.

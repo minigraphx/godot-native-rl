@@ -2,13 +2,18 @@ import sys
 import unittest
 from pathlib import Path
 
-import numpy as np
-from gymnasium import spaces
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from godot_pettingzoo_env import GodotParallelEnv  # noqa: E402
+# Guarded heavy imports (#141): missing deps -> skips, not errors, under bare python.
+try:
+    import numpy as np  # noqa: E402
+    from gymnasium import spaces  # noqa: E402
+    from godot_pettingzoo_env import GodotParallelEnv  # noqa: E402
+    HAVE_DEPS = True
+except ImportError:
+    HAVE_DEPS = False
 
 
 class StubGodotEnv:
@@ -54,6 +59,7 @@ class StubGodotEnv:
         self.closed = True
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy/gymnasium/pettingzoo not installed")
 class TestGodotParallelEnv(unittest.TestCase):
     def _env(self, **kw):
         return GodotParallelEnv(godot_env=StubGodotEnv(**kw))

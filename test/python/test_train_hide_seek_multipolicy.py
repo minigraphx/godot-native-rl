@@ -2,14 +2,20 @@ import sys
 import unittest
 from pathlib import Path
 
-import numpy as np
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-import train_hide_seek_multipolicy as mp  # noqa: E402
+# Guarded heavy imports (#141): missing deps -> skips, not errors, under bare python.
+try:
+    import numpy as np  # noqa: E402
+    import train_hide_seek_multipolicy as mp  # noqa: E402
+    HAVE_DEPS = True
+except ImportError:
+    HAVE_DEPS = False
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy not installed")
 class TestPolicyIndexMap(unittest.TestCase):
     def test_single_world(self):
         self.assertEqual(mp.policy_index_map(["seeker", "hider"]),
@@ -25,6 +31,7 @@ class TestPolicyIndexMap(unittest.TestCase):
                          ["hider", "seeker"])
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy not installed")
 class TestSplitStitch(unittest.TestCase):
     def test_split_by_policy(self):
         index_map = {"seeker": [0, 2], "hider": [1, 3]}
@@ -41,6 +48,7 @@ class TestSplitStitch(unittest.TestCase):
         np.testing.assert_array_equal(stitched, actions)
 
 
+@unittest.skipUnless(HAVE_DEPS, "numpy not installed")
 class TestParseArgs(unittest.TestCase):
     def test_defaults(self):
         cfg = mp.parse_args([])
