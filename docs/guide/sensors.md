@@ -56,11 +56,23 @@ agent's `get_obs()` and concatenate with your other features.
   is the grid step on both axes, `cell_height` the box's Y extent). Same query-based per-layer-count
   encoding. `collide_with_bodies` defaults **false** (`godot_rl` note: a `StaticBody3D` needs an
   `Area3D` to be detected). Both grid sensors deploy with zero runtime via `NcnnRunner`.
+- **`NavMeshSensor2D`** (`sensors/navmesh_sensor_2d.gd`) — *navigable*-path observation toward a
+  `target`, via the `NavigationServer`: emits `[closeness, dir_x, dir_y]` where closeness comes from
+  the **actual walkable path length** (around obstacles), not the straight line, and the direction
+  points at the *next waypoint*. So a wall between agent and goal reads as "far" even when the
+  Euclidean distance is short — a Godot-native idea with no `godot_rl`/Unity equivalent. Unreachable
+  target / no map / freed target zero-fills. Configurable `max_distance` (path-length normalizer),
+  `optimize_path`, `navigation_layers`.
+- **`NavMeshSensor3D`** (`sensors/navmesh_sensor_3d.gd`) — the 3D form over `NavigationServer3D`,
+  emitting `[closeness, dir_x, dir_y, dir_z]`.
 
 Pure ray geometry lives in `sensors/raycast_math.gd`; the relative-position frame/clip math
 lives in `sensors/relative_position_math.gd`; the camera shape + hex encoding lives in
-`sensors/camera_obs_math.gd`; the grid mapping/offset/encoding lives in `sensors/grid_sensor_math.gd`
-(all headless-unit-tested).
+`sensors/camera_obs_math.gd`; the grid mapping/offset/encoding lives in `sensors/grid_sensor_math.gd`;
+the navmesh path-length + waypoint-direction encoding lives in `sensors/navmesh_math.gd`
+(all headless-unit-tested). The `NavMeshSensor`s isolate the `NavigationServer` query behind a
+`set_path_fn_for_test` seam, so the full observation path is verified headlessly without a baked
+navigation map.
 This encoding matches `godot_rl`'s raycast convention, so ported environments behave the same —
 and the observations feed `NcnnRunner` for zero-runtime deployment on mobile/web/console.
 
