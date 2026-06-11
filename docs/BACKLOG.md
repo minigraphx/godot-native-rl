@@ -299,10 +299,13 @@ the same change. New items → GitHub issue only.
     (navigable, not line-of-sight). *(novel-addons spec §3 A3)*
 16. ⬜ **LOD policy switching (`NcnnLODRunner`)** — cheap reflex net every frame, accurate net every
     N frames / on state change. Genuinely new in game RL. *(novel-addons spec §3 B5)*
-48. ⬜ **Animation Policy Adapter** — map continuous action outputs to `AnimationTree` blend
+48. ✅ **Animation Policy Adapter** — map continuous action outputs to `AnimationTree` blend
     parameters so a trained agent drives production animation without a hand-written blending layer.
-    Thin GDScript node taking an action→blend-param mapping; deploy-side only. *(from item 20;
-    novel-addons spec §3 A4)*
+    Thin GDScript node taking an action→blend-param mapping; deploy-side only. **Done 2026-06-11**
+    (#22) — pure `AnimationPolicyMap` (action→blend-param routing with per-entry affine remap +
+    clamp; out-of-range/empty action degrades gracefully) + thin `AnimationPolicyAdapter` node that
+    writes the resolved values onto an `AnimationTree` each frame. Headless map + adapter (stub-tree)
+    tests. *(from item 20; novel-addons spec §3 A4)*
 49. ✅ **In-editor Policy Debugger** — during NCNN inference, overlay live sensor readings + action
     probabilities (softmax of logits) in the Godot viewport. Pure GDScript + ncnn, zero Python;
     answers "what does the agent see and want?" visually. Needs non-`--headless` verification.
