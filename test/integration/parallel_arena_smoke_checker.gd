@@ -1,7 +1,8 @@
 extends Node
 # Headless smoke test: an arena tiling N worlds in one space (3D rover or 2D ball_chase).
 # Asserts the arena spawned exactly N agents, every agent produces a finite obs vector of the
-# expected size, and the spawned worlds sit at distinct tile origins >= spacing apart
+# expected size, that observations change over the run (agents are actually driven), and the
+# spawned worlds sit at distinct tile origins >= spacing apart
 # (isolation). Drives random actions each frame — discrete ints by default,
 # a continuous [-1,1]^n array when continuous_action_size > 0 — then quits with an exit code.
 
@@ -17,6 +18,8 @@ var _arena
 var _agents: Array = []
 var _frames := 0
 var _rng := RandomNumberGenerator.new()
+var _first_obs: Array = []      # per-agent first-frame obs snapshot
+var _obs_changed := false       # any agent's obs differed from its snapshot at any frame
 
 func _ready() -> void:
 	_rng.seed = 4321
@@ -40,7 +43,8 @@ func _ready() -> void:
 func _physics_process(_delta: float) -> void:
 	if _arena == null:
 		return
-	for agent in _agents:
+	for i in range(_agents.size()):
+		var agent: Node = _agents[i]
 		agent.set_action({"move": _random_action()})
 		var obs_dict = agent.get_obs()
 		if not ("obs" in obs_dict) or obs_dict["obs"].size() != expected_obs_size:
@@ -50,8 +54,15 @@ func _physics_process(_delta: float) -> void:
 			if not is_finite(v):
 				_fail("non-finite observation from %s" % agent.name)
 				return
+		if _first_obs.size() <= i:
+			_first_obs.append(obs_dict["obs"].duplicate())
+		elif not _obs_changed and obs_dict["obs"] != _first_obs[i]:
+			_obs_changed = true
 	_frames += 1
 	if _frames >= frames_to_run:
+		if not _obs_changed:
+			_fail("observations never changed over %d frames — agents not actually driven" % _frames)
+			return
 		print("PARALLEL ARENA SMOKE PASSED (%d agents, %d frames)" % [_agents.size(), _frames])
 		get_tree().quit(0)
 
