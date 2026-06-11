@@ -14,9 +14,9 @@ import argparse
 import pathlib
 import sys
 
-# Reuse the checkpoint-discovery helper from the trainer (import-light: no torch at module load).
+# Shared, mtime-free checkpoint discovery (import-light: no torch at module load).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import train_rover  # noqa: E402
+from checkpoints import select_checkpoint  # noqa: E402
 
 
 def main() -> None:
@@ -30,7 +30,7 @@ def main() -> None:
     parser.add_argument("--onnx_export_path", type=str, default="models/rover_policy.onnx")
     args = parser.parse_args()
 
-    ckpt = args.checkpoint or train_rover.latest_checkpoint(args.checkpoint_dir)
+    ckpt = args.checkpoint or select_checkpoint(args.checkpoint_dir, policy="deploy")
     if not ckpt or not pathlib.Path(ckpt).is_file():
         raise SystemExit("No checkpoint found (looked for %s)" % (args.checkpoint or args.checkpoint_dir))
 

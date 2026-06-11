@@ -119,6 +119,9 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   opt-in `StepProfiler`, enabled with the `profile=true` cmdline arg (zero overhead otherwise).
 - **Export a checkpoint (no full run):** `.venv-train/bin/python scripts/export_checkpoint.py`
   (latest checkpoint → `models/rover_policy.onnx`, non-destructive) then `scripts/export_to_ncnn.py`.
+  Checkpoint selection is shared/`scripts/checkpoints.py`: trainers resume by **highest step
+  count** (mtime-free, so `FRESH`/`cp -p`/backups can't pick a weaker ckpt); exporters deploy by
+  **best-reward (#138, when present) → highest-step → mtime(legacy)** (#105).
 - **Export a checkpoint → TorchScript (ONNX-free):** `.venv-train/bin/python scripts/export_torchscript.py
   --checkpoint <ckpt.zip>` — traces the deterministic actor to `models/policy.pt` **and writes a
   `models/policy.pt.shape.json` sidecar**, so `export_to_ncnn.py models/policy.pt` auto-derives the shape

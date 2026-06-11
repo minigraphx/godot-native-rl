@@ -9,8 +9,8 @@ sys.path.insert(0, str(SCRIPTS))
 
 import export_sac_torchscript as m  # noqa: E402
 
-# The checkpoint picker now lives in export_to_ncnn.newest_zip (tested in
-# test_export_to_ncnn.py); export_sac_torchscript imports it rather than redefining it.
+# The checkpoint picker now lives in the shared `checkpoints` module (tested in
+# test_checkpoints.py); export_sac_torchscript calls select_checkpoint(..., policy="deploy").
 
 
 class TestParseArgs(unittest.TestCase):

@@ -6,28 +6,11 @@ training scene which connects as the client. See scripts/train_rover.sh for orch
 """
 import argparse
 import pathlib
-import re
+import sys
 
-_CKPT_RE = re.compile(r"^rover_ckpt_(\d+)_steps\.zip$")
-
-
-def latest_checkpoint(checkpoint_dir: str) -> str | None:
-    """Path to the checkpoint with the highest step count in checkpoint_dir, or None.
-
-    Matches SB3 CheckpointCallback's `rover_ckpt_<N>_steps.zip` naming; tolerates a
-    missing/empty directory and ignores non-matching filenames.
-    """
-    d = pathlib.Path(checkpoint_dir)
-    if not d.is_dir():
-        return None
-    best = None
-    best_steps = -1
-    for f in d.iterdir():
-        m = _CKPT_RE.match(f.name)
-        if m is not None and int(m.group(1)) > best_steps:
-            best_steps = int(m.group(1))
-            best = str(f)
-    return best
+# Shared, mtime-free checkpoint discovery (import-light: no torch at module load).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from checkpoints import select_checkpoint  # noqa: E402
 
 
 def remaining_timesteps(total: int, done: int) -> int:
@@ -74,7 +57,7 @@ def main() -> None:
         name_prefix="rover_ckpt",
     )
 
-    ckpt = None if args.fresh else latest_checkpoint(args.checkpoint_dir)
+    ckpt = None if args.fresh else select_checkpoint(args.checkpoint_dir, policy="resume")
     if ckpt is not None:
         model = PPO.load(ckpt, env=env)
         steps = remaining_timesteps(args.timesteps, model.num_timesteps)

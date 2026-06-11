@@ -15,33 +15,12 @@ The exported actor is tanh(mean); the deploy side must NOT squash again (see bal
 """
 import argparse
 import pathlib
-import re
 import sys
 
-# Reuse the shared SAC actor-export helper (import-light: no torch at module load).
+# Reuse the shared SAC actor-export helper + checkpoint picker (import-light: no torch).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from export_sac_torchscript import export_sac_actor_as_torchscript  # noqa: E402
-
-_CKPT_RE = re.compile(r"^ball_chase_ckpt_(\d+)_steps\.zip$")
-
-
-def latest_checkpoint(checkpoint_dir: str) -> str | None:
-    """Path to the checkpoint with the highest step count in checkpoint_dir, or None.
-
-    Matches SB3 CheckpointCallback's `ball_chase_ckpt_<N>_steps.zip` naming; tolerates a
-    missing/empty directory and ignores non-matching filenames.
-    """
-    d = pathlib.Path(checkpoint_dir)
-    if not d.is_dir():
-        return None
-    best = None
-    best_steps = -1
-    for f in d.iterdir():
-        m = _CKPT_RE.match(f.name)
-        if m is not None and int(m.group(1)) > best_steps:
-            best_steps = int(m.group(1))
-            best = str(f)
-    return best
+from checkpoints import select_checkpoint  # noqa: E402
 
 
 def remaining_timesteps(total: int, done: int) -> int:
@@ -93,7 +72,7 @@ def main() -> None:
         name_prefix="ball_chase_ckpt",
     )
 
-    ckpt = None if args.fresh else latest_checkpoint(args.checkpoint_dir)
+    ckpt = None if args.fresh else select_checkpoint(args.checkpoint_dir, policy="resume")
     if ckpt is not None:
         # CheckpointCallback saves only the policy .zip, not the replay buffer, so resume
         # restarts the buffer empty (re-warms for learning_starts steps). Acceptable here —

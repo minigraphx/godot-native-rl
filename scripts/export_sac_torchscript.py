@@ -24,9 +24,10 @@ import argparse
 import pathlib
 import sys
 
-# Reuse the sidecar writer + checkpoint picker from the converter (import-light: no torch).
+# Reuse the sidecar writer + shared checkpoint picker (import-light: no torch).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from export_to_ncnn import newest_zip, write_shape_sidecar  # noqa: E402
+from export_to_ncnn import write_shape_sidecar  # noqa: E402
+from checkpoints import select_checkpoint  # noqa: E402
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -74,7 +75,7 @@ def main() -> None:
     from stable_baselines3 import SAC
 
     args = parse_args()
-    ckpt = args.checkpoint or newest_zip(args.checkpoint_dir)
+    ckpt = args.checkpoint or select_checkpoint(args.checkpoint_dir, policy="deploy")
     if not ckpt or not pathlib.Path(ckpt).is_file():
         raise SystemExit("No checkpoint found (looked for %s)" % (args.checkpoint or args.checkpoint_dir))
 
