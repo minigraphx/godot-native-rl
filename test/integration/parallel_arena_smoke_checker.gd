@@ -1,14 +1,16 @@
 extends Node
-# Headless smoke test: an arena tiling N rover worlds in one physics space. Asserts the
-# arena spawned exactly N agents, every agent produces a finite obs vector of the expected
-# size, and the spawned worlds sit at distinct tile origins >= spacing apart (isolation).
-# Drives random actions each frame like the rover smoke, then quits with an exit code.
+# Headless smoke test: an arena tiling N worlds in one space (3D rover or 2D ball_chase).
+# Asserts the arena spawned exactly N agents, every agent produces a finite obs vector of the
+# expected size, and the spawned worlds sit at distinct tile origins >= spacing apart
+# (isolation). Drives random actions each frame — discrete ints by default,
+# a continuous [-1,1]^n array when continuous_action_size > 0 — then quits with an exit code.
 
 @export var arena_path: NodePath
 @export var frames_to_run := 120
 @export var expected_count := 4
 @export var expected_obs_size := 8
 @export var action_count := 4
+@export var continuous_action_size := 0  ## >0: send a continuous [-1,1] array of this size instead of a discrete int
 @export var spacing := 200.0
 
 var _arena
@@ -39,7 +41,7 @@ func _physics_process(_delta: float) -> void:
 	if _arena == null:
 		return
 	for agent in _agents:
-		agent.set_action({"move": _rng.randi_range(0, action_count - 1)})
+		agent.set_action({"move": _random_action()})
 		var obs_dict = agent.get_obs()
 		if not ("obs" in obs_dict) or obs_dict["obs"].size() != expected_obs_size:
 			_fail("bad obs shape from %s: %s" % [agent.name, obs_dict])
@@ -56,3 +58,11 @@ func _physics_process(_delta: float) -> void:
 func _fail(reason: String) -> void:
 	printerr("PARALLEL ARENA SMOKE FAILED: %s" % reason)
 	get_tree().quit(1)
+
+func _random_action() -> Variant:
+	if continuous_action_size > 0:
+		var a: Array = []
+		for _i in range(continuous_action_size):
+			a.append(_rng.randf_range(-1.0, 1.0))
+		return a
+	return _rng.randi_range(0, action_count - 1)
