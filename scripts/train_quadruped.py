@@ -33,12 +33,18 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--save_model_path", type=str, default="models/quadruped_walk.zip")
     p.add_argument("--pt_export_path", type=str, default="models/quadruped_walk.pt")
+    # Periodic checkpointing: save an SB3 .zip every N total env-steps so you can watch the
+    # creature at different learning stages (early flailing → late walking) — the #60 epic's
+    # "generation race" (Milestone 4). 0 = off (only the final model is saved).
+    p.add_argument("--checkpoint_freq", type=int, default=0)
+    p.add_argument("--checkpoint_dir", type=str, default="models/quadruped_walk_ckpts")
     return p.parse_args(argv)
 
 
 def main() -> None:
     from stable_baselines3 import PPO
     from stable_baselines3.common.vec_env.vec_monitor import VecMonitor
+    from stable_baselines3.common.callbacks import CheckpointCallback
     from godot_rl.wrappers.stable_baselines_wrapper import StableBaselinesGodotEnv
     from export_torchscript import export_policy_as_torchscript
 
@@ -69,7 +75,21 @@ def main() -> None:
         learning_rate=3e-4,
         tensorboard_log="logs/sb3",
     )
-    model.learn(args.timesteps)
+
+    # CheckpointCallback's save_freq is in *callback calls* = vectorized steps, so divide the
+    # requested total-env-step cadence by the number of parallel agents (auto-detected).
+    callback = None
+    if args.checkpoint_freq > 0:
+        n_envs = getattr(env, "num_envs", 1) or 1
+        callback = CheckpointCallback(
+            save_freq=max(args.checkpoint_freq // n_envs, 1),
+            save_path=args.checkpoint_dir,
+            name_prefix="quadruped_walk",
+        )
+        print("Checkpointing every %d env-steps to %s (n_envs=%d)"
+              % (args.checkpoint_freq, args.checkpoint_dir, n_envs))
+
+    model.learn(args.timesteps, callback=callback)
 
     zip_path = pathlib.Path(args.save_model_path).with_suffix(".zip")
     zip_path.parent.mkdir(parents=True, exist_ok=True)
