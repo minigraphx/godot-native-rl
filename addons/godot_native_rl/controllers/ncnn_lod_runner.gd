@@ -87,8 +87,12 @@ func decide(obs: PackedFloat32Array, state_changed: bool = false) -> Dictionary:
 	var due: bool = _scheduler.tick(state_changed)
 	var runner = _deliberative if due else _reflex
 	if runner == null:
+		# Nothing ran -> ran_deliberative=false (a caller using it to adopt `logits` as the latest
+		# accurate output must not adopt this empty array); `tier` still reports which net was due,
+		# for diagnosability. The scheduler tick already consumed this slot — acceptable for a
+		# misuse-only path (a null runner already push_error'd at load).
 		push_error("NcnnLODRunner.decide: %s runner is not loaded." % ("deliberative" if due else "reflex"))
-		return {"logits": PackedFloat32Array(), "tier": "deliberative" if due else "reflex", "ran_deliberative": due}
+		return {"logits": PackedFloat32Array(), "tier": "deliberative" if due else "reflex", "ran_deliberative": false}
 	var logits: PackedFloat32Array = runner.run_inference(obs)
 	if due:
 		_last_deliberative_logits = logits
