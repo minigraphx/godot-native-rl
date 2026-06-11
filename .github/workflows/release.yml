@@ -111,23 +111,12 @@ jobs:
           git clone -b "${GODOT_CPP_BRANCH}" --depth 1 https://github.com/godotengine/godot-cpp.git
           mkdir -p thirdparty
           git clone -b "${NCNN_TAG}" --depth 1 https://github.com/Tencent/ncnn.git thirdparty/ncnn
-      - name: Build ncnn static lib (macOS arm64)
-        # scons links a prebuilt static ncnn; the cross scripts build their own, but the macOS
-        # host path needs it built explicitly. Produces thirdparty/ncnn/build/install/lib/libncnn.a
-        # (the generic host path SConstruct looks for). NEON only on Apple Silicon, so full
-        # parallelism is safe (no AVX512 OOM like the 16 GB Linux runners).
-        run: |
-          cmake -S thirdparty/ncnn -B thirdparty/ncnn/build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DNCNN_BUILD_TOOLS=OFF -DNCNN_BUILD_EXAMPLES=OFF \
-            -DNCNN_BUILD_BENCHMARK=OFF -DNCNN_BUILD_TESTS=OFF \
-            -DBUILD_SHARED_LIBS=OFF
-          cmake --build thirdparty/ncnn/build --config Release --parallel "$(sysctl -n hw.ncpu)"
-          cmake --install thirdparty/ncnn/build --prefix thirdparty/ncnn/build/install
-      - name: Build macOS host (arm64, debug+release)
-        run: |
-          scons platform=macos arch=arm64 target=template_debug -j"$(sysctl -n hw.ncpu)"
-          scons platform=macos arch=arm64 target=template_release -j"$(sysctl -n hw.ncpu)"
+      - name: Build macOS host (arm64) + self-contained audit
+        # build_macos.sh builds ncnn with NCNN_OPENMP=OFF (#152) into the generic host dir
+        # SConstruct expects, links the debug+release dylibs, and fails loud if either carries a
+        # non-system load path (e.g. a homebrew libomp.dylib). NEON-only on Apple Silicon, so the
+        # script's default full parallelism is safe (no AVX512 OOM like the 16 GB Linux runners).
+        run: scripts/cross/build_macos.sh
       - name: Build iOS (device + simulator)
         run: scripts/cross/build_ios.sh
       - uses: actions/upload-artifact@v7
