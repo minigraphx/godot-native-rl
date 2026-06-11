@@ -28,6 +28,9 @@ models/*_pnnx.py
 logs/
 models/chase_policy.*
 models/rover_checkpoints/
+models/quadruped_walk.zip
+models/quadruped_walk_action_dist.json
+models/quadruped_walk_ckpts/
 # Trained SB3/ONNX artifacts (the deployable ncnn model goes to examples/rover_3d/models/ instead)
 models/rover_policy.*
 
