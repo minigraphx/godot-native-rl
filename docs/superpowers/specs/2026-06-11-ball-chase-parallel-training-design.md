@@ -79,8 +79,10 @@ unchanged. BallChase lacks a parallel scene.
   errors. The existing checker is rover-shaped (discrete `action_count`); the implementation
   plan decides between parameterizing it and adding a small 2D-continuous sibling, based on how
   much actually shares.
-- The existing `trained_ball_chase_scene.tscn` regression keeps guarding the refactored single
-  scene (catches any wiring break from the world extraction).
+- The existing `trained_ball_chase_scene.tscn` regression keeps guarding the deploy path, but it
+  duplicates its own game/agent nodes and does NOT instance the train scene — so a new
+  scene-structure unit test (instantiate without entering the tree; assert world/train/parallel
+  composition and exported properties) guards the refactor instead.
 
 ### Measurement (acceptance evidence)
 
@@ -109,4 +111,5 @@ unchanged. BallChase lacks a parallel scene.
 
 - `CLAUDE.md` (BallChase train command gains the `SCENE=` parallel override; backlog state)
 - `README` / example docs (parallel scene + measured speedup note)
-- `docs/BACKLOG.md` checkbox + close #82 via the PR (`Closes #82`)
+- Close #82 via the PR (`Closes #82`). No `docs/BACKLOG.md` change: #82 is a GitHub-only item
+  (BACKLOG.md tracks only the originally-listed items and is not extended).
