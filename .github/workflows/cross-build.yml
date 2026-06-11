@@ -113,8 +113,11 @@ jobs:
           if-no-files-found: error
 
   # iOS device + simulator — needs the iOS SDK, so a macOS runner.
-  ios:
-    name: ios
+  # macОС host dylib + iOS slices, both on the macos-14 runner. The macOS host build is the only
+  # PR-time check that the shipped dylib stays self-contained (#152) — build_macos.sh fails the
+  # job if otool -L shows a non-system load path (e.g. a homebrew libomp.dylib).
+  macos-ios:
+    name: macos-ios
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v6
@@ -127,6 +130,9 @@ jobs:
           git clone -b "${GODOT_CPP_BRANCH}" --depth 1 https://github.com/godotengine/godot-cpp.git
           mkdir -p thirdparty
           git clone -b "${NCNN_TAG}" --depth 1 https://github.com/Tencent/ncnn.git thirdparty/ncnn
+
+      - name: Build macOS host (arm64) + self-contained audit
+        run: scripts/cross/build_macos.sh
 
       - name: Build iOS (device + simulator)
         run: scripts/cross/build_ios.sh
@@ -175,7 +181,7 @@ jobs:
   # Runtime/symbol validation of the freshly built binaries, via the shared reusable workflow
   # (release.yml calls the same one). Needs the build jobs that upload the artifacts it consumes.
   validate:
-    needs: [unix, ios]
+    needs: [unix, macos-ios]
     uses: ./.github/workflows/validate-binaries.yml
     with:
       windows_artifact: cross-windows

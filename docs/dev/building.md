@@ -95,13 +95,16 @@ cmake --build thirdparty/ncnn/build --config Release
 cmake --install thirdparty/ncnn/build --prefix thirdparty/ncnn/build/install
 ```
 
-`NCNN_OPENMP=OFF` (#103) keeps the Linux `.so` **self-contained** — no `libgomp.so.1`
-runtime dependency. All the project's Linux builds (CI, `build_linux_native.sh`, the zig
-cross-compile) use it; pair with `scons ... ncnn_openmp=no` on Linux. If you build ncnn
-with OpenMP **on** instead, drop `ncnn_openmp=no` so `-lgomp` is linked, or the extension
-fails to load with `undefined symbol: GOMP_parallel`. Deploy impact is minimal:
-single-sample inference dominates at runtime, and `run_inference_batch` parallelizes with
-its own threads (each worker pins ncnn to 1 thread regardless).
+`NCNN_OPENMP=OFF` keeps the shipped binary **self-contained** — no OpenMP runtime
+dependency: no `libgomp.so.1` on Linux (#103) and no homebrew `libomp.dylib` load path on
+macOS (#152). Every platform uses it (the cross scripts `build_linux_native.sh`,
+`build_macos.sh`, `build_ios.sh`, the zig cross-compile, CI, and the release builds); on
+**Linux** also pair it with `scons ... ncnn_openmp=no` (macOS/iOS link no OpenMP runtime, so
+no scons flag is needed there). If you build ncnn with OpenMP **on** instead, drop
+`ncnn_openmp=no` on Linux so `-lgomp` is linked, or the extension fails to load with
+`undefined symbol: GOMP_parallel`. Deploy impact is minimal: single-sample inference
+dominates at runtime, and `run_inference_batch` parallelizes with its own threads (each
+worker pins ncnn to 1 thread regardless).
 
 `SConstruct` looks for static ncnn here:
 
