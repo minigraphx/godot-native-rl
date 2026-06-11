@@ -7,6 +7,12 @@ sys.path.insert(0, str(SCRIPTS))
 
 import train_sf as ts  # noqa: E402
 
+try:
+    import numpy as np
+    HAVE_NUMPY = True
+except ImportError:
+    HAVE_NUMPY = False
+
 
 class TestParseArgs(unittest.TestCase):
     def test_defaults(self):
@@ -56,6 +62,7 @@ class TestBuildSfArgv(unittest.TestCase):
         self.assertIn("--experiment=chase_sf", argv)
 
 
+@unittest.skipUnless(HAVE_NUMPY, "numpy not installed")
 class TestNestScalarActions(unittest.TestCase):
     def test_bare_scalar_single_agent(self):
         # SF's NonBatchedMultiAgentWrapper unwraps the 1-agent list -> our step gets a bare int.

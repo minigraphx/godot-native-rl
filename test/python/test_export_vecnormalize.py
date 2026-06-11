@@ -8,7 +8,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import export_vecnormalize as ev  # noqa: E402
+import export_vecnormalize as ev # noqa: E402
+
+try:
+ import numpy as np
+ import gymnasium as gym
+ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+
+ HAVE_VECNORMALIZE_DEPS = True
+except ImportError:
+ HAVE_VECNORMALIZE_DEPS = False
 
 
 def _make_vecnormalize(seed: int = 0, obs_dim: int = 4):
@@ -36,6 +45,7 @@ def _make_vecnormalize(seed: int = 0, obs_dim: int = 4):
     return vn
 
 
+@unittest.skipUnless(HAVE_VECNORMALIZE_DEPS, "numpy/gymnasium/stable_baselines3 not installed")
 class TestStatsFromVecNormalize(unittest.TestCase):
     def test_extracts_mean_var_epsilon_clip(self):
         vn = _make_vecnormalize()

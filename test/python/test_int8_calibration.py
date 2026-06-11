@@ -8,6 +8,12 @@ sys.path.insert(0, str(SCRIPTS))
 
 import int8_calibration as cal  # noqa: E402
 
+try:
+    import numpy as np
+    HAVE_NUMPY = True
+except ImportError:
+    HAVE_NUMPY = False
+
 
 class TestTableShapeArg(unittest.TestCase):
     def test_whc_order(self):
@@ -15,6 +21,7 @@ class TestTableShapeArg(unittest.TestCase):
         self.assertEqual(cal.table_shape_arg(16, 4, 1), "[16,4,1]")
 
 
+@unittest.skipUnless(HAVE_NUMPY, "numpy not installed")
 class TestSampleImages(unittest.TestCase):
     def test_shape_dtype_range(self):
         imgs = cal.sample_images(5, 8, 8, 3, seed=0)
@@ -34,6 +41,7 @@ class TestSampleImages(unittest.TestCase):
         self.assertFalse(np.array_equal(a, b))
 
 
+@unittest.skipUnless(HAVE_NUMPY, "numpy not installed")
 class TestImageToChwFloat(unittest.TestCase):
     def test_chw_normalized(self):
         import numpy as np
@@ -46,6 +54,7 @@ class TestImageToChwFloat(unittest.TestCase):
         self.assertAlmostEqual(float(chw[1].max()), 0.0, places=5)
 
 
+@unittest.skipUnless(HAVE_NUMPY, "numpy not installed")
 class TestWriteCalibrationSet(unittest.TestCase):
     def test_writes_npy_and_list(self):
         import numpy as np
