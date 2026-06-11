@@ -54,7 +54,10 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   Godot training scene which connects on port 11008). ~34 min at 120k steps.
 - **Train (rover, resumable):** `./scripts/train_rover.sh` — checkpoints to `models/rover_checkpoints/`
   every 25k steps and **auto-resumes** on re-run. `FRESH=1` restart; `CHECKPOINT_FREQ=N` tune;
-  `TIMESTEPS=N` raise the target to **refine** an existing model further. On macOS/Apple Silicon wrap
+  `TIMESTEPS=N` raise the target to **refine** an existing model further; `BEST_CHECKPOINT=1`
+  additionally saves `rover_ckpt_best.zip` whenever the rolling mean episode reward improves
+  (#138 — reward-gated via `scripts/reward_checkpoint.py`, best persisted across resumes by a
+  JSON sidecar; the deploy-policy exporters prefer it). On macOS/Apple Silicon wrap
   it: `caffeinate -is ./scripts/train_rover.sh` (see sleep gotcha below).
 - **Train (rover, parallel — fast):** `SCENE=res://examples/rover_3d/rover_3d_train_parallel.tscn
   ./scripts/train_rover.sh` — tiles 8 rover worlds in one process (`ParallelArena`), so godot-rl

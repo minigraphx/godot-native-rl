@@ -18,11 +18,12 @@ Selection primitives (each returns a path str or None):
   - highest_step_checkpoint: the `*_<N>_steps.zip` with the largest N. Deterministic;
     mtime-independent. What the trainers want for resume.
   - best_reward_checkpoint: a reward-gated `*_best.zip` if present (written by the #138
-    best-checkpoint callback). Absent until that lands, so callers fall through.
+    callback in reward_checkpoint.py; opt-in, so callers fall through when absent).
   - newest_by_mtime: newest `*.zip` by mtime. LEGACY fallback only.
 
 Composite policies via `select_checkpoint(dir, policy=...)`:
-  - "resume"  -> highest_step -> mtime         (trainers; deterministic resume)
+  - "resume"  -> highest_step -> mtime excluding `*_best.zip`  (trainers; a best zip is
+    a deploy artifact, never a resume target)
   - "deploy"  -> best_reward -> highest_step -> mtime  (exporters; ships the best)
 
 The prefix-agnostic step regex matches any SB3 `CheckpointCallback` name_prefix
@@ -48,6 +49,22 @@ def _zips(checkpoint_dir: str) -> list[pathlib.Path]:
     return [p for p in d.iterdir() if p.is_file() and p.suffix == ".zip"]
 
 
+def best_zip_path(checkpoint_dir: str, name_prefix: str) -> pathlib.Path:
+    """Canonical `<checkpoint_dir>/<name_prefix>_best.zip` path (the #138 deploy artifact).
+
+    Single place that knows the best-checkpoint naming, shared by the writer
+    (reward_checkpoint.py) and the reader (best_reward_checkpoint below).
+    """
+    return pathlib.Path(checkpoint_dir) / (name_prefix + _BEST_SUFFIX)
+
+
+def _newest(cands: list[pathlib.Path]) -> str | None:
+    """Newest path by mtime, or None for an empty list."""
+    if not cands:
+        return None
+    return str(max(cands, key=lambda p: p.stat().st_mtime))
+
+
 def highest_step_checkpoint(checkpoint_dir: str) -> str | None:
     """Path to the `*_<N>_steps.zip` with the largest N, or None.
 
@@ -68,13 +85,10 @@ def highest_step_checkpoint(checkpoint_dir: str) -> str | None:
 def best_reward_checkpoint(checkpoint_dir: str) -> str | None:
     """Path to a reward-gated `*_best.zip` (newest by mtime if several), or None.
 
-    Written by the #138 best-checkpoint callback; absent until that lands, so deploy
-    selection falls through to highest_step.
+    Written by the #138 best-checkpoint callback (reward_checkpoint.py); deploy
+    selection falls through to highest_step when absent.
     """
-    cands = [p for p in _zips(checkpoint_dir) if p.name.endswith(_BEST_SUFFIX)]
-    if not cands:
-        return None
-    return str(max(cands, key=lambda p: p.stat().st_mtime))
+    return _newest([p for p in _zips(checkpoint_dir) if p.name.endswith(_BEST_SUFFIX)])
 
 
 def newest_by_mtime(checkpoint_dir: str) -> str | None:
@@ -84,15 +98,24 @@ def newest_by_mtime(checkpoint_dir: str) -> str | None:
     it). Prefer step-count selection; this exists so a non-standard checkpoint dir with
     no `*_steps.zip` / `*_best.zip` still resolves to *something* rather than nothing.
     """
-    cands = _zips(checkpoint_dir)
-    if not cands:
-        return None
-    return str(max(cands, key=lambda p: p.stat().st_mtime))
+    return _newest(_zips(checkpoint_dir))
+
+
+def _newest_non_best_by_mtime(checkpoint_dir: str) -> str | None:
+    """`newest_by_mtime` excluding `*_best.zip` -- the resume chain's mtime fallback.
+
+    A `*_best.zip` is a *deploy* artifact (policy snapshot at peak reward), not a
+    resumable training state; without this exclusion a checkpoint dir containing only
+    a best zip would be silently resumed from instead of starting fresh (#139 review).
+    """
+    return _newest(
+        [p for p in _zips(checkpoint_dir) if not p.name.endswith(_BEST_SUFFIX)]
+    )
 
 
 # policy name -> ordered precedence of pickers (first non-None wins).
 _POLICIES = {
-    "resume": (highest_step_checkpoint, newest_by_mtime),
+    "resume": (highest_step_checkpoint, _newest_non_best_by_mtime),
     "deploy": (best_reward_checkpoint, highest_step_checkpoint, newest_by_mtime),
 }
 
@@ -111,7 +134,7 @@ def select_checkpoint(checkpoint_dir: str, policy: str = "deploy") -> str | None
         raise ValueError(
             "unknown checkpoint policy %r (choose from %s)"
             % (policy, ", ".join(sorted(_POLICIES)))
-        )
+        ) from None
     for picker in chain:
         hit = picker(checkpoint_dir)
         if hit is not None:
