@@ -69,7 +69,8 @@ def main() -> None:
 
     # Periodic checkpoints so an interrupted run (e.g. shutdown) can resume.
     # CheckpointCallback's save_freq counts env.step() calls; divide by the number of
-    # parallel envs so --checkpoint_freq stays in total-timestep units (n_parallel=1 today).
+    # parallel envs so --checkpoint_freq stays in total-timestep units (n_parallel stays 1;
+    # the tiled scene vectorizes via n_agents, so env.num_envs = number of tiled worlds).
     callbacks = [CheckpointCallback(
         save_freq=max(args.checkpoint_freq // env.num_envs, 1),
         save_path=args.checkpoint_dir,
@@ -104,7 +105,10 @@ def main() -> None:
             learning_starts=5_000,
             batch_size=256,
             train_freq=1,
-            gradient_steps=1,
+            # -1 = as many gradient updates as transitions collected per env.step(): 8 with the
+            # tiled 8-world scene, 1 single-world (identical to the old gradient_steps=1 there).
+            # Keeps the update-to-data ratio at 1 regardless of tiling (#82).
+            gradient_steps=-1,
             tensorboard_log="logs/sb3",
         )
         model.learn(args.timesteps, callback=callbacks)
