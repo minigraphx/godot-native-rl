@@ -8,6 +8,7 @@ extends Node2D
 @export var touch_radius := 40.0  ## reach detection radius
 @export var agent_body_path: NodePath
 @export var target_path: NodePath
+@export var rng_seed := -1  ## >= 0 seeds the RNG at _ready for reproducible runs; -1 leaves it random
 
 signal target_caught  ## emitted when the target is reached and relocated
 
@@ -23,6 +24,8 @@ var _target_pos_override := Vector2.ZERO
 func _ready() -> void:
 	_agent_body = get_node_or_null(agent_body_path) as Node2D
 	_target = get_node_or_null(target_path) as Node2D
+	if rng_seed >= 0:
+		seed_rng(rng_seed)
 	reset_positions()
 
 # --- Pure helpers (unit-tested) ---
