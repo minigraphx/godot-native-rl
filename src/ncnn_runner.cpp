@@ -2,6 +2,7 @@
 
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/core/object.hpp>
+#include <godot_cpp/variant/callable_method_pointer.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
 #include <mat.h>
@@ -37,8 +38,6 @@ void NcnnRunner::_bind_methods() {
     ClassDB::bind_method(D_METHOD("run_discrete_action", "input"), &NcnnRunner::run_discrete_action);
     ClassDB::bind_method(D_METHOD("run_inference_async", "input"), &NcnnRunner::run_inference_async);
     ClassDB::bind_method(D_METHOD("is_inference_running"), &NcnnRunner::is_inference_running);
-    // Bound so the worker thread can marshal completion back via call_deferred; not user-facing.
-    ClassDB::bind_method(D_METHOD("async_finish", "output"), &NcnnRunner::async_finish);
     ClassDB::bind_method(D_METHOD("is_model_loaded"), &NcnnRunner::is_model_loaded);
     ClassDB::bind_method(D_METHOD("set_input_blob_name", "name"), &NcnnRunner::set_input_blob_name);
     ClassDB::bind_method(D_METHOD("get_input_blob_name"), &NcnnRunner::get_input_blob_name);
@@ -59,6 +58,9 @@ void NcnnRunner::_bind_methods() {
 bool NcnnRunner::load_model(const String &p_param_path, const String &p_bin_path) {
     if (p_param_path.is_empty() || p_bin_path.is_empty()) {
         UtilityFunctions::push_error("NcnnRunner.load_model: param_path and bin_path must be non-empty.");
+        return false;
+    }
+    if (!ready_to_swap_net("NcnnRunner.load_model")) {
         return false;
     }
 
@@ -89,6 +91,9 @@ bool NcnnRunner::load_model(const String &p_param_path, const String &p_bin_path
 bool NcnnRunner::load_model_from_buffers(const PackedByteArray &p_param, const PackedByteArray &p_bin) {
     if (p_param.is_empty() || p_bin.is_empty()) {
         UtilityFunctions::push_error("NcnnRunner.load_model_from_buffers: param and bin buffers must be non-empty.");
+        return false;
+    }
+    if (!ready_to_swap_net("NcnnRunner.load_model_from_buffers")) {
         return false;
     }
 
@@ -374,6 +379,23 @@ bool NcnnRunner::is_model_loaded() const {
     return model_loaded_ && static_cast<bool>(net_);
 }
 
+bool NcnnRunner::ready_to_swap_net(const char *p_where) {
+    // Reject a model reload while an async forward pass is in flight: the worker thread holds the
+    // current net_, so replacing it would free the Net out from under a running extractor
+    // (use-after-free). LOD policy switching (#21) makes runtime model swapping a real path, so
+    // this is load-bearing, not just an edge case. When inference_running_ is false, async_finish
+    // has already joined the worker; the defensive join below covers the theoretical window.
+    if (inference_running_.load()) {
+        UtilityFunctions::push_error(p_where, ": cannot reload the model while an async inference "
+            "is in flight; await inference_completed first.");
+        return false;
+    }
+    if (async_worker_.joinable()) {
+        async_worker_.join();
+    }
+    return true;
+}
+
 bool NcnnRunner::run_inference_async(const PackedFloat32Array &p_input) {
     if (inference_running_.load()) {
         UtilityFunctions::push_error("NcnnRunner.run_inference_async: a request is already in flight; "
@@ -397,6 +419,10 @@ bool NcnnRunner::run_inference_async(const PackedFloat32Array &p_input) {
     PackedFloat32Array out;
     if (run_inference_internal(input_mat, out_mat)) {
         out = output_mat_to_packed_float_array(out_mat);
+    }
+    if (out.is_empty()) {
+        UtilityFunctions::push_error("NcnnRunner.run_inference_async: inference produced no output "
+            "(check blob names / input shape).");
     }
     emit_signal("inference_completed", out);
     return true;
@@ -422,8 +448,10 @@ bool NcnnRunner::run_inference_async(const PackedFloat32Array &p_input) {
             }
         }
         // Marshal the result back to the main thread; Godot's deferred-call queue is thread-safe,
-        // and a freed runner's queued call is dropped against the ObjectDB.
-        call_deferred("async_finish", out);
+        // and a freed runner's queued call is dropped against the ObjectDB. callable_mp (not a
+        // bound method name) keeps async_finish off the public GDScript surface so a stray script
+        // call can't fake a completion.
+        callable_mp(this, &NcnnRunner::async_finish).call_deferred(out);
     });
     return true;
 #endif

@@ -68,8 +68,12 @@ private:
     bool run_inference_internal(const ncnn::Mat &p_input, ncnn::Mat &r_output) const;
     static PackedFloat32Array output_mat_to_packed_float_array(const ncnn::Mat &p_output);
     // Runs on the main thread via call_deferred from the async worker: clears the in-flight
-    // flag, joins the finished worker, and emits inference_completed.
+    // flag, joins the finished worker, and emits inference_completed. Not bound to GDScript
+    // (invoked through callable_mp), so a script can't fake a completion.
     void async_finish(const PackedFloat32Array &p_output);
+    // True if it's safe to replace net_ now: refuses while an async inference is in flight
+    // (logs via p_where) and joins a finished worker. Call before swapping net_ in load_*.
+    bool ready_to_swap_net(const char *p_where);
 
     std::unique_ptr<ncnn::Net> net_;
     bool model_loaded_ = false;

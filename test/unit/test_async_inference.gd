@@ -50,6 +50,12 @@ func _initialize() -> void:
 	_h.assert_true(_runner.is_inference_running(), "is_inference_running true while in flight")
 	# A second request while one is in flight is rejected (one at a time).
 	_h.assert_true(not _runner.run_inference_async(INPUT), "concurrent async request rejected")
+	# Reloading the model while a worker holds net_ must be refused (else use-after-free) and
+	# leave the loaded model intact.
+	_h.assert_true(not _runner.load_model(
+		ProjectSettings.globalize_path(PARAM), ProjectSettings.globalize_path(BIN)),
+		"load_model refused while async inference in flight")
+	_h.assert_true(_runner.is_model_loaded(), "model still loaded after refused reload")
 	# _process below waits for the completion signal.
 
 func _process(_delta: float) -> bool:
