@@ -26,7 +26,10 @@ env:
   # Pinned dependency refs — also the cache keys. Bump CACHE_VERSION to force a cold rebuild.
   GODOT_CPP_BRANCH: "4.5"   # build against the minimum supported Godot; runs on newer too
   NCNN_TAG: "20260526"      # matches the locally-vendored ncnn (docs/dev/building.md)
-  CACHE_VERSION: "v1"
+  # v2: NCNN_OPENMP=OFF (#103). The ncnn/bin cache keys don't encode cmake flags, so the bump
+  # forces a cold rebuild — a cached OpenMP libncnn.a linked without -lgomp would yield a .so
+  # with undefined GOMP_* symbols that fails to load.
+  CACHE_VERSION: "v2"
   # Cap CMake build parallelism. ncnn's SIMD/INT8 translation units are memory-heavy; compiling
   # at full -j(nproc) (4 on the standard runner) OOM-kills cc1plus on the 16 GB runner. 2 stays
   # well under the limit. Governs both our `cmake --build` and build_ncnn_tools.sh's `--parallel`.
@@ -86,6 +89,8 @@ jobs:
           # (CMAKE_BUILD_PARALLEL_LEVEL is ignored when --parallel is given) and OOM-kills cc1plus
           # on ncnn's AVX512 TUs. Building once with TOOLS=ON + a capped `cmake --build` (no
           # --parallel flag → honours CMAKE_BUILD_PARALLEL_LEVEL) avoids the second build entirely.
+          # NCNN_OPENMP=OFF (#103): test the same self-contained (no libgomp) configuration
+          # the Linux release ships (scripts/cross/build_linux_native.sh).
           cmake -S thirdparty/ncnn -B thirdparty/ncnn/build \
             -DCMAKE_BUILD_TYPE=Release \
             -DNCNN_BUILD_TOOLS=ON \
@@ -94,7 +99,8 @@ jobs:
             -DNCNN_BUILD_TESTS=OFF \
             -DNCNN_SIMPLEOCV=ON \
             -DNCNN_INT8=ON \
-            -DBUILD_SHARED_LIBS=OFF
+            -DBUILD_SHARED_LIBS=OFF \
+            -DNCNN_OPENMP=OFF
           cmake --build thirdparty/ncnn/build --config Release   # parallelism via CMAKE_BUILD_PARALLEL_LEVEL
           cmake --install thirdparty/ncnn/build --prefix thirdparty/ncnn/build/install
           # Collect the three quantize tools into tools-bin/ (same layout build_ncnn_tools.sh
@@ -133,8 +139,19 @@ jobs:
       - name: Build GDExtension
         if: steps.cache-bin.outputs.cache-hit != 'true'
         run: |
-          scons platform=linux target=template_debug build_library=no -j"$(nproc)"
-          scons platform=linux target=template_release build_library=no -j"$(nproc)"
+          scons platform=linux target=template_debug build_library=no ncnn_openmp=no -j"$(nproc)"
+          scons platform=linux target=template_release build_library=no ncnn_openmp=no -j"$(nproc)"
+          # #103: assert the .so is self-contained — no libgomp DT_NEEDED, no undefined
+          # OpenMP symbols (either would mean a load failure on a libgomp-less host).
+          for so in addons/godot_native_rl/bin/libncnn_runner.linux.*.so; do
+            if readelf -d "$so" | grep -q libgomp; then
+              echo "ERROR: $so has a libgomp DT_NEEDED entry" >&2; exit 1
+            fi
+            if nm -D --undefined-only "$so" | grep -qE " (GOMP_|omp_)"; then
+              echo "ERROR: $so has undefined OpenMP symbols" >&2; exit 1
+            fi
+            echo "OK: $so is self-contained"
+          done
 
       - name: Upload extension binaries
         uses: actions/upload-artifact@v7

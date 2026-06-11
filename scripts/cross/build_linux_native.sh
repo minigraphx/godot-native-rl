@@ -21,16 +21,43 @@ NCNN_JOBS="${NCNN_JOBS:-$CPUS}"
 
 ncnn_build="thirdparty/ncnn/build"
 if [ ! -f "$ncnn_build/install/lib/libncnn.a" ]; then
+  # NCNN_OPENMP=OFF (#103): ship a self-contained .so with no libgomp.so.1 runtime
+  # dependency. ncnn falls back to its own simple thread pool / single-thread; deploy
+  # inference is typically single-sample, and the batched crowd path (run_inference_batch)
+  # uses its own std::threads with opt.num_threads pinned to 1, so nothing relies on OpenMP.
   cmake -S thirdparty/ncnn -B "$ncnn_build" \
     -DCMAKE_BUILD_TYPE=Release \
     -DNCNN_BUILD_TOOLS=OFF -DNCNN_BUILD_EXAMPLES=OFF -DNCNN_BUILD_BENCHMARK=OFF \
-    -DNCNN_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=OFF
+    -DNCNN_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=OFF -DNCNN_OPENMP=OFF
   CMAKE_BUILD_PARALLEL_LEVEL="$NCNN_JOBS" cmake --build "$ncnn_build" --config Release
   cmake --install "$ncnn_build" --prefix "$repo/$ncnn_build/install"
 fi
 
+# Guard: a libncnn.a left over from a pre-#103 build (OpenMP on) would make the .so carry
+# undefined GOMP_* symbols once we stop linking gomp — link succeeds, load fails. Fail loud.
+if nm "$ncnn_build/install/lib/libncnn.a" 2>/dev/null | grep -q "GOMP_"; then
+  echo "ERROR: stale OpenMP-enabled libncnn.a at $ncnn_build/install/lib/libncnn.a." >&2
+  echo "       rm -rf $ncnn_build and re-run to rebuild with NCNN_OPENMP=OFF (#103)." >&2
+  exit 1
+fi
+
 for cfg in template_debug template_release; do
-  scons platform=linux arch=x86_64 target="$cfg" -j"$CPUS"
+  scons platform=linux arch=x86_64 target="$cfg" ncnn_openmp=no -j"$CPUS"
+done
+
+# Validate the shipped .so is self-contained (#103): no libgomp in DT_NEEDED, and no
+# undefined OpenMP symbols that would fail at load time on a libgomp-less host.
+for so in addons/godot_native_rl/bin/libncnn_runner.linux.*.so; do
+  [ -f "$so" ] || continue
+  if readelf -d "$so" | grep -q "libgomp"; then
+    echo "ERROR: $so still has a libgomp DT_NEEDED entry" >&2
+    exit 1
+  fi
+  if nm -D --undefined-only "$so" | grep -qE " (GOMP_|omp_)"; then
+    echo "ERROR: $so has undefined OpenMP symbols (stale OpenMP libncnn.a?)" >&2
+    exit 1
+  fi
+  echo "OK: $so is self-contained (no libgomp NEEDED, no undefined OpenMP symbols)"
 done
 
 echo "== built linux x86_64 (native gcc) =="
