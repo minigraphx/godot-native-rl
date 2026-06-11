@@ -47,9 +47,11 @@ static func _hinge(parent: Node3D, a: PhysicsBody3D, b: PhysicsBody3D, at: Vecto
 	var j := HingeJoint3D.new()
 	j.name = joint_name
 	j.position = at
+	# HingeJoint3D hinges about its local Z axis; rotate 90° about Y so local Z = world X,
+	# making legs swing in the forward/back (Z-Y) plane.
+	j.rotation = Vector3(0.0, PI / 2.0, 0.0)
 	# Add to parent FIRST so get_path_to produces valid scene-tree paths.
 	parent.add_child(j)
-	# Hinge axis = local X so legs swing in the forward/back (Z-Y) plane.
 	j.node_a = j.get_path_to(a)
 	j.node_b = j.get_path_to(b)
 	j.set_flag(HingeJoint3D.FLAG_USE_LIMIT, true)
