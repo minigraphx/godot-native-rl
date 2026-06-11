@@ -91,6 +91,21 @@ Key `NcnnRunner` methods:
 - `input_blob_name`, `output_blob_name` — set to `"in0"` / `"out0"` for godot-rl-exported models
 - `input_shape: PackedInt32Array` — optional: reshapes flat floats to 1D/2D/3D ncnn tensor
 
+### Level-of-Detail policy switching (`NcnnLODRunner`)
+
+For many agents (or an expensive policy), `NcnnLODRunner` runs a cheap **reflex** net most frames and
+an accurate **deliberative** net only every `deliberative_interval` frames (or when you pass
+`state_changed = true`) — exactly one inference per frame, so the big net's cost is paid at
+~1/interval the rate. Set the two model paths (`reflex_*` / `deliberative_*`, which must share the obs
+and output contract) and call `decide(obs)` each frame:
+
+```gdscript
+var out := $NcnnLODRunner.decide(obs)   # { logits, tier: "reflex"|"deliberative", ran_deliberative }
+```
+
+`deliberative_interval` is live-editable; call `reset()` on episode boundaries to re-arm the cadence.
+Only viable because both nets are statically linked and resident — switching them is free at runtime.
+
 ## Exporting your game
 
 **Enable the addon** (Project → Project Settings → Plugins → *Godot Native RL*). Beyond surfacing a
