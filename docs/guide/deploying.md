@@ -227,6 +227,23 @@ only.
 > **rebuild `NcnnRunner` after pulling** (see [../dev/building.md](../dev/building.md)). Full
 > contract: [The recurrent deploy contract](../dev/DEVELOPMENT.md#the-recurrent-deploy-contract-lstm).
 
+## Driving animation from policy actions (`AnimationPolicyAdapter`)
+
+For continuous-control agents, `AnimationPolicyAdapter` writes a policy's action vector straight to
+an `AnimationTree`'s blend parameters — production animation with no hand-written blending layer.
+Each mapping routes one action element to one blend-param path with an affine remap + clamp
+(`scale·a + offset`, clamped) so a `tanh`/`[-1,1]` or raw action adapts to whatever range the
+parameter expects:
+
+```gdscript
+adapter.add_mapping(0, "parameters/locomotion/blend_amount", 0.5, 0.5, 0.0, 1.0)  # [-1,1] -> [0,1]
+adapter.add_mapping(1, "parameters/lean/blend_position")
+adapter.apply(action)   # call each frame after inference
+```
+
+Out-of-range / unmapped action elements are skipped; a freed or unset tree is a safe no-op (the
+"no tree" error logs once, not every frame).
+
 ## Platform targets (the moat)
 
 ncnn is statically linked via C++ (no .NET, no external runtime). This enables deployment targets
