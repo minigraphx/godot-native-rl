@@ -56,6 +56,9 @@ echo "== Rover 3D smoke test (headless) =="
 echo "== Parallel arena smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/parallel_arena_smoke_scene.tscn
 
+echo "== BallChase parallel arena smoke test (headless) =="
+"$GODOT" --headless --path . res://test/integration/ball_chase_parallel_smoke_scene.tscn
+
 echo "== Quadruped walk smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/quadruped_smoke_scene.tscn
 

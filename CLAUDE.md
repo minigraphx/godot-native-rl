@@ -81,7 +81,10 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   overrides; exits loud if `TIMESTEPS` < one rollout batch (`NUM_STEPS` × n_agents) instead of
   silently exporting an untrained policy (#119) — lower `NUM_STEPS` for short smoke runs.
 - **Train (BallChase, SAC):** `./scripts/train_ball_chase.sh` — SB3 SAC (continuous-control) over the
-  BallChase env (port 11008). Exports the deterministic actor (tanh(mean)) as **TorchScript** (godot_rl's
+  BallChase env (port 11008). `SCENE=res://examples/ball_chase/ball_chase_train_parallel.tscn` tiles
+  8 worlds (`ParallelArena2D`, measured 3.39× samples/sec); the trainer uses `gradient_steps=-1` so
+  the SAC update-to-data ratio stays 1 under tiling (#82). Exports the deterministic actor
+  (tanh(mean)) as **TorchScript** (godot_rl's
   SAC ONNX export breaks under torch 2.x dynamo), then `scripts/export_to_ncnn.py models/ball_chase_sac.pt
   --via torchscript`. Re-export a saved SAC checkpoint without retraining via
   `scripts/export_sac_torchscript.py --checkpoint models/ball_chase_sac.zip` (see issue #81 / `docs/ncnn_vs_onnx.md`).

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Throughput validation: samples/sec of the parallel (n_agents=8) training scene vs the
-# single-agent baseline. Runs each for a short, fixed number of timesteps with FRESH state
+# single-agent baseline. Defaults to the rover pair; set SINGLE_SCENE, PARALLEL_SCENE,
+# TRAINER, EXPORT_ARG, and EXPORT_EXT env vars to retarget it to any scene/trainer pair.
+# Runs each for a short, fixed number of timesteps with FRESH state
 # and temp output dirs (never touches models/ or the shipped policy), then compares.
 # Exits non-zero if the parallel scene is not faster than single-agent.
 set -euo pipefail
@@ -15,16 +17,24 @@ ACTION_REPEAT="${ACTION_REPEAT:-8}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-SINGLE_SCENE="res://examples/rover_3d/rover_3d_train.tscn"
-PARALLEL_SCENE="res://examples/rover_3d/rover_3d_train_parallel.tscn"
+# Scene/trainer overrides (defaults = the original rover compare). Example — BallChase SAC:
+#   SINGLE_SCENE=res://examples/ball_chase/ball_chase_train.tscn \
+#   PARALLEL_SCENE=res://examples/ball_chase/ball_chase_train_parallel.tscn \
+#   TRAINER=scripts/train_ball_chase.py EXPORT_ARG=--pt_export_path EXPORT_EXT=pt \
+#   TIMESTEPS=24000 ./scripts/throughput_compare.sh
+SINGLE_SCENE="${SINGLE_SCENE:-res://examples/rover_3d/rover_3d_train.tscn}"
+PARALLEL_SCENE="${PARALLEL_SCENE:-res://examples/rover_3d/rover_3d_train_parallel.tscn}"
+TRAINER="${TRAINER:-scripts/train_rover.py}"
+EXPORT_ARG="${EXPORT_ARG:---onnx_export_path}"
+EXPORT_EXT="${EXPORT_EXT:-onnx}"
 
 run_scene() {  # $1=scene  $2=tag ; writes elapsed seconds to $TMP/$2.secs
 	local scene="$1" tag="$2"
 	echo "== Throughput: $tag ($scene), $TIMESTEPS timesteps =="
-	"$PY" scripts/train_rover.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" \
+	"$PY" "$TRAINER" --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" \
 		--action_repeat "$ACTION_REPEAT" --fresh \
 		--save_model_path "$TMP/$tag.zip" \
-		--onnx_export_path "$TMP/$tag.onnx" \
+		"$EXPORT_ARG" "$TMP/$tag.$EXPORT_EXT" \
 		--checkpoint_dir "$TMP/${tag}_ckpts" > "$TMP/$tag.trainer.log" 2>&1 &
 	local trainer=$!
 	sleep 5
