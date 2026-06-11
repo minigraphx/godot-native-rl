@@ -6,14 +6,15 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-# Guarded heavy imports (#141): missing deps -> skips, not errors, under bare python.
+# Dep probe (#141/#148): only third-party deps live in the try; the script under
+# test is stdlib-only at module load, so its own import failures stay loud.
 try:
     import numpy as np  # noqa: E402
     from gymnasium import spaces  # noqa: E402
-    import train_pettingzoo as tp  # noqa: E402
     HAVE_DEPS = True
 except ImportError:
     HAVE_DEPS = False
+import train_pettingzoo as tp  # noqa: E402
 
 
 @unittest.skipUnless(HAVE_DEPS, "numpy/gymnasium not installed")
