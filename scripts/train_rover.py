@@ -10,7 +10,7 @@ import sys
 
 # Shared checkpoint discovery + reward-gated best-checkpoint (import-light: no torch).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from checkpoints import select_checkpoint  # noqa: E402
+from checkpoints import select_checkpoint, sync_manifest_checkpoints  # noqa: E402
 from reward_checkpoint import make_reward_gated_checkpoint  # noqa: E402
 
 
@@ -86,6 +86,10 @@ def main() -> None:
             tensorboard_log="logs/sb3",
         )
         model.learn(args.timesteps, callback=callbacks)
+
+    # Record this run's step checkpoints in the manifest (#105 part B; informational
+    # "what came from this run" -- selection still parses filenames).
+    sync_manifest_checkpoints(args.checkpoint_dir)
 
     zip_path = pathlib.Path(args.save_model_path).with_suffix(".zip")
     zip_path.parent.mkdir(parents=True, exist_ok=True)

@@ -163,6 +163,95 @@ class TestSelectCheckpoint(unittest.TestCase):
             cp.select_checkpoint("/tmp", policy="bogus")
 
 
+class TestManifest(unittest.TestCase):
+    def test_round_trip_adds_version_and_timestamp(self):
+        with tempfile.TemporaryDirectory() as d:
+            cp.write_manifest(d, {"checkpoints": []})
+            m = cp.load_manifest(d)
+            self.assertEqual(m["version"], cp.MANIFEST_VERSION)
+            self.assertIn("updated_at", m)
+            self.assertEqual(m["checkpoints"], [])
+
+    def test_missing_and_corrupt_load_as_none(self):
+        self.assertIsNone(cp.load_manifest("/no/such/dir/anywhere"))
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(cp.load_manifest(d))
+            cp.manifest_path(d).write_text("not json{")
+            self.assertIsNone(cp.load_manifest(d))
+            cp.manifest_path(d).write_text("[1,2]")  # non-object
+            self.assertIsNone(cp.load_manifest(d))
+
+    def test_atomic_write_leaves_no_temp_files(self):
+        with tempfile.TemporaryDirectory() as d:
+            cp.write_manifest(d, {})
+            names = [p.name for p in Path(d).iterdir()]
+            self.assertEqual(names, [cp.MANIFEST_NAME])
+
+    def test_record_best_preserves_other_keys(self):
+        with tempfile.TemporaryDirectory() as d:
+            cp.write_manifest(d, {"checkpoints": [{"file": "a.zip", "steps": 1}]})
+            cp.record_best_in_manifest(d, "rover_ckpt_best.zip", 2.5, 50_000)
+            m = cp.load_manifest(d)
+            self.assertEqual(m["best"]["file"], "rover_ckpt_best.zip")
+            self.assertEqual(m["best"]["mean_reward"], 2.5)
+            self.assertEqual(m["best"]["num_timesteps"], 50_000)
+            self.assertEqual(m["checkpoints"], [{"file": "a.zip", "steps": 1}])
+
+    def test_sync_checkpoints_scans_step_zips_sorted(self):
+        with tempfile.TemporaryDirectory() as d:
+            _touch(d, "rover_ckpt_50000_steps.zip")
+            _touch(d, "rover_ckpt_5000_steps.zip")
+            _touch(d, "rover_ckpt_best.zip")  # not a step checkpoint
+            _touch(d, "unrelated.txt")
+            cp.record_best_in_manifest(d, "rover_ckpt_best.zip", 1.0, 1)
+            cp.sync_manifest_checkpoints(d)
+            m = cp.load_manifest(d)
+            self.assertEqual(
+                m["checkpoints"],
+                [
+                    {"file": "rover_ckpt_5000_steps.zip", "steps": 5000},
+                    {"file": "rover_ckpt_50000_steps.zip", "steps": 50000},
+                ],
+            )
+            self.assertEqual(m["best"]["file"], "rover_ckpt_best.zip")  # preserved
+
+
+class TestManifestBestCheckpoint(unittest.TestCase):
+    def test_returns_blessed_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            best = _touch(d, "rover_ckpt_best.zip")
+            cp.record_best_in_manifest(d, "rover_ckpt_best.zip", 3.0, 100)
+            self.assertEqual(cp.manifest_best_checkpoint(d), str(best))
+
+    def test_none_without_manifest_or_entry(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(cp.manifest_best_checkpoint(d))
+            cp.write_manifest(d, {"checkpoints": []})
+            self.assertIsNone(cp.manifest_best_checkpoint(d))
+            cp.write_manifest(d, {"best": "not-a-dict"})
+            self.assertIsNone(cp.manifest_best_checkpoint(d))
+
+    def test_stale_entry_for_deleted_file_is_ignored(self):
+        # A manifest must never ship a file that no longer exists on disk.
+        with tempfile.TemporaryDirectory() as d:
+            cp.record_best_in_manifest(d, "rover_ckpt_best.zip", 3.0, 100)
+            self.assertIsNone(cp.manifest_best_checkpoint(d))
+
+    def test_deploy_prefers_manifest_over_best_glob(self):
+        # The blessed file wins even when another best zip is newer by mtime.
+        with tempfile.TemporaryDirectory() as d:
+            blessed = _touch(d, "a_best.zip", mtime=1000)
+            _touch(d, "z_best.zip", mtime=2000)
+            cp.record_best_in_manifest(d, "a_best.zip", 9.0, 100)
+            self.assertEqual(cp.select_checkpoint(d, policy="deploy"), str(blessed))
+
+    def test_deploy_stale_manifest_falls_through_to_glob(self):
+        with tempfile.TemporaryDirectory() as d:
+            glob_best = _touch(d, "rover_ckpt_best.zip")
+            cp.record_best_in_manifest(d, "deleted_best.zip", 9.0, 100)
+            self.assertEqual(cp.select_checkpoint(d, policy="deploy"), str(glob_best))
+
+
 class TestBestZipPath(unittest.TestCase):
     def test_naming_matches_best_suffix(self):
         # The writer's path must be discoverable by the deploy picker.

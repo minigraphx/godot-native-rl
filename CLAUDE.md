@@ -56,8 +56,8 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   every 25k steps and **auto-resumes** on re-run. `FRESH=1` restart; `CHECKPOINT_FREQ=N` tune;
   `TIMESTEPS=N` raise the target to **refine** an existing model further; `BEST_CHECKPOINT=1`
   additionally saves `rover_ckpt_best.zip` whenever the rolling mean episode reward improves
-  (#138 — reward-gated via `scripts/reward_checkpoint.py`, best persisted across resumes by a
-  JSON sidecar; the deploy-policy exporters prefer it). On macOS/Apple Silicon wrap
+  (#138 — reward-gated via `scripts/reward_checkpoint.py`, best persisted across resumes in the
+  run manifest; the deploy-policy exporters prefer it). On macOS/Apple Silicon wrap
   it: `caffeinate -is ./scripts/train_rover.sh` (see sleep gotcha below).
 - **Train (rover, parallel — fast):** `SCENE=res://examples/rover_3d/rover_3d_train_parallel.tscn
   ./scripts/train_rover.sh` — tiles 8 rover worlds in one process (`ParallelArena`), so godot-rl
@@ -124,7 +124,10 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   (latest checkpoint → `models/rover_policy.onnx`, non-destructive) then `scripts/export_to_ncnn.py`.
   Checkpoint selection is shared/`scripts/checkpoints.py`: trainers resume by **highest step
   count** (mtime-free, so `FRESH`/`cp -p`/backups can't pick a weaker ckpt); exporters deploy by
-  **best-reward (#138, when present) → highest-step → mtime(legacy)** (#105).
+  **manifest-blessed best → `*_best.zip` → highest-step → mtime(legacy)** (#105). Each run keeps a
+  `<checkpoint_dir>/manifest.json` (atomic writes): the step checkpoints it wrote + the blessed
+  best (#138) with its reward; every reader tolerates a missing manifest (pre-manifest runs fall
+  through to filename parsing).
 - **Export a checkpoint → TorchScript (ONNX-free):** `.venv-train/bin/python scripts/export_torchscript.py
   --checkpoint <ckpt.zip>` — traces the deterministic actor to `models/policy.pt` **and writes a
   `models/policy.pt.shape.json` sidecar**, so `export_to_ncnn.py models/policy.pt` auto-derives the shape
