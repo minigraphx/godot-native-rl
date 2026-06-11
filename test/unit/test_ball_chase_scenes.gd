@@ -19,13 +19,14 @@ func _initialize() -> void:
 	var h := Harness.new()
 	_test_world(h)
 	_test_train(h)
+	_test_parallel(h)
 	h.finish(self)
 
 func _script_path(node: Node) -> String:
 	var s: Variant = node.get_script()
 	return s.resource_path if s != null else ""
 
-func _test_world(h) -> void:
+func _test_world(h: Harness) -> void:
 	var packed := load(WORLD_PATH) as PackedScene
 	h.assert_true(packed != null, "world scene loads")
 	if packed == null:
@@ -39,11 +40,11 @@ func _test_world(h) -> void:
 	if agent != null:
 		h.assert_eq(_script_path(agent), AGENT_SCRIPT, "agent runs BallChaseAgent script")
 		h.assert_eq(agent.game_path, NodePath(".."), "agent game_path points at world root")
-		h.assert_eq(agent.control_mode, 2, "agent control_mode matches the old train scene (2)")
+		h.assert_eq(agent.control_mode, 2, "agent control_mode = TRAINING (2)")
 	h.assert_true(world.get_node_or_null("Sync") == null, "world has NO Sync (replicable unit)")
 	world.free()
 
-func _test_train(h) -> void:
+func _test_train(h: Harness) -> void:
 	var packed := load(TRAIN_PATH) as PackedScene
 	h.assert_true(packed != null, "train scene loads")
 	if packed == null:
@@ -59,3 +60,24 @@ func _test_train(h) -> void:
 		h.assert_eq(_script_path(sync), SYNC_SCRIPT, "Sync runs NcnnSync")
 		h.assert_eq(sync.control_mode, 1, "Sync control_mode = TRAINING (1)")
 	train.free()
+
+func _test_parallel(h: Harness) -> void:
+	var packed := load(PARALLEL_PATH) as PackedScene
+	h.assert_true(packed != null, "parallel scene loads")
+	if packed == null:
+		return
+	var scene := packed.instantiate()
+	var arena := scene.get_node_or_null("ParallelArena2D")
+	h.assert_true(arena != null, "parallel scene has ParallelArena2D")
+	if arena != null:
+		h.assert_eq(_script_path(arena), ARENA_SCRIPT, "arena runs ParallelArena2D")
+		h.assert_true(arena.world_scene != null, "arena world_scene is set")
+		if arena.world_scene != null:
+			h.assert_eq(arena.world_scene.resource_path, WORLD_PATH, "arena tiles the ball_chase world")
+		h.assert_eq(arena.count, 8, "8 tiled worlds")
+		h.assert_true(arena.spacing >= 1200.0, "spacing exceeds arena extent (1000x600 diag ~1166)")
+	var sync := scene.get_node_or_null("Sync")
+	h.assert_true(sync != null, "parallel scene has Sync")
+	if sync != null:
+		h.assert_eq(sync.control_mode, 1, "Sync control_mode = TRAINING (1)")
+	scene.free()
