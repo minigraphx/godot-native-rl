@@ -17,3 +17,7 @@ config/features=PackedStringArray("4.5")
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/godot_native_rl/plugin.cfg")
+
+[physics]
+
+3d/physics_engine="Jolt Physics"

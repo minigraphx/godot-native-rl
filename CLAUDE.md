@@ -18,7 +18,7 @@ standalone headless-compatible play scenes; trained inference is available for c
 multi-policy hide & seek, and BallChase. Reusable library in
 `addons/godot_native_rl/` (`sync.gd`/`NcnnSync`, `controllers/`, `reward/`, `sensors/` (+ drop-in `scenes/`),
 `training/`, `net/`, `script_templates/` (controller scaffold, auto-installed on plugin enable)); C++ GDExtension at repo root (`src/ncnn_runner.{h,cpp}`). Examples:
-`chase_the_target` (2D, + `chase_crowd.tscn` batched shared-policy crowd via `run_inference_batch` + `NcnnCrowdController`), `rover_3d` (3D), `hide_and_seek` (2D self-play), `ball_chase` (2D continuous-control / SAC), `fly_by` (3D continuous-control / PPO, ships the #64 DiagGaussian-sampling demo). Wire protocol is
+`chase_the_target` (2D, + `chase_crowd.tscn` batched shared-policy crowd via `run_inference_batch` + `NcnnCrowdController`), `rover_3d` (3D), `hide_and_seek` (2D self-play), `ball_chase` (2D continuous-control / SAC), `fly_by` (3D continuous-control / PPO, ships the #64 DiagGaussian-sampling demo), `quadruped_walk` (3D continuous-control locomotion — code-built 8-hinge-joint articulated quadruped on the **Jolt** backend; #60 PR1 harness landed: rig+agent+train/track scenes+physics smoke, the trained walking net is the follow-up training run). Wire protocol is
 godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 [docs/dev/DEVELOPMENT.md](docs/dev/DEVELOPMENT.md).**
 
@@ -89,6 +89,14 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   TorchScript still works fine, so the script is unchanged.) The play scene (`fly_by.tscn`) ships
   `deterministic_inference=true`; flip it to `false` to demo continuous DiagGaussian sampling (#64).
   `TIMESTEPS`/`SCENE` overrides.
+- **Train (quadruped walk, PPO continuous):** `./scripts/train_quadruped.sh` — SB3 PPO over the
+  code-built articulated quadruped (8 hinge-joint motor targets = one continuous `motors` action,
+  ~29-dim obs: joint angles/vels + torso up + body-local velocity + dir-to-finish + foot contacts).
+  Defaults to the tiled `quadruped_walk_train_parallel.tscn` (8 worlds via `ParallelArena`); **Jolt**
+  backend (set in `project.godot`). Exports the deterministic actor as **TorchScript** →
+  `export_to_ncnn.py models/quadruped_walk.pt` (+ `export_action_dist.py` for the std sidecar).
+  `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`/`SCENE` overrides; wrap in `caffeinate -is` on macOS. Reward
+  shaping is finicky (#60) — the committed walking net is the PR2 follow-up training run.
 - **Train (chase, CleanRL backend):** `./scripts/train_cleanrl.sh` — single-file CleanRL-style PPO over
   godot_rl's `CleanRLGodotEnv` (same chase scene + port 11008; `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`
   overrides). Exports ONNX (`models/chase_cleanrl_policy.onnx`) consumable unchanged by `export_to_ncnn.py`.
