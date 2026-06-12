@@ -114,6 +114,9 @@ echo "== Trained rover check (headless) =="
 echo "== Trained BallChase (SAC) behavioral check (headless) =="
 "$GODOT" --headless --path . res://test/integration/trained_ball_chase_scene.tscn
 
+echo "== Trained 3DBall behavioral check (headless) =="
+"$GODOT" --headless --path . res://test/integration/ball_balance_trained_scene.tscn
+
 echo "== Trained FlyBy (PPO continuous) behavioral check (headless) =="
 "$GODOT" --headless --path . res://test/integration/trained_fly_by_scene.tscn
 
