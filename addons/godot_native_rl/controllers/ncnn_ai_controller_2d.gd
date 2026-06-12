@@ -80,21 +80,32 @@ func _setup_ncnn_runner() -> void:
 	if model_param_path.is_empty() or model_bin_path.is_empty():
 		push_error("NcnnAIController2D: NCNN_INFERENCE mode requires model_param_path and model_bin_path.")
 		return
-	_ncnn_runner = NcnnRunner.new()
-	_ncnn_runner.input_blob_name = input_blob_name
-	_ncnn_runner.output_blob_name = output_blob_name
-	add_child(_ncnn_runner)
-	var param_bytes := FileAccess.get_file_as_bytes(model_param_path)
-	var bin_bytes := FileAccess.get_file_as_bytes(model_bin_path)
+	if not reload_model(model_param_path, model_bin_path) and _ncnn_runner != null:
+		# Initial load failed on a fresh runner: drop it so callers see "no model" loudly.
+		_ncnn_runner.queue_free()
+		_ncnn_runner = null
+
+# Swap the loaded policy at runtime (#29 self-play ghosts; also useful for LOD-style policy
+# switching). Keeps the existing runner/net on failure so a bad path never bricks a working
+# ghost. Resets recurrent state on success — a fresh policy must not inherit the old memory.
+func reload_model(param_path: String, bin_path: String) -> bool:
+	var param_bytes := FileAccess.get_file_as_bytes(param_path)
+	var bin_bytes := FileAccess.get_file_as_bytes(bin_path)
 	if param_bytes.is_empty() or bin_bytes.is_empty():
-		push_error("NcnnAIController2D: cannot read model files '%s' / '%s'." % [model_param_path, model_bin_path])
-		_ncnn_runner.queue_free()
-		_ncnn_runner = null
-		return
+		push_error("NcnnAIController2D: cannot read model files '%s' / '%s'." % [param_path, bin_path])
+		return false
+	if _ncnn_runner == null:
+		_ncnn_runner = NcnnRunner.new()
+		_ncnn_runner.input_blob_name = input_blob_name
+		_ncnn_runner.output_blob_name = output_blob_name
+		add_child(_ncnn_runner)
 	if not _ncnn_runner.load_model_from_buffers(param_bytes, bin_bytes):
-		push_error("NcnnAIController2D: failed to load ncnn model.")
-		_ncnn_runner.queue_free()
-		_ncnn_runner = null
+		push_error("NcnnAIController2D: failed to load ncnn model '%s'." % param_path)
+		return false
+	model_param_path = param_path
+	model_bin_path = bin_path
+	_core.init_recurrent_state()  # fresh memory for a fresh policy
+	return true
 
 func set_ncnn_runner_for_test(runner) -> void:
 	_ncnn_runner = runner
