@@ -54,12 +54,11 @@
   forever** (~0% CPU; looks like a slow test). A **stale** cache (after a branch switch that moved/removed
   a `class_name` file) is just as bad — the registry points the class at its old path, so the now-current
   file reports `hides a global script class` and dependent tests fail to compile. `run_tests.sh` self-heals
-  both: it **regenerates the cache fresh on every run** (`rm` + `godot --headless --editor --quit`, then
-  `git clean -f -- '*.gd.uid'`) before the tests. To do it manually: run that import pass once (or open the
-  project in the editor).
-- **Don't commit Godot-generated `*.gd.uid` files** — an editor/import pass scatters them (and can
-  re-materialize moved scripts at their old paths); `git clean -f -- '*.gd.uid'` and delete stray
-  root duplicates before committing.
+  both: it **regenerates the cache fresh on every run** (`rm` + `godot --headless --editor --quit`) before
+  the tests. To do it manually: run that import pass once (or open the project in the editor).
+- **Godot-generated `*.gd.uid` files are gitignored** (#181) — an editor/import pass scatters one per
+  script, but they're ignored, so they no longer show as untracked noise or risk an accidental commit; no
+  cleanup needed. (Three `.uid` are intentionally tracked; git keeps those regardless of the ignore.)
 - **macOS/Apple Silicon: never let the machine sleep during training.** Sleep suspends the headless
   Godot client → the SB3 trainer blocks forever on the dead socket (`total_timesteps` freezes, process
   ~0% CPU, no `godot` process). The Godot client now self-terminates on `read_timeout_sec` (default

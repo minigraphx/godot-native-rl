@@ -141,17 +141,25 @@ jobs:
         run: |
           scons platform=linux target=template_debug build_library=no ncnn_openmp=no -j"$(nproc)"
           scons platform=linux target=template_release build_library=no ncnn_openmp=no -j"$(nproc)"
-          # #103: assert the .so is self-contained — no libgomp DT_NEEDED, no undefined
-          # OpenMP symbols (either would mean a load failure on a libgomp-less host).
+          # #103: assert the .so is self-contained — no libgomp DT_NEEDED, no undefined OpenMP
+          # symbols (either would mean a load failure on a libgomp-less host). Count audited
+          # binaries and fail if the glob matched nothing (#175, same vacuous-glob class as #155):
+          # without [ -f ] the loop would run once over the literal pattern and "pass", auditing
+          # nothing. grep ... >/dev/null (not -q) so a future `shell: bash` (pipefail) can't
+          # SIGPIPE-invert the guard the way #158 described for the cross scripts.
+          audited=0
           for so in addons/godot_native_rl/bin/libncnn_runner.linux.*.so; do
-            if readelf -d "$so" | grep -q libgomp; then
+            [ -f "$so" ] || continue
+            audited=$((audited + 1))
+            if readelf -d "$so" | grep -E libgomp >/dev/null; then
               echo "ERROR: $so has a libgomp DT_NEEDED entry" >&2; exit 1
             fi
-            if nm -D --undefined-only "$so" | grep -qE " (GOMP_|omp_)"; then
+            if nm -D --undefined-only "$so" | grep -E " (GOMP_|omp_)" >/dev/null; then
               echo "ERROR: $so has undefined OpenMP symbols" >&2; exit 1
             fi
             echo "OK: $so is self-contained"
           done
+          [ "$audited" -ge 2 ] || { echo "ERROR: expected debug+release .so to audit, found $audited (glob matched nothing?)" >&2; exit 1; }
 
       - name: Upload extension binaries
         uses: actions/upload-artifact@v7
