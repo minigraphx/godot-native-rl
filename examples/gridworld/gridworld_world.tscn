@@ -1,0 +1,61 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://examples/gridworld/gridworld_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/gridworld/gridworld_agent.gd" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sensors/grid_sensor_2d.gd" id="3"]
+
+[sub_resource type="RectangleShape2D" id="CellShape"]
+size = Vector2(36, 36)
+
+[node name="GridWorldGame" type="Node2D"]
+script = ExtResource("1")
+agent_body_path = NodePath("AgentBody")
+goal_area_path = NodePath("Goal")
+pit_container_path = NodePath("Pits")
+
+[node name="AgentBody" type="Node2D" parent="."]
+
+[node name="GridSensor2D" type="Node2D" parent="AgentBody"]
+script = ExtResource("3")
+detection_mask = 6
+collide_with_areas = true
+collide_with_bodies = false
+cell_width = 40.0
+cell_height = 40.0
+grid_size_x = 5
+grid_size_y = 5
+
+[node name="Goal" type="Area2D" parent="."]
+collision_layer = 4
+collision_mask = 0
+
+[node name="GoalCol" type="CollisionShape2D" parent="Goal"]
+shape = SubResource("CellShape")
+
+[node name="Pits" type="Node2D" parent="."]
+
+[node name="Pit1" type="Area2D" parent="Pits"]
+collision_layer = 2
+collision_mask = 0
+
+[node name="Pit1Col" type="CollisionShape2D" parent="Pits/Pit1"]
+shape = SubResource("CellShape")
+
+[node name="Pit2" type="Area2D" parent="Pits"]
+collision_layer = 2
+collision_mask = 0
+
+[node name="Pit2Col" type="CollisionShape2D" parent="Pits/Pit2"]
+shape = SubResource("CellShape")
+
+[node name="Pit3" type="Area2D" parent="Pits"]
+collision_layer = 2
+collision_mask = 0
+
+[node name="Pit3Col" type="CollisionShape2D" parent="Pits/Pit3"]
+shape = SubResource("CellShape")
+
+[node name="Agent" type="Node2D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+grid_sensor_path = NodePath("../AgentBody/GridSensor2D")

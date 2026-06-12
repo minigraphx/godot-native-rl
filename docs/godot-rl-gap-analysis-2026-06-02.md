@@ -191,6 +191,8 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 
 | Priority | Gap | Issue |
 |---|---|---|
+| ✅ Done | **Unity 3DBall parity** — tilting-platform ball balance, trained net balances 1800 frames/0 falls (continuous starter) | #47 |
+| ✅ Done | **Unity GridWorld parity** — grid navigation, the `GridSensor2D` worked example (discrete starter) | #48 |
 | ✅ Done | **Competitive self-play** (Unity ML-Agents self-play parity, league-style): native-ncnn ghost opponents (invisible to the trainer), opponent pool + ELO ledger, alternating-role phases (`train_selfplay.sh`) | #29 |
 | ✅ Done | **Curriculum learning** (Unity ML-Agents `environment_parameters` parity) — game-side staged difficulty (`CurriculumController`, all backends, zero protocol change) + additive `curriculum` wire override for custom loops; 3-stage chase demo | #28 |
 | ✅ Done | `policy_name` + `agent_policy_names` wire field — unblocks RLlib & PettingZoo | — |

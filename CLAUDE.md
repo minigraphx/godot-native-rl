@@ -18,7 +18,7 @@ standalone headless-compatible play scenes; trained inference is available for c
 multi-policy hide & seek, and BallChase. Reusable library in
 `addons/godot_native_rl/` (`sync.gd`/`NcnnSync`, `controllers/`, `reward/`, `sensors/` (+ drop-in `scenes/`),
 `training/`, `net/`, `script_templates/` (controller scaffold, auto-installed on plugin enable)); C++ GDExtension at repo root (`src/ncnn_runner.{h,cpp}`). Examples:
-`chase_the_target` (2D, + `chase_crowd.tscn` batched shared-policy crowd via `run_inference_batch` + `NcnnCrowdController`), `rover_3d` (3D), `hide_and_seek` (2D self-play), `ball_chase` (2D continuous-control / SAC), `fly_by` (3D continuous-control / PPO, ships the #64 DiagGaussian-sampling demo), `quadruped_walk` (3D continuous-control locomotion — code-built 8-hinge-joint articulated quadruped on the **Jolt** backend; #60 M1 done: ships a trained PPO ncnn net that walks ~21m straight at ~1.1 m/s, deployed in `quadruped_walk_track.tscn`, + a 500k/2.5M/6M learning-stage spread in `models/stages/`, behavioral + golden regressions), `coop_collect` (2D cooperative multi-agent shared-team-reward env — #30 MA-POCA M1: env foundation + parameter-sharing baseline, math unit test + behavioral smoke; centralized critic M2 pending a run). Wire protocol is
+`chase_the_target` (2D, + `chase_crowd.tscn` batched shared-policy crowd via `run_inference_batch` + `NcnnCrowdController`), `rover_3d` (3D), `hide_and_seek` (2D self-play), `ball_chase` (2D continuous-control / SAC), `fly_by` (3D continuous-control / PPO, ships the #64 DiagGaussian-sampling demo), `quadruped_walk` (3D continuous-control locomotion — code-built 8-hinge-joint articulated quadruped on the **Jolt** backend; #60 M1 done: ships a trained PPO ncnn net that walks ~21m straight at ~1.1 m/s, deployed in `quadruped_walk_track.tscn`, + a 500k/2.5M/6M learning-stage spread in `models/stages/`, behavioral + golden regressions), `coop_collect` (2D cooperative multi-agent shared-team-reward env — #30 MA-POCA M1: env foundation + parameter-sharing baseline, math unit test + behavioral smoke; centralized critic M2 pending a run), `3dball` (Unity 3DBall parity — tilting-platform ball balance, 2 continuous actions, trained net balances 1800 frames/0 falls, #47), `gridworld` (Unity GridWorld parity + the GridSensor2D worked example — 8×8 grid, 5 discrete actions, 52-dim obs, #48). Wire protocol is
 godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 [docs/dev/DEVELOPMENT.md](docs/dev/DEVELOPMENT.md).**
 
@@ -99,6 +99,12 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   (#118). `SCENE`/`TIMESTEPS`/`NUM_STEPS`
   overrides; exits loud if `TIMESTEPS` < one rollout batch (`NUM_STEPS` × n_agents) instead of
   silently exporting an untrained policy (#119) — lower `NUM_STEPS` for short smoke runs.
+- **Train (3DBall, PPO continuous):** `./scripts/train_ball_balance.sh` — Unity-parity tilting-platform
+  ball balance (#47): 2 continuous tilt actions, 8-dim obs, `ParallelArena` 8 worlds, 500k steps
+  (~30 min), TorchScript → `export_to_ncnn.py models/ball_balance.pt --atol 0.05`.
+- **Train (GridWorld, PPO discrete):** `./scripts/train_gridworld.sh` — Unity-parity grid navigation
+  (#48) and the `GridSensor2D` worked example: 5 discrete actions, 52-dim obs (5×5×2-layer sensor +
+  goal vector), `ParallelArena2D` 8 worlds, 300k steps, ONNX → `export_to_ncnn.py`.
 - **Train (BallChase, SAC):** `./scripts/train_ball_chase.sh` — SB3 SAC (continuous-control) over the
   BallChase env (port 11008). `SCENE=res://examples/ball_chase/ball_chase_train_parallel.tscn` tiles
   8 worlds (`ParallelArena2D`, measured 3.39× samples/sec); the trainer uses `gradient_steps=-1` so
