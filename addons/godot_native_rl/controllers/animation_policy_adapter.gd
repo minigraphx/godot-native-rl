@@ -14,6 +14,7 @@ const AnimationPolicyMap = preload("res://addons/godot_native_rl/controllers/ani
 
 var _tree: Object = null
 var _map: RefCounted = AnimationPolicyMap.new()
+var _warned_no_tree := false  # error once, not every frame (apply() is a per-frame call)
 
 func _ready() -> void:
 	if _tree == null and not animation_tree_path.is_empty():
@@ -30,13 +31,19 @@ func add_mapping(action_index: int, param: String, scale: float = 1.0, offset: f
 func setup_for_test(tree: Object, map: RefCounted) -> void:
 	_tree = tree
 	_map = map
+	_warned_no_tree = false
 
-## Write every mapped blend parameter from `action` to the AnimationTree. No-op (with one error)
-## if the tree is unset; unmapped/out-of-range action elements are simply not written.
+## Write every mapped blend parameter from `action` to the AnimationTree. No-op if the tree is unset
+## or has been freed (a freed AnimationTree during scene teardown must not be dereferenced); the
+## "no tree" error is logged once, not every frame. Unmapped/out-of-range action elements are not
+## written.
 func apply(action: PackedFloat32Array) -> void:
-	if _tree == null:
-		push_error("AnimationPolicyAdapter.apply: no AnimationTree set.")
+	if not is_instance_valid(_tree):
+		if not _warned_no_tree:
+			push_error("AnimationPolicyAdapter.apply: no (valid) AnimationTree set.")
+			_warned_no_tree = true
 		return
+	_warned_no_tree = false
 	var values: Dictionary = _map.resolve(action)
 	for param in values:
 		_tree.set(param, values[param])

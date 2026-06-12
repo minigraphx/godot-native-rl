@@ -10,10 +10,19 @@ const RewardBuilderScript = preload("res://addons/godot_native_rl/reward/reward_
 # RewardAdapterScript is inherited from the controller — do not redeclare.
 
 @export var game_path: NodePath
-@export var upright_weight := 0.05
-@export var alive_bonus := 0.01
-@export var energy_penalty := 0.002
-@export var fall_penalty := 1.0
+# Locomotion reward (tuned 2026-06-11, v3 robustness pass). The arc:
+#   v1 (upright 0.05 + alive 0.01, no velocity): balanced in place (~3m).
+#   v2 (forward 0.2, upright 0.02, alive 0.005): walked but lunged + fell fast (ep_len ~64) and
+#       drifted sideways/backward in some physics realizations (unreliable).
+#   v3 (this): keep forward velocity as the driver but penalize LATERAL drift (track straight),
+#       and restore enough upright/alive + a stronger fall penalty that the creature stays up
+#       AND moves — for a robust, consistently-forward gait.
+@export var forward_weight := 0.15   ## reward +Z (toward finish) velocity — main driver
+@export var lateral_weight := 0.06   ## penalize |X| velocity — go straight, don't drift sideways
+@export var upright_weight := 0.04
+@export var alive_bonus := 0.02
+@export var energy_penalty := 0.0005
+@export var fall_penalty := 2.0
 @export var fall_height := 0.45      ## torso below this Y = fallen
 @export var fall_upright := 0.2      ## upright dot below this = fallen
 
@@ -87,14 +96,24 @@ func _physics_process(delta: float) -> void:
 		return
 	if _action.size() == ACTION_COUNT:
 		_game.apply_motors(_action)
-	# Progress + alive come from reward_source; upright + energy applied directly.
+	# Progress + alive come from reward_source; forward velocity (main driver) + upright + energy
+	# applied directly. Forward velocity is the dense locomotion signal: reward moving toward +Z.
 	accumulate_reward()
+	reward += forward_weight * _game.forward_velocity()
+	reward -= lateral_weight * absf(_game.lateral_velocity())
 	reward += upright_weight * _game.upright()
 	reward -= energy_penalty * _sum_abs(_action)
-	if needs_reset or _is_fallen():
+	# A fall is a terminal state: signal `done` (and `needs_reset`) so the trainer gets a real
+	# episode boundary — mirrors the core's reset_after timeout (which sets done+needs_reset on
+	# step()). WITHOUT this, the constant early-training falls reset n_steps every few frames, so
+	# the 1000-step timeout never fires and `done` never reaches the trainer → no episode ever
+	# completes → no learning signal (SB3 logs no ep_rew_mean).
+	if _is_fallen():
+		reward -= fall_penalty
+		done = true
+		needs_reset = true
+	if needs_reset:
 		needs_reset = false
-		if _is_fallen():
-			reward -= fall_penalty
 		_game.reset_positions()
 		reset()
 		zero_reward()

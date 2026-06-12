@@ -91,6 +91,21 @@ Key `NcnnRunner` methods:
 - `input_blob_name`, `output_blob_name` — set to `"in0"` / `"out0"` for godot-rl-exported models
 - `input_shape: PackedInt32Array` — optional: reshapes flat floats to 1D/2D/3D ncnn tensor
 
+### Level-of-Detail policy switching (`NcnnLODRunner`)
+
+For many agents (or an expensive policy), `NcnnLODRunner` runs a cheap **reflex** net most frames and
+an accurate **deliberative** net only every `deliberative_interval` frames (or when you pass
+`state_changed = true`) — exactly one inference per frame, so the big net's cost is paid at
+~1/interval the rate. Set the two model paths (`reflex_*` / `deliberative_*`, which must share the obs
+and output contract) and call `decide(obs)` each frame:
+
+```gdscript
+var out := $NcnnLODRunner.decide(obs)   # { logits, tier: "reflex"|"deliberative", ran_deliberative }
+```
+
+`deliberative_interval` is live-editable; call `reset()` on episode boundaries to re-arm the cadence.
+Only viable because both nets are statically linked and resident — switching them is free at runtime.
+
 ## Exporting your game
 
 **Enable the addon** (Project → Project Settings → Plugins → *Godot Native RL*). Beyond surfacing a
@@ -211,6 +226,23 @@ only.
 > general export tooling are follow-ups. The C++ multi-IO method changed the extension ABI, so
 > **rebuild `NcnnRunner` after pulling** (see [../dev/building.md](../dev/building.md)). Full
 > contract: [The recurrent deploy contract](../dev/DEVELOPMENT.md#the-recurrent-deploy-contract-lstm).
+
+## Driving animation from policy actions (`AnimationPolicyAdapter`)
+
+For continuous-control agents, `AnimationPolicyAdapter` writes a policy's action vector straight to
+an `AnimationTree`'s blend parameters — production animation with no hand-written blending layer.
+Each mapping routes one action element to one blend-param path with an affine remap + clamp
+(`scale·a + offset`, clamped) so a `tanh`/`[-1,1]` or raw action adapts to whatever range the
+parameter expects:
+
+```gdscript
+adapter.add_mapping(0, "parameters/locomotion/blend_amount", 0.5, 0.5, 0.0, 1.0)  # [-1,1] -> [0,1]
+adapter.add_mapping(1, "parameters/lean/blend_position")
+adapter.apply(action)   # call each frame after inference
+```
+
+Out-of-range / unmapped action elements are skipped; a freed or unset tree is a safe no-op (the
+"no tree" error logs once, not every frame).
 
 ## Platform targets (the moat)
 

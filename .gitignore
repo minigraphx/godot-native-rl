@@ -1,6 +1,12 @@
 # Godot editor/cache
 .godot/
 
+# Godot 4.4+ regenerates a *.uid sidecar per script on every editor/import pass (e.g.
+# run_tests.sh's class-cache regen) — ~200 untracked files that are easy to sweep into a commit
+# by accident (#181). Ignore them all; git keeps the 3 intentionally-tracked ones tracked
+# regardless (NcnnAgent.gd.uid, addons/.../ncnn_runner.gdextension.uid, node_2d.gd.uid).
+*.uid
+
 # Local build artifacts
 addons/godot_native_rl/bin/
 *.os
@@ -28,6 +34,9 @@ models/*_pnnx.py
 logs/
 models/chase_policy.*
 models/rover_checkpoints/
+models/quadruped_walk.zip
+models/quadruped_walk_action_dist.json
+models/quadruped_walk_ckpts/
 # Trained SB3/ONNX artifacts (the deployable ncnn model goes to examples/rover_3d/models/ instead)
 models/rover_policy.*
 

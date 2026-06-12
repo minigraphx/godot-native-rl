@@ -46,6 +46,18 @@ func _initialize() -> void:
 	adapter2.apply(PackedFloat32Array([0.7]))
 	h.assert_eq(stub2.writes.get("parameters/x", -1.0), 0.7, "adapter.add_mapping routes")
 
+	# #164: a freed AnimationTree must not be dereferenced — apply() is a safe no-op (is_instance_valid).
+	var stub3 := TreeStub.new()
+	var adapter3 := AnimationPolicyAdapter.new()
+	adapter3.setup_for_test(stub3, AnimationPolicyMap.new())
+	adapter3.add_mapping(0, "parameters/y")
+	stub3.free()  # free the tree out from under the still-alive adapter
+	adapter3.apply(PackedFloat32Array([0.5]))  # must not crash
+	h.assert_true(true, "apply() on a freed tree is a safe no-op (no crash)")
+
 	stub.free()
 	stub2.free()
+	adapter.free()
+	adapter2.free()
+	adapter3.free()
 	h.finish(self)

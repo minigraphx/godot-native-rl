@@ -16,9 +16,10 @@ TIMESTEPS="${TIMESTEPS:-2000000}"
 SPEEDUP="${SPEEDUP:-8}"
 ACTION_REPEAT="${ACTION_REPEAT:-4}"
 SCENE="${SCENE:-res://examples/quadruped_walk/quadruped_walk_train_parallel.tscn}"
+CHECKPOINT_FREQ="${CHECKPOINT_FREQ:-0}"  # >0 = save a .zip snapshot every N env-steps (learning-stage demos)
 
 echo "Starting SB3 PPO trainer (timesteps=$TIMESTEPS)..."
-"$PY" scripts/train_quadruped.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" &
+"$PY" scripts/train_quadruped.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" --checkpoint_freq "$CHECKPOINT_FREQ" &
 TRAINER_PID=$!
 
 # Give the trainer a moment to bind the server socket before Godot connects.

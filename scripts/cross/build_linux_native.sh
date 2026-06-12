@@ -37,8 +37,11 @@ fi
 # undefined GOMP_* symbols once we stop linking gomp — link succeeds, load fails. Fail loud.
 # Anchor on the symbol name (last nm field) — stricter than an unanchored grep, and
 # covers libgomp (GOMP_*) + LLVM/Intel libomp (omp_*/__kmpc_*), matching build_macos.sh.
+# `grep ... >/dev/null`, NOT `grep -q`: -q exits on first match, which SIGPIPEs the still-writing
+# nm/awk under `pipefail` (status 141 -> the `if` takes the no-match branch *exactly when* OpenMP
+# symbols are present). Reading to EOF keeps the exit status honest (#158).
 if nm "$ncnn_build/install/lib/libncnn.a" 2>/dev/null | awk '{print $NF}' \
-    | grep -Eq '^(GOMP_|omp_|__kmpc_)'; then
+    | grep -E '^(GOMP_|omp_|__kmpc_)' >/dev/null; then
   echo "ERROR: stale OpenMP-enabled libncnn.a at $ncnn_build/install/lib/libncnn.a." >&2
   echo "       rm -rf $ncnn_build and re-run to rebuild with NCNN_OPENMP=OFF (#103)." >&2
   exit 1
@@ -48,20 +51,25 @@ for cfg in template_debug template_release; do
   scons platform=linux arch=x86_64 target="$cfg" ncnn_openmp=no -j"$CPUS"
 done
 
-# Validate the shipped .so is self-contained (#103): no libgomp in DT_NEEDED, and no
-# undefined OpenMP symbols that would fail at load time on a libgomp-less host.
+# Validate the shipped .so is self-contained (#103): no libgomp in DT_NEEDED, and no undefined
+# OpenMP symbols that would fail at load time on a libgomp-less host. `grep >/dev/null` not `-q`
+# for the same SIGPIPE-under-pipefail reason as above (#158). Count audited binaries and fail if
+# the glob matched nothing (#155) — an unaudited "pass" would silently re-open the #103 gap.
+audited=0
 for so in addons/godot_native_rl/bin/libncnn_runner.linux.*.so; do
   [ -f "$so" ] || continue
-  if readelf -d "$so" | grep -q "libgomp"; then
+  audited=$((audited + 1))
+  if readelf -d "$so" | grep -E "libgomp" >/dev/null; then
     echo "ERROR: $so still has a libgomp DT_NEEDED entry" >&2
     exit 1
   fi
-  if nm -D --undefined-only "$so" | awk '{print $NF}' | grep -Eq '^(GOMP_|omp_|__kmpc_)'; then
+  if nm -D --undefined-only "$so" | awk '{print $NF}' | grep -E '^(GOMP_|omp_|__kmpc_)' >/dev/null; then
     echo "ERROR: $so has undefined OpenMP symbols (stale OpenMP libncnn.a?)" >&2
     exit 1
   fi
   echo "OK: $so is self-contained (no libgomp NEEDED, no undefined OpenMP symbols)"
 done
+[ "$audited" -ge 2 ] || { echo "ERROR: expected debug+release .so to audit, found $audited (glob matched nothing?)" >&2; exit 1; }
 
 echo "== built linux x86_64 (native gcc) =="
 ls -la addons/godot_native_rl/bin/ | grep linux || true
