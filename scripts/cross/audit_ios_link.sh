@@ -31,8 +31,10 @@ EOF
 
 # Find each slice's dylib inside the xcframework and link against it with the matching SDK.
 status=0
+audited=0
 shopt -s nullglob
 for dylib in "$xcf"/*/*.dylib; do
+  audited=$((audited + 1))
   slice_dir="$(dirname "$dylib")"
   slice="$(basename "$slice_dir")"   # e.g. ios-arm64 or ios-arm64_x86_64-simulator
   case "$slice" in
@@ -69,7 +71,15 @@ for dylib in "$xcf"/*/*.dylib; do
   fi
 done
 
+# Fail if the slice glob matched nothing (#180, same vacuous-glob class as #155/#175): with
+# `nullglob` a zero-match loop runs zero times and would print OK without auditing anything,
+# silently re-opening the #95 iOS link-but-fail-to-load gap. The xcframework ships a device slice
+# + a simulator slice, so require >= 2.
+if [ "$audited" -lt 2 ]; then
+  echo "::error::expected >=2 xcframework slices to audit, found $audited (slice glob matched nothing?)" >&2
+  exit 1
+fi
 if [ "$status" -ne 0 ]; then
   exit 1
 fi
-echo "OK: every iOS xcframework slice resolves its symbols against the iOS SDK."
+echo "OK: every iOS xcframework slice resolves its symbols against the iOS SDK ($audited slices)."
