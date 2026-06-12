@@ -51,6 +51,11 @@ batch, decodes each via `ActionDecode`, and scatters `set_action()` back. See `e
   camera 2D/3D with a pre-wired `SubViewport`) and an "NCNN AI Controller" script template,
   auto-installed to your project's script-template folder (`res://script_templates/` by
   default) when the plugin is enabled.
+- **Competitive self-play with native ghosts** (`training/self_play_manager.gd`): the frozen
+  opponent is an ordinary `NCNN_INFERENCE` agent running **in-engine ncnn** — invisible to the
+  trainer, so any stock single-policy backend trains against it. Opponent pool + ELO ledger,
+  per-episode snapshot swapping (`reload_model`), alternating-role league via
+  `./scripts/train_selfplay.sh` (Hide & Seek demo).
 - godot_rl v0.8.2-compatible training bridge (`NcnnSync`) incl. multi-policy + parallel arenas.
   Training backends: SB3 (`train_chase.sh`), CleanRL (`train_cleanrl.sh`), SampleFactory async PPO
   (`train_sf.sh`, isolated `.venv-sf`, exports via TorchScript→ncnn), Ray/RLlib new-API-stack PPO

@@ -374,10 +374,15 @@ the same change. New items → GitHub issue only.
     driven from the trainer. Requires a side-channel or cmdline parameterization to push curriculum
     params into the Godot scene each episode. Python + a small Godot-side param hook. *(from item 20;
     roadmap Track C)*
-53. ⬜ **Competitive self-play** — a ghost controller backed by a frozen policy snapshot, opponent-pool
-    / league training, and ELO tracking. Natural consumer of the `policy_name` field (item 20) +
-    item 45. Heavy; multi-agent track. *(from item 20; roadmap Track B; novel-addons "behavior
-    snapshots")*
+53. ✅ **Competitive self-play** — shipped as a **native-ghost league** (#29): the frozen opponent
+    is a stock `NCNN_INFERENCE` agent (invisible to the trainer — `n_agents` counts only TRAINING
+    agents), so any single-policy backend trains against it. `training/elo.gd` (pure ELO) +
+    `opponent_pool.gd` (ledger/selection) + `SelfPlayManager` (per-episode snapshot swap via the
+    new `reload_model()` on both controllers, `pool.json` persistence). Alternating-role league
+    via `train_selfplay.sh` + `selfplay_phase.py`; Hide & Seek scenes
+    (`hide_and_seek_selfplay_{seeker,hider}.tscn`); unit + integration smoke coverage. Follow-ups
+    filed: simultaneous two-sided training, ELO-proximity matchmaking. *(from item 20; roadmap
+    Track B; novel-addons "behavior snapshots")*
 54. ⬜ **Cooperative MA-POCA** — multi-agent centralized-critic training with a shared team reward
     (Unity-parity stretch). Heavy; needs a multi-agent backend (items 18/19). *(from item 20;
     roadmap Track B)*

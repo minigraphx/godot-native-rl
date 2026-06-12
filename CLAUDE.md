@@ -66,6 +66,14 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 - **Train (hide & seek self-play):** `./scripts/train_hide_seek.sh` (one shared PPO policy over a
   seeker+hider AGENT group; `SCENE=res://examples/hide_and_seek/hide_and_seek_train_parallel.tscn`
   for 8 tiled worlds via `ParallelArena2D`).
+- **Train (league self-play, opponent pool + ELO):** `./scripts/train_selfplay.sh` — alternating
+  phases (#29): each phase trains ONE side with stock single-policy SB3 while the other plays as a
+  frozen **native-ncnn ghost** (`NCNN_INFERENCE` agent — invisible to the trainer since `n_agents`
+  counts only TRAINING agents) whose snapshot the in-scene `SelfPlayManager` swaps per episode from
+  the opponent pool with ELO tracking (`pool.json` ledger). Phase exports land in
+  `models/selfplay_pool/{seeker,hider}` (gitignored) via `selfplay_phase.py register-snapshot`.
+  `PHASES`/`TIMESTEPS_PER_PHASE`/`SPEEDUP`/`ACTION_REPEAT` overrides. Library:
+  `training/{elo,opponent_pool,self_play_manager}.gd` + `reload_model()` on both controllers.
 - **Train (hide & seek, two distinct policies):** `./scripts/train_hide_seek_multipolicy.sh` — custom
   single-file multi-policy PPO; seeker + hider learn separate networks (distinct `policy_name`s via the
   `--multi-policy` cmdline gate read by `HideSeekAgent`), each exported to ncnn via
