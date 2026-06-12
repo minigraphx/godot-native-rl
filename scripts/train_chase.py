@@ -14,9 +14,10 @@ from stable_baselines3.common.vec_env.vec_monitor import VecMonitor
 from godot_rl.wrappers.stable_baselines_wrapper import StableBaselinesGodotEnv
 from godot_rl.wrappers.onnx.stable_baselines_export import export_model_as_onnx
 
-# Reward-gated best-checkpoint helper (import-light: no torch at module load).
+# Reward-gated best-checkpoint helper + deploy-export decision (import-light: no torch at module load).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from reward_checkpoint import make_reward_gated_checkpoint  # noqa: E402
+from checkpoints import deploy_export_checkpoint  # noqa: E402
 
 
 def main() -> None:
@@ -68,8 +69,15 @@ def main() -> None:
     model.save(zip_path)
     print("Saved SB3 model to:", zip_path)
 
+    # Ship the reward-gated best checkpoint when --best_checkpoint blessed one (#146), else the
+    # just-trained model. The deploy promise ("exporters prefer the best") now holds inline too.
     onnx_path = pathlib.Path(args.onnx_export_path).with_suffix(".onnx")
-    export_model_as_onnx(model, str(onnx_path))
+    export_model = model
+    best = deploy_export_checkpoint(args.checkpoint_dir, str(zip_path), use_best=args.best_checkpoint)
+    if best:
+        print("[best_checkpoint] exporting blessed best instead of final model:", best)
+        export_model = PPO.load(best)
+    export_model_as_onnx(export_model, str(onnx_path))
     print("Exported ONNX to:", onnx_path)
 
     env.close()
