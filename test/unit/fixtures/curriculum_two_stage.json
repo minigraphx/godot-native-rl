@@ -1,0 +1,7 @@
+{
+	"stages": [
+		{"name": "easy", "params": {"touch_radius": 120.0},
+		 "promote": {"metric": "mean_reward", "threshold": 5.0, "window": 2, "min_episodes": 2}},
+		{"name": "hard", "params": {"touch_radius": 40.0}}
+	]
+}

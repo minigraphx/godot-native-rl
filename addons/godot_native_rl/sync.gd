@@ -344,8 +344,28 @@ func handle_message() -> bool:
 			need_to_send_obs = true
 			get_tree().set_pause(false)
 			return true
+		"curriculum":
+			_handle_curriculum_message(message)
+			return handle_message()
 	push_warning("NcnnSync: unhandled message type %s" % message["type"])
 	return false
+
+# Trainer-driven curriculum override (#28): {"type":"curriculum","stage":N} jumps the scene's
+# CurriculumController to stage N; {"type":"curriculum","params":{...}} applies raw env params.
+# Additive + optional: stock trainers never send it; an absent controller warns and drops.
+# Game-side auto-promotion is the default — see training/curriculum_controller.gd.
+func _handle_curriculum_message(message: Dictionary) -> void:
+	var ctrl := get_tree().get_first_node_in_group("CURRICULUM")
+	if ctrl == null:
+		push_warning("NcnnSync: 'curriculum' message but no CurriculumController in scene; ignored.")
+		return
+	ctrl.set_external_control(true)
+	if message.has("stage"):
+		ctrl.jump_to_stage(int(message["stage"]))
+	elif message.has("params") and message["params"] is Dictionary:
+		ctrl.apply_external_params(message["params"])
+	else:
+		push_warning("NcnnSync: 'curriculum' message needs 'stage' or 'params'.")
 
 func _call_method_on_agents(method) -> Array:
 	var returns := []
