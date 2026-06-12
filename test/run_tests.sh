@@ -27,10 +27,18 @@ fi
 
 echo "== Unit tests (headless GDScript) =="
 shopt -s nullglob
+# Count tests run and require a sane minimum: nullglob makes a glob that matches nothing (a
+# directory move / naming-convention change) run the loop ZERO times silently, so the merge gate
+# would go green having run no unit tests. Same vacuous-glob class as the cross-script audits
+# (#155/#175/#180). Floor of 10 (well under the ~100 actual) catches a full or partial wipe without
+# tripping on routine test add/removal.
+ran=0
 for t in test/unit/test_*.gd; do
+	ran=$((ran + 1))
 	echo "-- $t"
 	"$GODOT" --headless --path . --script "res://$t"
 done
+[ "$ran" -ge 10 ] || { echo "ERROR: only $ran unit test(s) matched test/unit/test_*.gd (glob broken?)" >&2; exit 1; }
 
 if [ -f test/integration/run_protocol_test.py ]; then
 	echo "== Protocol integration test =="
