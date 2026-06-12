@@ -370,10 +370,14 @@ the same change. New items → GitHub issue only.
     training script, for sparse-reward games (most real games). Ship RND (Random Network Distillation —
     simpler) first, then ICM. Python-side; composes with the existing reward path. *(from item 20;
     roadmap Track C)*
-52. ⬜ **Curriculum learning** — progressive difficulty via environment-parameter randomization,
-    driven from the trainer. Requires a side-channel or cmdline parameterization to push curriculum
-    params into the Godot scene each episode. Python + a small Godot-side param hook. *(from item 20;
-    roadmap Track C)*
+52. ✅ **Curriculum learning** — shipped **game-side first** (works with every training backend,
+    zero protocol change): pure `Curriculum` promotion logic + `CurriculumController` node apply
+    stage params at episode boundaries, promotion gated on rolling mean-reward/success-rate;
+    stage surfaces to trainers via the existing per-agent `info` field. The trainer-driven
+    side-channel exists too: an additive `"curriculum"` wire message (`stage`/`params`) +
+    stdlib `scripts/curriculum_client.py` for custom loops. 3-stage chase demo
+    (`chase_the_target_train_curriculum.tscn` + `chase_curriculum.json`), headless promotion
+    smoke + unit/wire/Python tests. (#28) *(from item 20; roadmap Track C)*
 53. ⬜ **Competitive self-play** — a ghost controller backed by a frozen policy snapshot, opponent-pool
     / league training, and ELO tracking. Natural consumer of the `policy_name` field (item 20) +
     item 45. Heavy; multi-agent track. *(from item 20; roadmap Track B; novel-addons "behavior

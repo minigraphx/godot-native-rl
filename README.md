@@ -51,6 +51,11 @@ batch, decodes each via `ActionDecode`, and scatters `set_action()` back. See `e
   camera 2D/3D with a pre-wired `SubViewport`) and an "NCNN AI Controller" script template,
   auto-installed to your project's script-template folder (`res://script_templates/` by
   default) when the plugin is enabled.
+- **Curriculum learning** (`training/curriculum_controller.gd`): staged environment difficulty with
+  performance-gated promotion, decided **game-side** so it works with every training backend
+  unchanged (stage visible to trainers via the per-agent `info` field); custom loops can override
+  via an additive `curriculum` wire message. Demo:
+  `SCENE=res://examples/chase_the_target/chase_the_target_train_curriculum.tscn ./scripts/train_chase.sh`.
 - godot_rl v0.8.2-compatible training bridge (`NcnnSync`) incl. multi-policy + parallel arenas.
   Training backends: SB3 (`train_chase.sh`), CleanRL (`train_cleanrl.sh`), SampleFactory async PPO
   (`train_sf.sh`, isolated `.venv-sf`, exports via TorchScript→ncnn), Ray/RLlib new-API-stack PPO
