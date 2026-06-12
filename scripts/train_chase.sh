@@ -11,7 +11,9 @@ PY="${PY:-.venv-train/bin/python}"
 TIMESTEPS="${TIMESTEPS:-300000}"
 SPEEDUP="${SPEEDUP:-8}"
 ACTION_REPEAT="${ACTION_REPEAT:-8}"
-SCENE="res://examples/chase_the_target/chase_the_target_train.tscn"
+# SCENE override (#28): the curriculum demo trains the same chase env through a different scene
+# (chase_the_target_train_curriculum.tscn). Every other train_*.sh already honors SCENE=.
+SCENE="${SCENE:-res://examples/chase_the_target/chase_the_target_train.tscn}"
 
 # BEST_CHECKPOINT=1 saves a reward-gated best checkpoint (#138); the deploy-side
 # exporters prefer it over the final model. ($BEST_FLAG intentionally unquoted.)

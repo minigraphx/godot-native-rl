@@ -73,6 +73,9 @@ echo "== Quadruped walk smoke test (headless) =="
 echo "== Trained quadruped behavioral check (headless) =="
 "$GODOT" --headless --path . res://test/integration/quadruped_trained_scene.tscn
 
+echo "== Curriculum promotion smoke (headless) =="
+"$GODOT" --headless --path . res://test/integration/curriculum_smoke_scene.tscn
+
 echo "== Expert-demo record smoke test (headless) =="
 "$GODOT" --headless --path . res://examples/chase_the_target/record_chase_demos.tscn
 

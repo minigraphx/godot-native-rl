@@ -191,6 +191,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 
 | Priority | Gap | Issue |
 |---|---|---|
+| ✅ Done | **Curriculum learning** (Unity ML-Agents `environment_parameters` parity) — game-side staged difficulty (`CurriculumController`, all backends, zero protocol change) + additive `curriculum` wire override for custom loops; 3-stage chase demo | #28 |
 | ✅ Done | `policy_name` + `agent_policy_names` wire field — unblocks RLlib & PettingZoo | — |
 | ✅ Done | `GridSensor2D/3D` — last major sensor type | — |
 | ✅ Done | `ISensor2D/3D` interface + `collect_sensors()` | — |

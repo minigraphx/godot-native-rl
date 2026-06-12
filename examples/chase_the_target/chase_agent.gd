@@ -15,6 +15,11 @@ const ChaseObs = preload("res://examples/chase_the_target/chase_obs.gd")
 
 var _game  # ChaseGame (typed at runtime via duck-typing to avoid class_name scope issues)
 var _action_index := 0
+# Curriculum (#28): per-episode stats reported to an optional CurriculumController in the scene.
+# The sync zeroes `reward` on every read, so the episode total is tracked here via step deltas.
+var _curriculum: Node = null
+var _episode_reward := 0.0
+var _episode_catches := 0
 
 func _ready() -> void:
 	super._ready()
@@ -30,6 +35,9 @@ func _ready() -> void:
 	var adapter := RewardAdapterScript.new()
 	add_child(adapter)
 	adapter.on_signal_event(_game, "target_caught", "target_caught")
+	_curriculum = get_tree().get_first_node_in_group("CURRICULUM")
+	if _curriculum != null:
+		_game.target_caught.connect(func() -> void: _episode_catches += 1)
 
 # --- Pure helpers (delegate to ChaseObs; kept as methods so existing callers/tests are unchanged) ---
 func compute_obs(agent_pos: Vector2, target_pos: Vector2, arena_size: Vector2) -> Array:
@@ -57,6 +65,13 @@ func get_debug_status() -> Dictionary:
 		return {}
 	return {"dist_to_target": _game.distance(), "episode_reward": reward, "step": n_steps}
 
+# Curriculum stage in the per-agent info field (#28): the trainer's logs see promotions with
+# zero protocol change. Empty when the scene has no CurriculumController.
+func get_info() -> Dictionary:
+	if _curriculum == null:
+		return {}
+	return {"curriculum_stage": _curriculum.stage_index()}
+
 func set_action(action) -> void:
 	var idx := int(action[ACTION_KEY])
 	assert(idx >= 0 and idx < ACTION_COUNT, "ChaseAgent: action index %d out of range [0, %d)" % [idx, ACTION_COUNT])
@@ -74,13 +89,22 @@ func _physics_process(delta: float) -> void:
 	# Accumulate reward against the CURRENT target BEFORE relocating. The catch is
 	# signalled by relocate_target() -> RewardAdapter -> Reward: it rebases the progress
 	# baseline to the new target immediately and queues the catch bonus for next step.
+	# The agent processes before Sync in tree order, so the delta capture below is safe
+	# from the sync's read-and-zero of `reward`.
+	var reward_before := reward
 	accumulate_reward()
+	_episode_reward += reward - reward_before
 
 	if _game.distance() < _game.touch_radius:
 		_game.relocate_target()
 
 	if needs_reset:
 		needs_reset = false
+		# Curriculum (#28): report the finished episode before resetting its stats.
+		if _curriculum != null:
+			_curriculum.record_episode(_episode_reward, _episode_catches > 0)
+		_episode_reward = 0.0
+		_episode_catches = 0
 		_game.reset_positions()
 		reset()
 		zero_reward()
