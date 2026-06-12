@@ -73,6 +73,9 @@ echo "== BallChase parallel arena smoke test (headless) =="
 echo "== 3DBall (ball-balance) smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/ball_balance_smoke_scene.tscn
 
+echo "== GridWorld smoke test (headless) =="
+"$GODOT" --headless --path . res://test/integration/gridworld_smoke_scene.tscn
+
 echo "== Quadruped walk smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/quadruped_smoke_scene.tscn
 

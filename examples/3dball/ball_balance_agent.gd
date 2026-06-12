@@ -62,4 +62,5 @@ func _physics_process(delta: float) -> void:
 		needs_reset = false
 		_game.reset_episode()
 		reset()
-		zero_reward()
+		# Do NOT zero_reward(): the bridge reads reward+done together THEN zeroes (hide&seek
+		# contract) — zeroing here would wipe the fall penalty before the trainer sees it.
