@@ -25,6 +25,7 @@ enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
 @export_file("*.json") var action_dist_stats_path: String = ""  # continuous DiagGaussian std sidecar
 @export_file("*.json") var recurrent_stats_path: String = ""  # LSTM/GRU deploy: <model>.recurrent.json
 @export var policy_name: String = "shared_policy"  # multi-policy routing (PettingZoo/RLlib)
+@export var policy_group: String = ""  # distinct training identity, honored only when Sync.multi_policy=true (#73)
 @export var deterministic_inference: bool = true  # false -> sample stochastically: discrete from softmax(logits), continuous DiagGaussian when an action_dist sidecar is set
 @export var inference_seed: int = -1  # -1 = randomize each run; >= 0 = fixed seed (reproducible eval)
 

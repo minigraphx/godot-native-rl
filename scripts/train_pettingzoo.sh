@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Orchestrates MULTI-POLICY training over the PettingZoo GodotParallelEnv adapter (issue #111):
 #   1. start the Python trainer (opens server on 11008, waits)
-#   2. launch the headless Godot scene WITH --multi-policy (agents emit distinct policy_names)
+#   2. launch the headless Godot scene (it self-declares multi_policy on its Sync node, so agents
+#      emit distinct policy_names — no --multi-policy cmdline gate; see #73)
 #   3. wait for the trainer, then ensure Godot is gone
 # Mirrors scripts/train_hide_seek_multipolicy.sh. SCENE override selects single vs parallel.
 set -euo pipefail
@@ -23,8 +24,8 @@ TRAINER_PID=$!
 
 sleep 5
 
-echo "Launching headless Godot scene ($SCENE) with --multi-policy..."
-"$GODOT" --headless --path . "$SCENE" --multi-policy "speedup=$SPEEDUP" "action_repeat=$ACTION_REPEAT" &
+echo "Launching headless Godot scene ($SCENE)..."
+"$GODOT" --headless --path . "$SCENE" "speedup=$SPEEDUP" "action_repeat=$ACTION_REPEAT" &
 GODOT_PID=$!
 
 set +e

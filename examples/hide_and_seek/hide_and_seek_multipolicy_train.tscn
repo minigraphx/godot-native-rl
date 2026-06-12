@@ -10,3 +10,4 @@
 [node name="Sync" type="Node" parent="."]
 script = ExtResource("2")
 control_mode = 1
+multi_policy = true

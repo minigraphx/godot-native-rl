@@ -366,13 +366,14 @@ the same change. New items → GitHub issue only.
     `agent_policy_names`, routes each agent to its policy (`policy_index_map`/`split_by_policy`/
     `stitch_actions`, unit-tested), runs one PPO learner per role, exports each actor to TorchScript →
     ncnn (`--via torchscript`; not ONNX — torch 2.12's onnx export needs onnxscript/numpy≥2, colliding
-    with sb3's numpy<2). Distinct `policy_name`s come from a `--multi-policy` cmdline gate in
-    `HideSeekAgent` (single world scene serves both shared- and multi-policy runs; shared run unchanged).
-    Shipped: two trained ncnn models (`examples/hide_and_seek/models/hide_seek_{seeker,hider}.ncnn.*`,
-    300k-step parallel self-play), a golden-inference regression, a deterministic behavioral floor
-    (seeker LOS ≥ 8%, reproducibly 22.6%), a `--multi-policy` wire smoke test, and an `--atol` override
-    on `export_to_ncnn.py` (trained logits drift slightly past 1e-2 while argmax stays exact). Follow-up
-    **#73**: a cleaner per-agent identity mechanism than the cmdline gate.
+    with sb3's numpy<2). Distinct policies are scene-driven (**#73, done 2026-06-12**): each agent
+    bakes a `policy_group` in `hide_seek_world.tscn`, honored only when the training scene's Sync sets
+    `multi_policy=true` — the single world scene serves both shared- and multi-policy runs (shared run
+    unchanged), with no `--multi-policy` cmdline gate. Shipped: two trained ncnn models
+    (`examples/hide_and_seek/models/hide_seek_{seeker,hider}.ncnn.*`, 300k-step parallel self-play), a
+    golden-inference regression, a deterministic behavioral floor (seeker LOS ≥ 8%, reproducibly 22.6%),
+    a wire smoke test, and an `--atol` override on `export_to_ncnn.py` (trained logits drift slightly
+    past 1e-2 while argmax stays exact).
 51. ⬜ **Intrinsic reward (Curiosity/ICM + RND)** — a pluggable intrinsic-reward signal addable to any
     training script, for sparse-reward games (most real games). Ship RND (Random Network Distillation —
     simpler) first, then ICM. Python-side; composes with the existing reward path. *(from item 20;

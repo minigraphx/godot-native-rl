@@ -35,6 +35,11 @@ Controller export properties:
 - `policy_name` — (default `"shared_policy"`) for multi-policy routing (PettingZoo / RLlib).
   All agents with the same `policy_name` share one policy; single-policy training works
   unchanged when every agent keeps the default.
+- `policy_group` — (default `""`) an agent's *distinct* training identity, baked into the world
+  scene. It is **inert unless** the training scene's `NcnnSync` sets `multi_policy = true` (#73), so
+  the same world scene can serve both a shared-policy and a distinct-policy training scene. When
+  honored, it supplies the agent's entry in `agent_policy_names` (falling back to `policy_name` if
+  empty). Switch it on with the `multi_policy` checkbox on the Sync node — no cmdline flag.
 - `deterministic_inference` — (default `true`) when `false`, discrete actions are sampled from
   `softmax(logits)`, and continuous actions are sampled from a DiagGaussian if an
   `action_dist_stats_path` sidecar is set (else the mean).
