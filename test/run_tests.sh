@@ -70,6 +70,9 @@ echo "== Cooperative Collect smoke test (headless) =="
 echo "== BallChase parallel arena smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/ball_chase_parallel_smoke_scene.tscn
 
+echo "== 3DBall (ball-balance) smoke test (headless) =="
+"$GODOT" --headless --path . res://test/integration/ball_balance_smoke_scene.tscn
+
 echo "== Quadruped walk smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/quadruped_smoke_scene.tscn
 

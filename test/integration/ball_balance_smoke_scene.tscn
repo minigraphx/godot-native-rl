@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://examples/3dball/ball_balance_world.tscn" id="1"]
+[ext_resource type="Script" path="res://test/integration/ball_balance_smoke_checker.gd" id="2"]
+
+[node name="BallBalanceSmoke" type="Node3D"]
+
+[node name="World" parent="." instance=ExtResource("1")]
+
+[node name="Checker" type="Node" parent="."]
+script = ExtResource("2")
+game_path = NodePath("../World")
+agent_path = NodePath("../World/Agent")

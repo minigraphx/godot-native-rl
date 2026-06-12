@@ -1,0 +1,60 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://examples/3dball/ball_balance_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/3dball/ball_balance_agent.gd" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="3"]
+
+[sub_resource type="BoxShape3D" id="PlatformShape"]
+size = Vector3(5, 0.4, 5)
+
+[sub_resource type="BoxMesh" id="PlatformMesh"]
+size = Vector3(5, 0.4, 5)
+
+[sub_resource type="SphereShape3D" id="BallShape"]
+radius = 0.5
+
+[sub_resource type="SphereMesh" id="BallMesh"]
+radius = 0.5
+height = 1.0
+
+[node name="Game" type="Node3D"]
+script = ExtResource("1")
+platform_path = NodePath("Platform")
+ball_path = NodePath("Ball")
+
+[node name="Platform" type="AnimatableBody3D" parent="."]
+
+[node name="PlatformCol" type="CollisionShape3D" parent="Platform"]
+shape = SubResource("PlatformShape")
+
+[node name="PlatformMesh" type="MeshInstance3D" parent="Platform"]
+mesh = SubResource("PlatformMesh")
+
+[node name="Ball" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+
+[node name="BallCol" type="CollisionShape3D" parent="Ball"]
+shape = SubResource("BallShape")
+
+[node name="BallMesh" type="MeshInstance3D" parent="Ball"]
+mesh = SubResource("BallMesh")
+
+[node name="Agent" type="Node3D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+control_mode = 3
+model_param_path = "res://examples/3dball/models/ball_balance.ncnn.param"
+model_bin_path = "res://examples/3dball/models/ball_balance.ncnn.bin"
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("3")
+control_mode = 2
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-55, -35, 0)
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(7, 5, 7)
+rotation_degrees = Vector3(-28, 45, 0)
+current = true
