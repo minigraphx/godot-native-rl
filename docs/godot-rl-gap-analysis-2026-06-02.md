@@ -191,7 +191,11 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 
 | Priority | Gap | Issue |
 |---|---|---|
+<<<<<<< HEAD
+| ✅ Done | **Competitive self-play** (Unity ML-Agents self-play parity, league-style): native-ncnn ghost opponents (invisible to the trainer), opponent pool + ELO ledger, alternating-role phases (`train_selfplay.sh`) | #29 |
+=======
 | ✅ Done | **Curriculum learning** (Unity ML-Agents `environment_parameters` parity) — game-side staged difficulty (`CurriculumController`, all backends, zero protocol change) + additive `curriculum` wire override for custom loops; 3-stage chase demo | #28 |
+>>>>>>> origin/main
 | ✅ Done | `policy_name` + `agent_policy_names` wire field — unblocks RLlib & PettingZoo | — |
 | ✅ Done | `GridSensor2D/3D` — last major sensor type | — |
 | ✅ Done | `ISensor2D/3D` interface + `collect_sensors()` | — |
