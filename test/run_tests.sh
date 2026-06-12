@@ -15,22 +15,30 @@ GODOT="${GODOT:-godot}"
 # catches both, for a few seconds' cost. See CLAUDE.md ("Fresh-clone trap").
 echo "== (Re)generating script-class cache (editor import; headless --script can't write it) =="
 rm -f .godot/global_script_class_cache.cfg
+# The import pass scatters per-script *.uid sidecars; they're gitignored (#181), so no cleanup is
+# needed — they no longer appear as untracked noise or risk an accidental commit.
 "$GODOT" --headless --editor --quit >/dev/null 2>&1 || true
-git clean -fq -- '*.gd.uid' 2>/dev/null || true
 if [ ! -f .godot/global_script_class_cache.cfg ]; then
 	echo "ERROR: could not generate .godot/global_script_class_cache.cfg (script-class registry)." >&2
 	echo "       Generate it manually before running the suite, then re-run:" >&2
 	echo "         $GODOT --headless --editor --quit   # imports the project, writes the cache" >&2
-	echo "         git clean -f -- '*.gd.uid'          # that pass scatters *.gd.uid — don't commit them" >&2
 	exit 1
 fi
 
 echo "== Unit tests (headless GDScript) =="
 shopt -s nullglob
+# Count tests run and require a sane minimum: nullglob makes a glob that matches nothing (a
+# directory move / naming-convention change) run the loop ZERO times silently, so the merge gate
+# would go green having run no unit tests. Same vacuous-glob class as the cross-script audits
+# (#155/#175/#180). Floor of 10 (well under the ~100 actual) catches a full or partial wipe without
+# tripping on routine test add/removal.
+ran=0
 for t in test/unit/test_*.gd; do
+	ran=$((ran + 1))
 	echo "-- $t"
 	"$GODOT" --headless --path . --script "res://$t"
 done
+[ "$ran" -ge 10 ] || { echo "ERROR: only $ran unit test(s) matched test/unit/test_*.gd (glob broken?)" >&2; exit 1; }
 
 if [ -f test/integration/run_protocol_test.py ]; then
 	echo "== Protocol integration test =="
@@ -61,6 +69,9 @@ echo "== BallChase parallel arena smoke test (headless) =="
 
 echo "== Quadruped walk smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/quadruped_smoke_scene.tscn
+
+echo "== Trained quadruped behavioral check (headless) =="
+"$GODOT" --headless --path . res://test/integration/quadruped_trained_scene.tscn
 
 echo "== Curriculum promotion smoke (headless) =="
 "$GODOT" --headless --path . res://test/integration/curriculum_smoke_scene.tscn

@@ -23,7 +23,7 @@ web/WASM, console, mobile, desktop, and edge.
 - [Running the examples](docs/guide/running-examples.md) — chase / rover / hide & seek / ball chase
 - [Training your own AI](docs/guide/training.md) — setup, train, the parallel-training fast path
 - [Deploying](docs/guide/deploying.md) — NcnnRunner, INT8, VecNormalize, continuous action sampling, platform targets
-- [Sensors](docs/guide/sensors.md) — raycast, relative-position, camera, grid
+- [Sensors](docs/guide/sensors.md) — raycast, relative-position, camera, grid, navmesh
 - [Building an agent in your scene](docs/guide/building-your-agent.md)
 
 ## Examples
@@ -32,7 +32,7 @@ web/WASM, console, mobile, desktop, and edge.
 - `examples/hide_and_seek` — 2D 1v1 self-play with a persistent trained two-policy demo
 - `examples/ball_chase` — runnable 2D continuous-action SAC agent with native inference (`./scripts/train_ball_chase.sh`); exports the deterministic actor via TorchScript → ncnn; `SCENE=res://examples/ball_chase/ball_chase_train_parallel.tscn` tiles 8 worlds (`ParallelArena2D`) for ~3.4× measured training throughput
 - `examples/fly_by` — runnable 3D continuous-action plane (PPO); ships a trained ncnn net + a `fly_by_action_dist.json` std sidecar for deploy-side DiagGaussian sampling (`./scripts/train_fly_by.sh`)
-- `examples/quadruped_walk` — 3D continuous-control locomotion: a code-built articulated quadruped (8 hinge-joint motors, Jolt physics) that learns to walk forward (PPO, `./scripts/train_quadruped.sh`). **Harness landed** (rig, RL agent, train/track scenes, headless physics smoke); the trained walking ncnn net + a track demo are the follow-up training run ([#60](https://github.com/minigraphx/godot-native-rl/issues/60))
+- `examples/quadruped_walk` — 3D continuous-control **locomotion**: a code-built articulated quadruped (8 hinge-joint motors, Jolt physics) trained with PPO (`./scripts/train_quadruped.sh`). Ships a trained ncnn net that **walks ~21 m straight toward the finish** (sustained ~1.1 m/s), deployed in `quadruped_walk_track.tscn` (camera + distance HUD), plus a learning-stage spread under `models/stages/` (500k/2.5M/6M steps) so you can watch the creature progress from flailing to walking. Behavioral forward-distance + golden-inference regressions ([#60](https://github.com/minigraphx/godot-native-rl/issues/60))
 - `examples/chase_the_target/chase_crowd.tscn` — batched shared-policy crowd: many chasers driven by **one** shared net in a single `run_inference_batch` call per frame (reuses the committed chase net)
 
 ## Batched / crowd inference
@@ -42,6 +42,12 @@ no CPU batch dimension, so this doesn't cut FLOPs — the win is collapsing N GD
 into one, parallelizing the passes across cores, and sharing **one** loaded `Net`. The reusable
 `NcnnCrowdController` node owns the shared runner, gathers `get_obs()` from its child agents, runs one
 batch, decodes each via `ActionDecode`, and scatters `set_action()` back. See `examples/.../chase_crowd.tscn`.
+
+## Level-of-Detail policy switching
+`NcnnLODRunner` runs a cheap "reflex" net most frames and an accurate "deliberative" net only every
+N frames (or on a significant state change) — exactly one inference per frame, so the expensive net's
+cost is paid at ~1/N the rate. `decide(obs)` returns the action plus which tier ran; only viable
+because we statically link two resident nets and switch them game-side at no runtime cost.
 
 ## What you get
 - `NcnnRunner` C++ node: `load_model`, `run_inference`, `run_inference_image`,
@@ -74,7 +80,7 @@ you expose. Press **F3** to toggle; in release builds it removes itself at start
 
 ## The moat
 ncnn statically linked enables web/WASM and console deployment (ONNX/.NET can't), game-side INT8
-quantization, async inference, and Godot-native ideas (Signal→Reward, NavMesh sensor) — none
+quantization, async inference, LOD policy switching (`NcnnLODRunner`), and Godot-native ideas (Signal→Reward, `NavMeshSensor`, `AnimationPolicyAdapter`) — none
 replicable by a Python-server or managed-runtime framework.
 
 ## Installation (use the addon — no build needed)

@@ -66,5 +66,49 @@ func _initialize() -> void:
 	var after_reset: Dictionary = lod.decide(OBS)
 	h.assert_true(after_reset["ran_deliberative"], "reset() makes the next frame deliberative")
 
+	# #162: _ready() is idempotent — running it after setup_for_test must not clobber the injected
+	# runners/scheduler with the (empty) export paths.
+	lod._ready()
+	var after_ready: Dictionary = lod.decide(OBS)
+	h.assert_true(after_ready["tier"] in ["reflex", "deliberative"], "decide still works after _ready()")
+	h.assert_eq(lod.decide(OBS, true)["logits"], delib_logits,
+		"injected deliberative runner survived a post-setup _ready()")
 	lod.free()
+
+	# #162: changing deliberative_interval at runtime forwards to the live scheduler.
+	var lod2 := NcnnLODRunner.new()
+	lod2.setup_for_test(reflex, delib, 5)  # every 5th frame
+	lod2.deliberative_interval = 1         # now every frame
+	get_root().add_child(lod2)
+	h.assert_true(lod2.decide(OBS)["ran_deliberative"], "interval=1 -> frame 0 deliberative")
+	h.assert_true(lod2.decide(OBS)["ran_deliberative"], "interval=1 -> frame 1 deliberative (live change took)")
+	# #169: the setter clamps to >= 1, so the stored value matches the effective cadence.
+	lod2.deliberative_interval = 0
+	h.assert_eq(lod2.deliberative_interval, 1, "deliberative_interval = 0 clamps to 1 in the setter")
+	lod2.deliberative_interval = -5
+	h.assert_eq(lod2.deliberative_interval, 1, "negative deliberative_interval clamps to 1")
+	lod2.free()
+
+	# #174: decide() before init (no _ready / setup_for_test) returns a safe empty result, not a crash.
+	var lod3 := NcnnLODRunner.new()
+	var d3: Dictionary = lod3.decide(OBS)
+	h.assert_eq(d3["logits"], PackedFloat32Array(), "decide() before init returns empty logits (no crash)")
+	h.assert_eq(d3["tier"], "reflex", "decide() before init reports reflex tier")
+	h.assert_true(not d3["ran_deliberative"], "decide() before init did not run deliberative")
+	lod3.free()
+
+	# #178: a null runner on its due frame reports ran_deliberative=false (nothing ran), not true,
+	# so a caller can't adopt the empty logits as the latest deliberative output. tier still reports
+	# which net was due.
+	var lod4 := NcnnLODRunner.new()
+	lod4.setup_for_test(reflex, null, 1)  # interval 1 -> frame 0 due (deliberative), but it's null
+	get_root().add_child(lod4)
+	var d4: Dictionary = lod4.decide(OBS)
+	h.assert_eq(d4["tier"], "deliberative", "null deliberative frame still reports the due tier")
+	h.assert_true(not d4["ran_deliberative"], "null deliberative runner -> ran_deliberative false")
+	h.assert_eq(d4["logits"], PackedFloat32Array(), "null deliberative runner -> empty logits")
+	h.assert_eq(lod4.last_deliberative_logits(), PackedFloat32Array(),
+		"null deliberative frame does not poison the cached deliberative output")
+	lod4.free()
+
 	h.finish(self)

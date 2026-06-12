@@ -295,8 +295,12 @@ the same change. New items → GitHub issue only.
     NCNN_INT8=ON). Synthetic-CNN fixture + GDScript deploy smoke prove NcnnRunner runs int8 natively.
 14. ⬜ **Async inference thread (`NcnnRunnerAsync`)** — non-blocking forward pass on a Godot Thread
     with a completion signal (C++ GDExtension work). *(novel-addons spec §3 B4)*
-15. ⬜ **NavMesh integration sensor** — NavigationServer path distance + next-waypoint direction
+15. ✅ **NavMesh integration sensor** — NavigationServer path distance + next-waypoint direction
     (navigable, not line-of-sight). *(novel-addons spec §3 A3)*
+    **Done 2026-06-11** (#20) — `NavMeshSensor2D`/`3D` over `NavigationServer2D/3D`:
+    `[closeness, dir...]` from the walkable **path** length (around obstacles) + next-waypoint
+    direction. Pure `navmesh_math.gd`; `set_path_fn_for_test` seam for headless tests; unreachable
+    / no-map / freed-target zero-fill.
 16. ✅ **LOD policy switching (`NcnnLODRunner`)** — cheap reflex net every frame, accurate net every
     N frames / on state change. Genuinely new in game RL. **Done 2026-06-11** (#21) — pure
     `LodScheduler` cadence (interval + force-on-state-change + reset) + thin `NcnnLODRunner` node

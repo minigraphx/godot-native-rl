@@ -1,14 +1,11 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_game.gd" id="1"]
 [ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_agent.gd" id="2"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="3"]
-[ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_hud.gd" id="4"]
+[ext_resource type="Script" path="res://test/integration/quadruped_trained_checker.gd" id="4"]
 
 [sub_resource type="BoxShape3D" id="GroundShape"]
-size = Vector3(80, 1, 80)
-
-[sub_resource type="BoxMesh" id="GroundMesh"]
 size = Vector3(80, 1, 80)
 
 [node name="Game" type="Node3D"]
@@ -20,9 +17,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 
 [node name="GroundCol" type="CollisionShape3D" parent="Ground"]
 shape = SubResource("GroundShape")
-
-[node name="GroundMesh" type="MeshInstance3D" parent="Ground"]
-mesh = SubResource("GroundMesh")
 
 [node name="Finish" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 40)
@@ -38,19 +32,9 @@ model_bin_path = "res://examples/quadruped_walk/models/quadruped_walk.ncnn.bin"
 script = ExtResource("3")
 control_mode = 2
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-55, -35, 0)
-shadow_enabled = true
-
-[node name="Camera3D" type="Camera3D" parent="."]
-position = Vector3(6, 4, 11)
-rotation_degrees = Vector3(-16, 22, 0)
-current = true
-
-[node name="HUD" type="CanvasLayer" parent="."]
-
-[node name="DistanceLabel" type="Label" parent="HUD"]
-offset_left = 16.0
-offset_top = 16.0
+[node name="Checker" type="Node" parent="."]
 script = ExtResource("4")
-game_path = NodePath("../..")
+game_path = NodePath("..")
+agent_path = NodePath("../Agent")
+frames_to_run = 6000
+min_forward = 5.0
