@@ -29,6 +29,8 @@ func _initialize() -> void:
 	h.assert_eq(target_px[0], 235, "target pixel is red-dominant")
 	var bg_px := _pixel(bytes, 30, 30, 36)
 	h.assert_eq(bg_px[0], 20, "background untouched")
+	h.assert_eq(_pixel(bytes, 10, 0, 36)[0], 120, "top arena border drawn")
+	h.assert_eq(_pixel(bytes, 35, 20, 36)[0], 120, "right arena border drawn")
 	var overlap := VObs.rasterize(Vector2(500, 300), Vector2(500, 300), arena, 36, 36)
 	h.assert_eq(_pixel(overlap, 18, 18, 36)[2], 255, "agent drawn over target on overlap")
 

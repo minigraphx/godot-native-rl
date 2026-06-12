@@ -7,6 +7,8 @@ extends RefCounted
 const BG := Color8(20, 22, 30)
 const TARGET := Color8(235, 70, 70)   # red block
 const AGENT := Color8(70, 170, 255)   # blue block
+const BORDER := Color8(120, 120, 120) # arena walls: without them wall-adjacent states alias free
+                                      # ones (the CNN can't SEE walls -> wall-stuck argmax loops)
 const BLOCK := 3                      # blob half-size footprint (3x3)
 
 # Map an arena position into image pixel coords.
@@ -28,7 +30,14 @@ static func _put_block(bytes: PackedByteArray, center: Vector2i, c: Color, w: in
 			bytes[i + 1] = c.g8
 			bytes[i + 2] = c.b8
 
-# The full observation frame: background + target block + agent block (agent drawn last = on top).
+static func _put_pixel(bytes: PackedByteArray, x: int, y: int, c: Color, w: int) -> void:
+	var i := (y * w + x) * 3
+	bytes[i] = c.r8
+	bytes[i + 1] = c.g8
+	bytes[i + 2] = c.b8
+
+# The full observation frame: background + 1px arena border + target block + agent block
+# (agent drawn last = on top; blocks overdraw the border so the agent stays visible at walls).
 static func rasterize(agent_pos: Vector2, target_pos: Vector2, arena: Vector2, w: int, h: int) -> PackedByteArray:
 	var bytes := PackedByteArray()
 	bytes.resize(w * h * 3)
@@ -36,6 +45,12 @@ static func rasterize(agent_pos: Vector2, target_pos: Vector2, arena: Vector2, w
 		bytes[i] = BG.r8
 		bytes[i + 1] = BG.g8
 		bytes[i + 2] = BG.b8
+	for x in range(w):
+		_put_pixel(bytes, x, 0, BORDER, w)
+		_put_pixel(bytes, x, h - 1, BORDER, w)
+	for y in range(h):
+		_put_pixel(bytes, 0, y, BORDER, w)
+		_put_pixel(bytes, w - 1, y, BORDER, w)
 	_put_block(bytes, to_pixel(target_pos, arena, w, h), TARGET, w, h)
 	_put_block(bytes, to_pixel(agent_pos, arena, w, h), AGENT, w, h)
 	return bytes
