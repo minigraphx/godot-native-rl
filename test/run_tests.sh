@@ -70,6 +70,9 @@ echo "== BallChase parallel arena smoke test (headless) =="
 echo "== Quadruped walk smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/quadruped_smoke_scene.tscn
 
+echo "== Trained quadruped behavioral check (headless) =="
+"$GODOT" --headless --path . res://test/integration/quadruped_trained_scene.tscn
+
 echo "== Expert-demo record smoke test (headless) =="
 "$GODOT" --headless --path . res://examples/chase_the_target/record_chase_demos.tscn
 
