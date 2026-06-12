@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://examples/hide_and_seek/hide_and_seek_selfplay_seeker.tscn" id="1"]
+[ext_resource type="Script" path="res://test/integration/selfplay_smoke_checker.gd" id="2"]
+
+[node name="SelfPlaySmoke" type="Node2D"]
+
+[node name="World" parent="." instance=ExtResource("1")]
+
+[node name="Checker" type="Node" parent="."]
+script = ExtResource("2")
+manager_path = NodePath("../World/SelfPlay")
+ghost_path = NodePath("../World/Hider")
+sync_path = NodePath("../World/Sync")

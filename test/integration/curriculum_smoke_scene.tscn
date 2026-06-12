@@ -1,0 +1,30 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://examples/chase_the_target/chase_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/chase_the_target/chase_agent.gd" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/training/curriculum_controller.gd" id="3"]
+[ext_resource type="Script" path="res://test/integration/curriculum_smoke_checker.gd" id="4"]
+
+[node name="ChaseGame" type="Node2D"]
+script = ExtResource("1")
+agent_body_path = NodePath("AgentBody")
+target_path = NodePath("Target")
+
+[node name="AgentBody" type="Node2D" parent="."]
+
+[node name="Target" type="Node2D" parent="."]
+
+[node name="Curriculum" type="Node" parent="."]
+script = ExtResource("3")
+game_path = NodePath("..")
+stages_json_path = "res://examples/chase_the_target/chase_curriculum.json"
+
+[node name="ChaseAgent" type="Node2D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+
+[node name="Checker" type="Node" parent="."]
+script = ExtResource("4")
+game_path = NodePath("..")
+agent_path = NodePath("../ChaseAgent")
+curriculum_path = NodePath("../Curriculum")

@@ -44,6 +44,11 @@ func extract_action_dict(action_array: Array, action_space: Dictionary) -> Dicti
 		index += size
 	return result
 
+# Episode-replay taps (#39): additive observation points for ReplayRecorder. Signals with no
+# listeners cost nothing; stock training behavior is unchanged.
+signal actions_received(actions: Array)        ## per "action" message, before application
+signal step_sent(rewards: Array, dones: Array) ## per step message sent to the trainer
+
 # --- Configuration ---
 @export var control_mode: ControlModes = ControlModes.TRAINING
 @export_range(1, 10, 1, "or_greater") var action_repeat := 8
@@ -219,6 +224,7 @@ func _training_process() -> void:
 		var info_arr := _get_info_from_agents()
 		var t_obs_done := Time.get_ticks_usec()
 		_send_dict_as_json_message(build_step_message(obs, reward_arr, done_arr, info_arr))
+		step_sent.emit(reward_arr, done_arr)
 		var t_sent := Time.get_ticks_usec()
 		did_send = true
 		if _profiler != null:
@@ -340,12 +346,33 @@ func handle_message() -> bool:
 			_send_dict_as_json_message({"type": "call", "returns": returns})
 			return handle_message()
 		"action":
+			actions_received.emit(message["action"])
 			_set_agent_actions(message["action"], agents_training)
 			need_to_send_obs = true
 			get_tree().set_pause(false)
 			return true
+		"curriculum":
+			_handle_curriculum_message(message)
+			return handle_message()
 	push_warning("NcnnSync: unhandled message type %s" % message["type"])
 	return false
+
+# Trainer-driven curriculum override (#28): {"type":"curriculum","stage":N} jumps the scene's
+# CurriculumController to stage N; {"type":"curriculum","params":{...}} applies raw env params.
+# Additive + optional: stock trainers never send it; an absent controller warns and drops.
+# Game-side auto-promotion is the default — see training/curriculum_controller.gd.
+func _handle_curriculum_message(message: Dictionary) -> void:
+	var ctrl := get_tree().get_first_node_in_group("CURRICULUM")
+	if ctrl == null:
+		push_warning("NcnnSync: 'curriculum' message but no CurriculumController in scene; ignored.")
+		return
+	ctrl.set_external_control(true)
+	if message.has("stage"):
+		ctrl.jump_to_stage(int(message["stage"]))
+	elif message.has("params") and message["params"] is Dictionary:
+		ctrl.apply_external_params(message["params"])
+	else:
+		push_warning("NcnnSync: 'curriculum' message needs 'stage' or 'params'.")
 
 func _call_method_on_agents(method) -> Array:
 	var returns := []

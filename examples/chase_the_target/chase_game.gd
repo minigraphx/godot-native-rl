@@ -59,6 +59,34 @@ func reset_positions() -> void:
 	if _target != null:
 		_target.position = random_position()
 
+# Episode replay hooks (#39): minimal state for exact playback (kinematic + seeded game).
+# rng_state is REQUIRED for exactness: relocate_target() consumes the RNG, so a replay without
+# the recorded RNG state diverges after the first catch. Stored as a String — the uint64 RNG
+# state does not survive JSON's float64 numbers.
+func get_replay_state() -> Dictionary:
+	return {"agent_x": get_agent_pos().x, "agent_y": get_agent_pos().y,
+		"target_x": get_target_pos().x, "target_y": get_target_pos().y,
+		"catches": catches, "rng_state": str(_rng.state)}
+
+func apply_replay_state(state: Dictionary) -> void:
+	if _agent_body != null and state.has("agent_x"):
+		_agent_body.position = Vector2(float(state["agent_x"]), float(state["agent_y"]))
+	if _target != null and state.has("target_x"):
+		_target.position = Vector2(float(state["target_x"]), float(state["target_y"]))
+	catches = int(state.get("catches", 0))
+	if state.has("rng_state"):
+		_rng.state = int(String(state["rng_state"]))
+
+# Curriculum hook (#28): stage params applied at episode boundaries by CurriculumController.
+# Flat floats only (params arrive from JSON / the wire — no Vector2).
+func apply_curriculum(params: Dictionary) -> void:
+	if params.has("touch_radius"):
+		touch_radius = float(params["touch_radius"])
+	if params.has("arena_size_x"):
+		arena_size.x = float(params["arena_size_x"])
+	if params.has("arena_size_y"):
+		arena_size.y = float(params["arena_size_y"])
+
 # --- Lightweight visualizer ---
 # The agent/target are bare Node2Ds (no sprites), so the scene renders nothing on its own. This
 # draws the arena, the target, and the agent so the deploy scene is watchable (e.g. the web export

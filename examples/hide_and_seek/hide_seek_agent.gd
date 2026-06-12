@@ -14,6 +14,7 @@ const HideSeekMath = preload("res://examples/hide_and_seek/hide_seek_math.gd")
 
 var _game  # HideSeekGame (duck-typed to avoid class_name scope issues headless)
 var _action_index := 0
+var _selfplay: Node = null  # optional SelfPlayManager (group SELF_PLAY), null in plain scenes (#29)
 
 # --- Pure helpers (unit-tested) ---
 func action_to_velocity(idx: int, speed: float) -> Vector2:
@@ -40,6 +41,9 @@ func _ready() -> void:
 		push_warning("HideSeekAgent: game_path not set or invalid — producing zero observations.")
 	# Distinct policy names only when launched with --multi-policy (see hide_seek_math.gd).
 	policy_name = HideSeekMath.policy_name_for(is_seeker, OS.get_cmdline_args())
+	# Self-play (#29): optional SelfPlayManager in the scene; only the TRAINING-side (learner)
+	# agent reports match outcomes — the frozen ghost must not double-report.
+	_selfplay = get_tree().get_first_node_in_group("SELF_PLAY")
 
 # --- godot_rl contract ---
 func get_action_space() -> Dictionary:
@@ -87,6 +91,11 @@ func _physics_process(delta: float) -> void:
 	if terminal or needs_reset:
 		if terminal:
 			done = true
+		# Self-play (#29): the learner reports the match outcome. Caught = seeker win;
+		# timeout = hider win (no draws). Ghost (NCNN_INFERENCE) agents never report.
+		if _selfplay != null and control_mode != ControlModes.NCNN_INFERENCE:
+			var seeker_won: bool = _game.was_caught()
+			_selfplay.report_match(seeker_won if is_seeker else not seeker_won)
 		needs_reset = false
 		reset()
 		if is_seeker:
