@@ -12,6 +12,8 @@
 #include <godot_cpp/variant/packed_byte_array.hpp>
 
 #include <memory>
+#include <atomic>
+#include <thread>
 
 namespace ncnn {
 class Net;
@@ -45,6 +47,13 @@ public:
     int run_discrete_action(const PackedFloat32Array &p_input);
     bool is_model_loaded() const;
 
+    // Non-blocking forward pass on a worker thread (#19): runs run_inference off the main
+    // thread and emits `inference_completed(output)` on the main thread when done. Returns
+    // true if the request was accepted (model loaded, input valid, no request in flight).
+    // One request at a time — re-request after the signal (check is_inference_running()).
+    bool run_inference_async(const PackedFloat32Array &p_input);
+    bool is_inference_running() const;
+
     void set_input_blob_name(const String &p_name);
     String get_input_blob_name() const;
     void set_output_blob_name(const String &p_name);
@@ -58,12 +67,21 @@ private:
     bool build_mat_from_shape(const PackedFloat32Array &p_data, const PackedInt32Array &p_shape, ncnn::Mat &r_mat) const;
     bool run_inference_internal(const ncnn::Mat &p_input, ncnn::Mat &r_output) const;
     static PackedFloat32Array output_mat_to_packed_float_array(const ncnn::Mat &p_output);
+    // Runs on the main thread via call_deferred from the async worker: clears the in-flight
+    // flag, joins the finished worker, and emits inference_completed. Not bound to GDScript
+    // (invoked through callable_mp), so a script can't fake a completion.
+    void async_finish(const PackedFloat32Array &p_output);
+    // True if it's safe to replace net_ now: refuses while an async inference is in flight
+    // (logs via p_where) and joins a finished worker. Call before swapping net_ in load_*.
+    bool ready_to_swap_net(const char *p_where);
 
     std::unique_ptr<ncnn::Net> net_;
     bool model_loaded_ = false;
     String input_blob_name_ = "input";
     String output_blob_name_ = "output";
     PackedInt32Array input_shape_;
+    std::thread async_worker_;
+    std::atomic<bool> inference_running_{false};
 };
 
 } // namespace godot
