@@ -293,8 +293,11 @@ the same change. New items → GitHub issue only.
     (vendored ncnn2table/ncnn2int8/ncnnoptimize) + export_int8.py (optimize → KL-calibrate via CHW .npy
     → ncnn2int8 → argmax-agreement verify, int8 vs fp32 ncnn ≥ 0.9). No C++ changes (libncnn already
     NCNN_INT8=ON). Synthetic-CNN fixture + GDScript deploy smoke prove NcnnRunner runs int8 natively.
-14. ⬜ **Async inference thread (`NcnnRunnerAsync`)** — non-blocking forward pass on a Godot Thread
-    with a completion signal (C++ GDExtension work). *(novel-addons spec §3 B4)*
+14. ✅ **Async inference thread** — non-blocking forward pass on a worker thread (C++ GDExtension work).
+    **Done 2026-06-11** (#19) — `NcnnRunner.run_inference_async(input)` runs the forward pass off the
+    main thread and emits `inference_completed(output)` (main thread, via `call_deferred`); one request
+    in flight at a time (`is_inference_running()`), worker-vs-sync parity test, WASM falls back to a
+    synchronous emit (single-threaded). *(novel-addons spec §3 B4)*
 15. ✅ **NavMesh integration sensor** — NavigationServer path distance + next-waypoint direction
     (navigable, not line-of-sight). *(novel-addons spec §3 A3)*
     **Done 2026-06-11** (#20) — `NavMeshSensor2D`/`3D` over `NavigationServer2D/3D`:

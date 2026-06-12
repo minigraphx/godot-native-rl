@@ -308,7 +308,8 @@ daily:
 ## The moat (why this beats godot_rl + Unity)
 
 ncnn statically linked via C++ enables: web/WASM deployment (godot_rl's ONNX/.NET can't),
-console deployment (no .NET cert issues), INT8 quantization game-side, async inference threads,
+console deployment (no .NET cert issues), INT8 quantization game-side, **async inference**
+(`NcnnRunner.run_inference_async` + `inference_completed` signal, off-thread forward pass — #19),
 thread-parallel batched crowd inference (`run_inference_batch` + `NcnnCrowdController`, one shared `Net`),
 LOD policy switching (`NcnnLODRunner` — cheap reflex net every frame, accurate net every N / on state
 change, #21), and Godot-native ideas (Signal→Reward, `NavMeshSensor2D/3D` (navigable path obs, #20), `AnimationPolicyAdapter`
