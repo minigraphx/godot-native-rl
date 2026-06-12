@@ -70,6 +70,12 @@ echo "== Cooperative Collect smoke test (headless) =="
 echo "== BallChase parallel arena smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/ball_chase_parallel_smoke_scene.tscn
 
+echo "== 3DBall (ball-balance) smoke test (headless) =="
+"$GODOT" --headless --path . res://test/integration/ball_balance_smoke_scene.tscn
+
+echo "== GridWorld smoke test (headless) =="
+"$GODOT" --headless --path . res://test/integration/gridworld_smoke_scene.tscn
+
 echo "== Quadruped walk smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/quadruped_smoke_scene.tscn
 
@@ -107,6 +113,12 @@ echo "== Trained rover check (headless) =="
 
 echo "== Trained BallChase (SAC) behavioral check (headless) =="
 "$GODOT" --headless --path . res://test/integration/trained_ball_chase_scene.tscn
+
+echo "== Trained 3DBall behavioral check (headless) =="
+"$GODOT" --headless --path . res://test/integration/ball_balance_trained_scene.tscn
+
+echo "== Trained GridWorld behavioral check (headless) =="
+"$GODOT" --headless --path . res://test/integration/gridworld_trained_scene.tscn
 
 echo "== Trained FlyBy (PPO continuous) behavioral check (headless) =="
 "$GODOT" --headless --path . res://test/integration/trained_fly_by_scene.tscn

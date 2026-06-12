@@ -1,0 +1,43 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://examples/3dball/ball_balance_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/3dball/ball_balance_agent.gd" id="2"]
+
+[sub_resource type="BoxShape3D" id="PlatformShape"]
+size = Vector3(5, 0.4, 5)
+
+[sub_resource type="BoxMesh" id="PlatformMesh"]
+size = Vector3(5, 0.4, 5)
+
+[sub_resource type="SphereShape3D" id="BallShape"]
+radius = 0.5
+
+[sub_resource type="SphereMesh" id="BallMesh"]
+radius = 0.5
+height = 1.0
+
+[node name="Game" type="Node3D"]
+script = ExtResource("1")
+platform_path = NodePath("Platform")
+ball_path = NodePath("Ball")
+
+[node name="Platform" type="AnimatableBody3D" parent="."]
+
+[node name="PlatformCol" type="CollisionShape3D" parent="Platform"]
+shape = SubResource("PlatformShape")
+
+[node name="PlatformMesh" type="MeshInstance3D" parent="Platform"]
+mesh = SubResource("PlatformMesh")
+
+[node name="Ball" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+
+[node name="BallCol" type="CollisionShape3D" parent="Ball"]
+shape = SubResource("BallShape")
+
+[node name="BallMesh" type="MeshInstance3D" parent="Ball"]
+mesh = SubResource("BallMesh")
+
+[node name="Agent" type="Node3D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
