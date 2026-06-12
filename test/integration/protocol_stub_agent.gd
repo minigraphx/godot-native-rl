@@ -37,3 +37,18 @@ func get_action_space() -> Dictionary:
 
 func set_action(_action) -> void:
 	pass
+
+# --- Curriculum wire-path probes (#28) ---
+# The stub agent doubles as the curriculum "game": the scene's CurriculumController points
+# game_path here, and the trainer asserts effects through the existing "call" message.
+var last_curriculum_params: Dictionary = {}
+
+func apply_curriculum(params: Dictionary) -> void:
+	last_curriculum_params = params
+
+func get_curriculum_stage() -> int:
+	var ctrl := get_tree().get_first_node_in_group("CURRICULUM")
+	return ctrl.stage_index() if ctrl != null else -1
+
+func get_curriculum_param() -> float:
+	return float(last_curriculum_params.get("touch_radius", -1.0))
