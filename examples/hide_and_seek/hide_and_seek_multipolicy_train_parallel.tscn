@@ -15,3 +15,4 @@ spacing = 1400.0
 [node name="Sync" type="Node" parent="."]
 script = ExtResource("3")
 control_mode = 1
+multi_policy = true

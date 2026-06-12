@@ -39,8 +39,8 @@ func _ready() -> void:
 	_game = get_node_or_null(game_path)
 	if _game == null:
 		push_warning("HideSeekAgent: game_path not set or invalid — producing zero observations.")
-	# Distinct policy names only when launched with --multi-policy (see hide_seek_math.gd).
-	policy_name = HideSeekMath.policy_name_for(is_seeker, OS.get_cmdline_args())
+	# Distinct-policy identity ("seeker"/"hider") is baked into hide_seek_world.tscn as `policy_group`
+	# and honored only when the training scene's Sync sets multi_policy=true (#73). No cmdline gate.
 	# Self-play (#29): optional SelfPlayManager in the scene; only the TRAINING-side (learner)
 	# agent reports match outcomes — the frozen ghost must not double-report.
 	_selfplay = get_tree().get_first_node_in_group("SELF_PLAY")

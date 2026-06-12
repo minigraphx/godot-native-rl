@@ -1,0 +1,5 @@
+# Optional Optuna hyperparameter-tuning add-on (issue #113), installed ON TOP of .venv-train.
+# Isolated from requirements-train.txt so the core train/verify stack stays lean and the tuner is
+# opt-in: `.venv-train/bin/pip install -r requirements-tune.txt`. Optuna is pure-Python and has no
+# version conflict with the SB3 2.8 / gymnasium 1.2 / numpy>=2 stack.
+optuna>=3.6

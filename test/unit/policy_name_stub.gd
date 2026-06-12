@@ -3,3 +3,4 @@ extends Node
 # like the real controllers do, so it can populate NcnnSync.agents_training (Array[Node]).
 
 var policy_name: String = "shared_policy"
+var policy_group: String = ""  # multi-policy distinct training identity (#73); inert unless honored
