@@ -7,6 +7,7 @@ extends Node
 @export var agent_path: NodePath
 @export var frames_to_run := 1800
 @export var min_catches := 5
+@export var game_seed := -1  ## >= 0 pins the game RNG (reproducible spawns/relocations)
 
 var _game
 var _agent
@@ -17,6 +18,8 @@ func _ready() -> void:
 	_agent = get_node_or_null(agent_path)
 	if _game == null or _agent == null:
 		_fail("could not resolve game/agent nodes")
+	elif game_seed >= 0 and _game.has_method("seed_rng"):
+		_game.seed_rng(game_seed)
 
 func _physics_process(_delta: float) -> void:
 	if _game == null or _agent == null:

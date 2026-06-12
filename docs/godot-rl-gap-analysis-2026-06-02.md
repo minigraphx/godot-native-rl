@@ -26,6 +26,12 @@ added (#79).)
 signal, F3 toggle, debug-build gate, auto-discovery; closes #23. Continuous DiagGaussian action
 sampling via log_std sidecar shipped (#64) — game-side `mean + std·N(0,1)` for PPO continuous
 policies via `action_dist_stats_path`; closes #64. SAC ncnn export standardised on TorchScript (#81).)
+(2026-06-13 refresh: trained CNN visual example shipped (item 37 / #35) — `examples/visual_chase`,
+pixels-only chase via a code-rasterized 36×36×3 `camera_2d` obs (godot_rl's "*2d"→uint8 mapping →
+SB3 NatureCNN), trained fully headless, deployed through the item-36 image route
+(`get_inference_image()` → `run_inference_image`, first trained consumer). TorchScript→ncnn conv
+export: godot_rl's `export_model_as_onnx` KeyErrors on MultiInputPolicy under torch 2.x dynamo —
+the SAC/#81 breakage class again, TorchScript remains our standard answer.)
 (2026-06-09 audit: re-checked every gap row against open issues. The remaining godot_rl_agents
 compatibility gaps that had **no open tracking issue** were filed into the `v0.2 — godot_rl complement`
 milestone — RLlib `RayVectorGodotEnv` (#110), PettingZoo `GDRLPettingZooEnv` (#111), plugin editor-DX

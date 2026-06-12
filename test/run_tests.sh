@@ -58,6 +58,9 @@ echo "== Inference smoke test (headless) =="
 echo "== Trained chase check (headless) =="
 "$GODOT" --headless --path . res://test/integration/trained_chase_scene.tscn
 
+echo "== Trained visual chase (CNN, image route) check (headless) =="
+"$GODOT" --headless --path . res://test/integration/trained_visual_chase_scene.tscn
+
 echo "== Rover 3D smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/rover_smoke_scene.tscn
 

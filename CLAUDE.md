@@ -18,7 +18,7 @@ standalone headless-compatible play scenes; trained inference is available for c
 multi-policy hide & seek, and BallChase. Reusable library in
 `addons/godot_native_rl/` (`sync.gd`/`NcnnSync`, `controllers/`, `reward/`, `sensors/` (+ drop-in `scenes/`),
 `training/`, `net/`, `script_templates/` (controller scaffold, auto-installed on plugin enable)); C++ GDExtension at repo root (`src/ncnn_runner.{h,cpp}`). Examples:
-`chase_the_target` (2D, + `chase_crowd.tscn` batched shared-policy crowd via `run_inference_batch` + `NcnnCrowdController`), `rover_3d` (3D), `hide_and_seek` (2D self-play), `ball_chase` (2D continuous-control / SAC), `fly_by` (3D continuous-control / PPO, ships the #64 DiagGaussian-sampling demo), `quadruped_walk` (3D continuous-control locomotion — code-built 8-hinge-joint articulated quadruped on the **Jolt** backend; #60 M1 done: ships a trained PPO ncnn net that walks ~21m straight at ~1.1 m/s, deployed in `quadruped_walk_track.tscn`, + a 500k/2.5M/6M learning-stage spread in `models/stages/`, behavioral + golden regressions), `coop_collect` (2D cooperative multi-agent shared-team-reward env — #30 MA-POCA M1: env foundation + parameter-sharing baseline, math unit test + behavioral smoke; centralized critic M2 pending a run), `3dball` (Unity 3DBall parity — tilting-platform ball balance, 2 continuous actions, trained net balances 1800 frames/0 falls, #47), `gridworld` (Unity GridWorld parity + the GridSensor2D worked example — 8×8 grid, 5 discrete actions, 52-dim obs, #48). Wire protocol is
+`chase_the_target` (2D, + `chase_crowd.tscn` batched shared-policy crowd via `run_inference_batch` + `NcnnCrowdController`), `rover_3d` (3D), `hide_and_seek` (2D self-play), `ball_chase` (2D continuous-control / SAC), `fly_by` (3D continuous-control / PPO, ships the #64 DiagGaussian-sampling demo), `quadruped_walk` (3D continuous-control locomotion — code-built 8-hinge-joint articulated quadruped on the **Jolt** backend; #60 M1 done: ships a trained PPO ncnn net that walks ~21m straight at ~1.1 m/s, deployed in `quadruped_walk_track.tscn`, + a 500k/2.5M/6M learning-stage spread in `models/stages/`, behavioral + golden regressions), `coop_collect` (2D cooperative multi-agent shared-team-reward env — #30 MA-POCA M1: env foundation + parameter-sharing baseline, math unit test + behavioral smoke; centralized critic M2 pending a run), `3dball` (Unity 3DBall parity — tilting-platform ball balance, 2 continuous actions, trained net balances 1800 frames/0 falls, #47), `gridworld` (Unity GridWorld parity + the GridSensor2D worked example — 8×8 grid, 5 discrete actions, 52-dim obs, #48), `visual_chase` (the chase task through PIXELS ONLY — code-rasterized 36×36×3 `camera_2d` obs → SB3 NatureCNN, trains fully headless; deploys via the item-36 image route `get_inference_image()` → `run_inference_image`, its first trained consumer; TorchScript→ncnn conv export, #35). Wire protocol is
 godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 [docs/dev/DEVELOPMENT.md](docs/dev/DEVELOPMENT.md).**
 
@@ -105,6 +105,13 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 - **Train (GridWorld, PPO discrete):** `./scripts/train_gridworld.sh` — Unity-parity grid navigation
   (#48) and the `GridSensor2D` worked example: 5 discrete actions, 52-dim obs (5×5×2-layer sensor +
   goal vector), `ParallelArena2D` 8 worlds, 300k steps, ONNX → `export_to_ncnn.py`.
+- **Train (visual chase, CNN PPO):** `./scripts/train_visual_chase.sh` — SB3 CNN PPO (MultiInputPolicy
+  → NatureCNN) over pixels-only obs: the `camera_2d` key maps to a uint8 Box(36,36,3) (godot_rl routes
+  "*2d" keys to uint8), frames code-rasterized game-side so training is fully headless. `RESUME=1`
+  continues from `models/visual_chase.zip`; `TIMESTEPS`/`SCENE` overrides. Export is TorchScript
+  (godot_rl's ONNX exporter breaks on MultiInputPolicy under torch 2.x dynamo):
+  `export_to_ncnn.py models/visual_chase.pt --outdir examples/visual_chase/models --atol 0.2`
+  (sidecar carries the conv inputshape; atol 0.2 = ncnn-fp16 conv headroom, argmax parity exact).
 - **Train (BallChase, SAC):** `./scripts/train_ball_chase.sh` — SB3 SAC (continuous-control) over the
   BallChase env (port 11008). `SCENE=res://examples/ball_chase/ball_chase_train_parallel.tscn` tiles
   8 worlds (`ParallelArena2D`, measured 3.39× samples/sec); the trainer uses `gradient_steps=-1` so

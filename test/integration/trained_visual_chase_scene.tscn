@@ -33,3 +33,4 @@ game_path = NodePath("..")
 agent_path = NodePath("../Agent")
 frames_to_run = 1800
 min_catches = 5
+game_seed = 7

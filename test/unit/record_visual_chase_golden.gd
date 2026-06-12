@@ -17,21 +17,32 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var arena := Vector2(1000, 600)
-	# agent center; target right / left / above / below / far corner
+	# Candidate probes (agent, target). Bake only cases whose top-2 logit gap is >= 2.5 so the
+	# golden argmax survives cross-platform fp16 conv drift (observed up to ~3 on logits).
 	var cases := [
 		[Vector2(500, 300), Vector2(900, 300)],
 		[Vector2(500, 300), Vector2(100, 300)],
 		[Vector2(500, 300), Vector2(500, 50)],
 		[Vector2(500, 300), Vector2(500, 550)],
 		[Vector2(100, 100), Vector2(950, 550)],
+		[Vector2(900, 500), Vector2(100, 100)],
+		[Vector2(200, 300), Vector2(800, 300)],
+		[Vector2(500, 500), Vector2(500, 100)],
+		[Vector2(800, 100), Vector2(200, 500)],
+		[Vector2(100, 500), Vector2(900, 100)],
 	]
 	for c in cases:
 		var bytes: PackedByteArray = VObs.rasterize(c[0], c[1], arena, 36, 36)
 		var img: Image = VObs.make_image(bytes, 36, 36)
 		var out: PackedFloat32Array = runner.run_inference_image(img, true)
 		var best := 0
+		var second := -1
 		for i in range(out.size()):
 			if out[i] > out[best]:
 				best = i
-		print("agent=", c[0], " target=", c[1], " logits=", out, " argmax=", best)
+		for i in range(out.size()):
+			if i != best and (second < 0 or out[i] > out[second]):
+				second = i
+		var gap: float = out[best] - out[second]
+		print("agent=", c[0], " target=", c[1], " argmax=", best, " gap=", gap, " logits=", out)
 	quit(0)
