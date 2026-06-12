@@ -59,6 +59,16 @@ func reset_positions() -> void:
 	if _target != null:
 		_target.position = random_position()
 
+# Curriculum hook (#28): stage params applied at episode boundaries by CurriculumController.
+# Flat floats only (params arrive from JSON / the wire — no Vector2).
+func apply_curriculum(params: Dictionary) -> void:
+	if params.has("touch_radius"):
+		touch_radius = float(params["touch_radius"])
+	if params.has("arena_size_x"):
+		arena_size.x = float(params["arena_size_x"])
+	if params.has("arena_size_y"):
+		arena_size.y = float(params["arena_size_y"])
+
 # --- Lightweight visualizer ---
 # The agent/target are bare Node2Ds (no sprites), so the scene renders nothing on its own. This
 # draws the arena, the target, and the agent so the deploy scene is watchable (e.g. the web export
