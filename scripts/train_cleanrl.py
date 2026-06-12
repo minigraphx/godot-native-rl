@@ -44,6 +44,8 @@ class PPOConfig(NamedTuple):
     max_grad_norm: float
     save_model_path: str
     onnx_export_path: str
+    intrinsic: str          # "none" | "rnd" — intrinsic-reward signal added to the env reward (#27)
+    intrinsic_coef: float   # weight on the (normalized) intrinsic reward
 
 
 def parse_args(argv: Sequence[str] | None = None) -> PPOConfig:
@@ -65,6 +67,11 @@ def parse_args(argv: Sequence[str] | None = None) -> PPOConfig:
     p.add_argument("--max_grad_norm", type=float, default=0.5)
     p.add_argument("--save_model_path", type=str, default="models/chase_cleanrl_policy.pt")
     p.add_argument("--onnx_export_path", type=str, default="models/chase_cleanrl_policy.onnx")
+    p.add_argument("--intrinsic", type=str, default="none", choices=["none", "rnd"],
+                   help="intrinsic-reward signal added to the env reward for exploration (#27); "
+                        "'rnd' = Random Network Distillation. Training-only — deploy is unchanged.")
+    p.add_argument("--intrinsic_coef", type=float, default=0.5,
+                   help="weight on the normalized intrinsic reward when --intrinsic != none")
     a = p.parse_args(argv)
     return PPOConfig(
         timesteps=a.timesteps,
@@ -83,6 +90,8 @@ def parse_args(argv: Sequence[str] | None = None) -> PPOConfig:
         max_grad_norm=a.max_grad_norm,
         save_model_path=a.save_model_path,
         onnx_export_path=a.onnx_export_path,
+        intrinsic=a.intrinsic,
+        intrinsic_coef=a.intrinsic_coef,
     )
 
 
@@ -284,6 +293,17 @@ def main(argv: Sequence[str] | None = None) -> None:
     dones_buf = torch.zeros((num_steps, n_envs), device=device)
     values_buf = torch.zeros((num_steps, n_envs), device=device)
 
+    # Optional intrinsic-reward signal (#27): a curiosity bonus added to the env reward to aid
+    # exploration in sparse-reward tasks. Training-only — the exported policy is unchanged.
+    rnd_model = None
+    rnd_optimizer = None
+    intrinsic_rms = None
+    if cfg.intrinsic == "rnd":
+        import intrinsic as intrinsic_mod
+        rnd_model, rnd_optimizer = intrinsic_mod.make_rnd(observation_dim, device=device)
+        intrinsic_rms = intrinsic_mod.RunningMeanStd()
+        print(f"intrinsic reward: RND (coef={cfg.intrinsic_coef})")
+
     next_obs_np, _ = env.reset(cfg.seed)
     next_obs = torch.tensor(np.asarray(next_obs_np, dtype=np.float32), device=device)
     next_done = torch.zeros(n_envs, device=device)
@@ -310,9 +330,20 @@ def main(argv: Sequence[str] | None = None) -> None:
             next_obs_np, reward, terminations, truncations, _ = env.step(action_np)
             done = np.logical_or(np.asarray(terminations), np.asarray(truncations)).astype(np.float32)
 
-            rewards_buf[step] = torch.tensor(np.asarray(reward, dtype=np.float32), device=device)
+            step_reward = torch.tensor(np.asarray(reward, dtype=np.float32), device=device)
             next_obs = torch.tensor(np.asarray(next_obs_np, dtype=np.float32), device=device)
             next_done = torch.tensor(done, device=device)
+
+            # RND curiosity bonus on the arrived-in state, normalized by its running std, then
+            # mixed into the env reward (#27). compute_gae sees the combined reward.
+            if rnd_model is not None:
+                novelty = rnd_model.intrinsic_reward(next_obs).cpu().tolist()
+                intrinsic = intrinsic_mod.normalize_intrinsic(novelty, intrinsic_rms)
+                combined = intrinsic_mod.combine_rewards(
+                    step_reward.cpu().tolist(), intrinsic, cfg.intrinsic_coef)
+                step_reward = torch.tensor(combined, dtype=torch.float32, device=device)
+
+            rewards_buf[step] = step_reward
 
         with torch.no_grad():
             next_value = agent.value(next_obs)
@@ -330,6 +361,10 @@ def main(argv: Sequence[str] | None = None) -> None:
 
         # Flatten the batch.
         b_obs = obs_buf.reshape(-1, observation_dim)
+
+        # Train the RND predictor on the states just visited so they become less novel next time (#27).
+        if rnd_model is not None:
+            rnd_model.update(b_obs, rnd_optimizer)
         b_actions = actions_buf.reshape(-1, len(nvec))
         b_logprobs = logprobs_buf.reshape(-1)
         b_advantages = advantages.reshape(-1)

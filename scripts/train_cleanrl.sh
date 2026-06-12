@@ -17,9 +17,20 @@ TIMESTEPS="${TIMESTEPS:-300000}"
 SPEEDUP="${SPEEDUP:-8}"
 ACTION_REPEAT="${ACTION_REPEAT:-8}"
 SCENE="res://examples/chase_the_target/chase_the_target_train.tscn"
+SAVE_MODEL_PATH="${SAVE_MODEL_PATH:-models/chase_cleanrl_policy.pt}"
+ONNX_EXPORT_PATH="${ONNX_EXPORT_PATH:-models/chase_cleanrl_policy.onnx}"
+
+# INTRINSIC=rnd adds a Random Network Distillation curiosity bonus (#27); INTRINSIC_COEF tunes it.
+# ($INTRINSIC_FLAGS intentionally unquoted so an empty value expands to nothing.)
+INTRINSIC_FLAGS=""
+if [ -n "${INTRINSIC:-}" ]; then
+	INTRINSIC_FLAGS="--intrinsic ${INTRINSIC} --intrinsic_coef ${INTRINSIC_COEF:-0.5}"
+fi
 
 echo "Starting CleanRL trainer (timesteps=$TIMESTEPS)..."
-"$PY" scripts/train_cleanrl.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" &
+# shellcheck disable=SC2086
+"$PY" scripts/train_cleanrl.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" \
+	--save_model_path "$SAVE_MODEL_PATH" --onnx_export_path "$ONNX_EXPORT_PATH" $INTRINSIC_FLAGS &
 TRAINER_PID=$!
 
 # Give the trainer a moment to bind the server socket before Godot connects.

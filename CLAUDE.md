@@ -113,6 +113,10 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 - **Train (chase, CleanRL backend):** `./scripts/train_cleanrl.sh` — single-file CleanRL-style PPO over
   godot_rl's `CleanRLGodotEnv` (same chase scene + port 11008; `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`
   overrides). Exports ONNX (`models/chase_cleanrl_policy.onnx`) consumable unchanged by `export_to_ncnn.py`.
+  **Intrinsic reward (#27):** `INTRINSIC=rnd [INTRINSIC_COEF=0.5] ./scripts/train_cleanrl.sh` adds a
+  Random Network Distillation curiosity bonus to the env reward for sparse-reward exploration
+  (training-only — deploy unchanged; pluggable `scripts/intrinsic.py`, pure helpers unit-tested,
+  guarded CleanRL+RND CI smoke). ICM is the planned phase-2 follow-up.
 - **Train (chase, SampleFactory backend):** `./scripts/train_sf.sh` — SampleFactory async PPO over
   godot_rl's bridge (same chase scene; serial/sync + `normalize_input=False` so the actor is a plain
   MLP). Runs in the isolated **`.venv-sf`** (SF pins `gymnasium<1.0`); exports the SF checkpoint to
