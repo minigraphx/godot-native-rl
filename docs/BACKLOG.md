@@ -298,14 +298,24 @@ the same change. New items → GitHub issue only.
     main thread and emits `inference_completed(output)` (main thread, via `call_deferred`); one request
     in flight at a time (`is_inference_running()`), worker-vs-sync parity test, WASM falls back to a
     synchronous emit (single-threaded). *(novel-addons spec §3 B4)*
-15. ⬜ **NavMesh integration sensor** — NavigationServer path distance + next-waypoint direction
+15. ✅ **NavMesh integration sensor** — NavigationServer path distance + next-waypoint direction
     (navigable, not line-of-sight). *(novel-addons spec §3 A3)*
-16. ⬜ **LOD policy switching (`NcnnLODRunner`)** — cheap reflex net every frame, accurate net every
-    N frames / on state change. Genuinely new in game RL. *(novel-addons spec §3 B5)*
-48. ⬜ **Animation Policy Adapter** — map continuous action outputs to `AnimationTree` blend
+    **Done 2026-06-11** (#20) — `NavMeshSensor2D`/`3D` over `NavigationServer2D/3D`:
+    `[closeness, dir...]` from the walkable **path** length (around obstacles) + next-waypoint
+    direction. Pure `navmesh_math.gd`; `set_path_fn_for_test` seam for headless tests; unreachable
+    / no-map / freed-target zero-fill.
+16. ✅ **LOD policy switching (`NcnnLODRunner`)** — cheap reflex net every frame, accurate net every
+    N frames / on state change. Genuinely new in game RL. **Done 2026-06-11** (#21) — pure
+    `LodScheduler` cadence (interval + force-on-state-change + reset) + thin `NcnnLODRunner` node
+    holding two `NcnnRunner`s; one inference/frame (reflex most frames, deliberative every Nth,
+    cached); headless scheduler + two-net integration tests. *(novel-addons spec §3 B5)*
+48. ✅ **Animation Policy Adapter** — map continuous action outputs to `AnimationTree` blend
     parameters so a trained agent drives production animation without a hand-written blending layer.
-    Thin GDScript node taking an action→blend-param mapping; deploy-side only. *(from item 20;
-    novel-addons spec §3 A4)*
+    Thin GDScript node taking an action→blend-param mapping; deploy-side only. **Done 2026-06-11**
+    (#22) — pure `AnimationPolicyMap` (action→blend-param routing with per-entry affine remap +
+    clamp; out-of-range/empty action degrades gracefully) + thin `AnimationPolicyAdapter` node that
+    writes the resolved values onto an `AnimationTree` each frame. Headless map + adapter (stub-tree)
+    tests. *(from item 20; novel-addons spec §3 A4)*
 49. ✅ **In-editor Policy Debugger** — during NCNN inference, overlay live sensor readings + action
     probabilities (softmax of logits) in the Godot viewport. Pure GDScript + ncnn, zero Python;
     answers "what does the agent see and want?" visually. Needs non-`--headless` verification.

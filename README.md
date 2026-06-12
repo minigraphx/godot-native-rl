@@ -23,7 +23,7 @@ web/WASM, console, mobile, desktop, and edge.
 - [Running the examples](docs/guide/running-examples.md) — chase / rover / hide & seek / ball chase
 - [Training your own AI](docs/guide/training.md) — setup, train, the parallel-training fast path
 - [Deploying](docs/guide/deploying.md) — NcnnRunner, INT8, VecNormalize, continuous action sampling, platform targets
-- [Sensors](docs/guide/sensors.md) — raycast, relative-position, camera, grid
+- [Sensors](docs/guide/sensors.md) — raycast, relative-position, camera, grid, navmesh
 - [Building an agent in your scene](docs/guide/building-your-agent.md)
 
 ## Examples
@@ -42,6 +42,12 @@ no CPU batch dimension, so this doesn't cut FLOPs — the win is collapsing N GD
 into one, parallelizing the passes across cores, and sharing **one** loaded `Net`. The reusable
 `NcnnCrowdController` node owns the shared runner, gathers `get_obs()` from its child agents, runs one
 batch, decodes each via `ActionDecode`, and scatters `set_action()` back. See `examples/.../chase_crowd.tscn`.
+
+## Level-of-Detail policy switching
+`NcnnLODRunner` runs a cheap "reflex" net most frames and an accurate "deliberative" net only every
+N frames (or on a significant state change) — exactly one inference per frame, so the expensive net's
+cost is paid at ~1/N the rate. `decide(obs)` returns the action plus which tier ran; only viable
+because we statically link two resident nets and switch them game-side at no runtime cost.
 
 ## What you get
 - `NcnnRunner` C++ node: `load_model`, `run_inference`, `run_inference_image`,
@@ -69,7 +75,7 @@ you expose. Press **F3** to toggle; in release builds it removes itself at start
 
 ## The moat
 ncnn statically linked enables web/WASM and console deployment (ONNX/.NET can't), game-side INT8
-quantization, async inference, and Godot-native ideas (Signal→Reward, NavMesh sensor) — none
+quantization, async inference, LOD policy switching (`NcnnLODRunner`), and Godot-native ideas (Signal→Reward, `NavMeshSensor`, `AnimationPolicyAdapter`) — none
 replicable by a Python-server or managed-runtime framework.
 
 ## Installation (use the addon — no build needed)

@@ -1,0 +1,114 @@
+extends SceneTree
+# Integration test for NcnnLODRunner (#21): wires two real ncnn nets (the trained chase policy as
+# the deliberative net, the untrained chase_dummy as the reflex net) and asserts that decide()
+# alternates tiers on the LOD cadence and that each frame's logits come from the tier that ran —
+# i.e. the deliberative net's expensive output appears only on deliberative frames, the cheap
+# reflex output on the rest.
+
+const Harness = preload("res://test/harness.gd")
+const NcnnLODRunner = preload("res://addons/godot_native_rl/controllers/ncnn_lod_runner.gd")
+
+const REFLEX_PARAM := "res://examples/chase_the_target/models/chase_dummy.ncnn.param"
+const REFLEX_BIN := "res://examples/chase_the_target/models/chase_dummy.ncnn.bin"
+const DELIB_PARAM := "res://examples/chase_the_target/models/chase_the_target.ncnn.param"
+const DELIB_BIN := "res://examples/chase_the_target/models/chase_the_target.ncnn.bin"
+
+var OBS := PackedFloat32Array([0.5479, -0.1222, 0.7172, 0.3947, -0.8116])
+
+func _make_runner(param: String, bin: String):
+	var r := NcnnRunner.new()
+	r.input_blob_name = "in0"
+	r.output_blob_name = "out0"
+	var ok := r.load_model(ProjectSettings.globalize_path(param), ProjectSettings.globalize_path(bin))
+	return r if ok else null
+
+func _initialize() -> void:
+	var h := Harness.new()
+
+	var reflex = _make_runner(REFLEX_PARAM, REFLEX_BIN)
+	var delib = _make_runner(DELIB_PARAM, DELIB_BIN)
+	h.assert_true(reflex != null, "reflex (dummy) model loads")
+	h.assert_true(delib != null, "deliberative (trained) model loads")
+	if reflex == null or delib == null:
+		h.finish(self)
+		return
+
+	# Reference logits from each net for the same obs — the LOD output must match these per tier.
+	var reflex_logits: PackedFloat32Array = reflex.run_inference(OBS)
+	var delib_logits: PackedFloat32Array = delib.run_inference(OBS)
+	h.assert_true(reflex_logits != delib_logits, "the two nets produce different logits (distinct tiers)")
+
+	var lod := NcnnLODRunner.new()
+	lod.setup_for_test(reflex, delib, 3)  # deliberative every 3rd frame
+	get_root().add_child(lod)
+
+	# 7 frames at interval 3 -> deliberative on 0,3,6.
+	var tiers: Array = []
+	for i in range(7):
+		var d: Dictionary = lod.decide(OBS)
+		tiers.append(d["tier"])
+		var expected: PackedFloat32Array = delib_logits if d["ran_deliberative"] else reflex_logits
+		h.assert_eq(d["logits"], expected, "frame %d logits come from the %s net" % [i, d["tier"]])
+
+	h.assert_eq(tiers,
+		["deliberative", "reflex", "reflex", "deliberative", "reflex", "reflex", "deliberative"],
+		"LOD cadence runs the deliberative net every 3rd frame")
+
+	# last_deliberative_logits caches the accurate output across the cheap frames.
+	h.assert_eq(lod.last_deliberative_logits(), delib_logits, "deliberative logits cached for reflex frames")
+
+	# A state change forces the deliberative net immediately, off-cadence.
+	var forced: Dictionary = lod.decide(OBS, true)
+	h.assert_eq(forced["tier"], "deliberative", "state_changed forces the deliberative net")
+
+	# reset() re-arms: the next frame deliberates again.
+	lod.reset()
+	var after_reset: Dictionary = lod.decide(OBS)
+	h.assert_true(after_reset["ran_deliberative"], "reset() makes the next frame deliberative")
+
+	# #162: _ready() is idempotent — running it after setup_for_test must not clobber the injected
+	# runners/scheduler with the (empty) export paths.
+	lod._ready()
+	var after_ready: Dictionary = lod.decide(OBS)
+	h.assert_true(after_ready["tier"] in ["reflex", "deliberative"], "decide still works after _ready()")
+	h.assert_eq(lod.decide(OBS, true)["logits"], delib_logits,
+		"injected deliberative runner survived a post-setup _ready()")
+	lod.free()
+
+	# #162: changing deliberative_interval at runtime forwards to the live scheduler.
+	var lod2 := NcnnLODRunner.new()
+	lod2.setup_for_test(reflex, delib, 5)  # every 5th frame
+	lod2.deliberative_interval = 1         # now every frame
+	get_root().add_child(lod2)
+	h.assert_true(lod2.decide(OBS)["ran_deliberative"], "interval=1 -> frame 0 deliberative")
+	h.assert_true(lod2.decide(OBS)["ran_deliberative"], "interval=1 -> frame 1 deliberative (live change took)")
+	# #169: the setter clamps to >= 1, so the stored value matches the effective cadence.
+	lod2.deliberative_interval = 0
+	h.assert_eq(lod2.deliberative_interval, 1, "deliberative_interval = 0 clamps to 1 in the setter")
+	lod2.deliberative_interval = -5
+	h.assert_eq(lod2.deliberative_interval, 1, "negative deliberative_interval clamps to 1")
+	lod2.free()
+
+	# #174: decide() before init (no _ready / setup_for_test) returns a safe empty result, not a crash.
+	var lod3 := NcnnLODRunner.new()
+	var d3: Dictionary = lod3.decide(OBS)
+	h.assert_eq(d3["logits"], PackedFloat32Array(), "decide() before init returns empty logits (no crash)")
+	h.assert_eq(d3["tier"], "reflex", "decide() before init reports reflex tier")
+	h.assert_true(not d3["ran_deliberative"], "decide() before init did not run deliberative")
+	lod3.free()
+
+	# #178: a null runner on its due frame reports ran_deliberative=false (nothing ran), not true,
+	# so a caller can't adopt the empty logits as the latest deliberative output. tier still reports
+	# which net was due.
+	var lod4 := NcnnLODRunner.new()
+	lod4.setup_for_test(reflex, null, 1)  # interval 1 -> frame 0 due (deliberative), but it's null
+	get_root().add_child(lod4)
+	var d4: Dictionary = lod4.decide(OBS)
+	h.assert_eq(d4["tier"], "deliberative", "null deliberative frame still reports the due tier")
+	h.assert_true(not d4["ran_deliberative"], "null deliberative runner -> ran_deliberative false")
+	h.assert_eq(d4["logits"], PackedFloat32Array(), "null deliberative runner -> empty logits")
+	h.assert_eq(lod4.last_deliberative_logits(), PackedFloat32Array(),
+		"null deliberative frame does not poison the cached deliberative output")
+	lod4.free()
+
+	h.finish(self)
