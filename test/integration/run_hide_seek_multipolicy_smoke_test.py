@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Multi-policy wire smoke test: launches the multi-policy train scene with --multi-policy and asserts
-the env_info handshake carries agent_policy_names == ["seeker", "hider"] (two distinct policies),
-n_agents == 2, and the step loop runs. Raw sockets (no trainer); modeled on run_hide_seek_smoke_test.py."""
+"""Multi-policy wire smoke test: launches the multi-policy train scene (NO --multi-policy cmdline —
+the scene self-declares multi_policy on its Sync node, #73) and asserts the env_info handshake
+carries agent_policy_names == ["seeker", "hider"] (two distinct policies), n_agents == 2, and the
+step loop runs. Raw sockets (no trainer); modeled on run_hide_seek_smoke_test.py."""
 import json
 import os
 import socket
@@ -46,7 +47,7 @@ def main():
     failures = []
     try:
         proc = subprocess.Popen(
-            [GODOT, "--headless", "--path", ".", SCENE, "--multi-policy", "action_repeat=1", "speedup=1"]
+            [GODOT, "--headless", "--path", ".", SCENE, "action_repeat=1", "speedup=1"]
         )
         conn, _ = server.accept()
         conn.settimeout(30)

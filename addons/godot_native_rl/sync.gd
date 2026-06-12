@@ -19,7 +19,7 @@ func build_env_info_message() -> Dictionary:
 		"observation_space": _obs_space,
 		"action_space": _action_space,
 		"n_agents": agents_training.size(),
-		"agent_policy_names": PolicyNames.policy_names_from_agents(agents_training),
+		"agent_policy_names": PolicyNames.policy_names_from_agents(agents_training, multi_policy),
 	}
 
 func build_step_message(obs: Array, reward: Array, done: Array, info: Array) -> Dictionary:
@@ -53,6 +53,10 @@ signal step_sent(rewards: Array, dones: Array) ## per step message sent to the t
 @export var control_mode: ControlModes = ControlModes.TRAINING
 @export_range(1, 10, 1, "or_greater") var action_repeat := 8
 @export_range(0, 10, 0.1, "or_greater") var speed_up := 1.0
+## Honor each agent's distinct `policy_group` in the `agent_policy_names` wire field (#73). Default
+## false keeps godot_rl's shared-policy behavior (reads `policy_name`); set true on a multi-policy
+## training scene so the seeker/hider (etc.) report separate policies — no `--multi-policy` cmdline.
+@export var multi_policy: bool = false
 # Socket timeouts (seconds). <= 0 disables the timeout (waits forever).
 # read_timeout default 60s matches godot_rl's DEFAULT_TIMEOUT.
 @export var connect_timeout_sec := 10.0

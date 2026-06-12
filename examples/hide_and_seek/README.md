@@ -57,17 +57,18 @@ the trained example for the `agent_policy_names` wire field. Train it:
 GODOT=… caffeinate -is ./scripts/train_hide_seek_multipolicy.sh   # parallel scene by default
 ```
 
-The agents get distinct `policy_name`s (`seeker` / `hider`) **only** when Godot is launched with
-`--multi-policy` (a process-global gate read by `HideSeekAgent`; the shared-policy run above keeps
-`shared_policy`, so its handshake is unchanged). The custom single-file trainer
+The agents report distinct policies (`seeker` / `hider`) via a **scene-driven** mechanism (#73): each
+agent bakes a `policy_group` in `hide_seek_world.tscn`, and the multi-policy training scene's Sync sets
+`multi_policy = true` to honor it in the `agent_policy_names` wire field. The *same* world scene serves
+the shared-policy run above (where `Sync.multi_policy` is off → both keep `shared_policy`, so its
+handshake is unchanged) — no `--multi-policy` cmdline gate. The custom single-file trainer
 (`scripts/train_hide_seek_multipolicy.py`, a multi-policy sibling of the CleanRL backend) reads
 `agent_policy_names`, routes each agent to its policy, runs one PPO learner per role, and exports
 each actor to ncnn via `export_to_ncnn.py --via torchscript` (TorchScript rather than ONNX, to stay
 in stable-baselines3's numpy<2 world). Deploy both continuously in
 `hide_and_seek_multipolicy.tscn` (each agent loads its own
 `models/hide_seek_{seeker,hider}.ncnn.*`). The separate
-`hide_and_seek_multipolicy_eval.tscn` adds a finite behavioral checker for CI. A cleaner per-agent
-identity mechanism than the cmdline gate is tracked in issue #73.
+`hide_and_seek_multipolicy_eval.tscn` adds a finite behavioral checker for CI.
 
 ## Status
 

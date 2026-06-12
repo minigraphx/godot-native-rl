@@ -18,10 +18,12 @@ position = Vector2(900, 300)
 script = ExtResource("2")
 game_path = NodePath("..")
 is_seeker = true
+policy_group = "seeker"
 control_mode = 2
 
 [node name="Hider" type="Node2D" parent="."]
 script = ExtResource("2")
 game_path = NodePath("..")
 is_seeker = false
+policy_group = "hider"
 control_mode = 2

@@ -83,10 +83,13 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   `PHASES`/`TIMESTEPS_PER_PHASE`/`SPEEDUP`/`ACTION_REPEAT` overrides. Library:
   `training/{elo,opponent_pool,self_play_manager}.gd` + `reload_model()` on both controllers.
 - **Train (hide & seek, two distinct policies):** `./scripts/train_hide_seek_multipolicy.sh` — custom
-  single-file multi-policy PPO; seeker + hider learn separate networks (distinct `policy_name`s via the
-  `--multi-policy` cmdline gate read by `HideSeekAgent`), each exported to ncnn via
-  `export_to_ncnn.py --via torchscript`. `SCENE=`/`TIMESTEPS=` overrides; the trained example for the
-  `agent_policy_names` wire field. Deploy/regress in `hide_and_seek_multipolicy_eval.tscn`.
+  single-file multi-policy PPO; seeker + hider learn separate networks. Distinct policy identity is
+  scene-driven (#73): each agent bakes a `policy_group` (`seeker`/`hider`) in `hide_seek_world.tscn`,
+  honored only when the training scene's Sync sets `multi_policy=true` (the *same* world scene stays
+  reusable by the shared-policy example, where the flag is off) — no `--multi-policy` cmdline gate.
+  Each actor exported to ncnn via `export_to_ncnn.py --via torchscript`. `SCENE=`/`TIMESTEPS=`
+  overrides; the trained example for the `agent_policy_names` wire field. Deploy/regress in
+  `hide_and_seek_multipolicy_eval.tscn`.
 - **Train (multi-policy, PettingZoo interop):** `./scripts/train_pettingzoo.sh` — multi-policy PPO over
   our own `GodotParallelEnv` PettingZoo `ParallelEnv` adapter (`scripts/godot_pettingzoo_env.py`; the
   godot_rl `GDRLPettingZooEnv` functionality without depending on the upstream class). Reads
@@ -275,9 +278,13 @@ daily:
     20 (multi-policy `policy_name` wire field — `agent_policy_names` in env_info; the rest of the
     old item-20 catalog line was split 2026-06-03 into items 46–54, trained example is item 45),
     45 (multi-policy trained example — Hide & Seek seeker+hider as two distinct policies via a custom
-    single-file multi-policy PPO over `CleanRLGodotEnv`, `--multi-policy` cmdline identity gate,
-    TorchScript→ncnn export, golden-inference + deterministic LOS behavioral regression; #73 tracks a
-    cleaner identity mechanism),
+    single-file multi-policy PPO over `CleanRLGodotEnv`, scene-driven `policy_group` + `Sync.multi_policy`
+    identity (#73, replaced the original `--multi-policy` cmdline gate),
+    TorchScript→ncnn export, golden-inference + deterministic LOS behavioral regression),
+    GitHub #73 (cleaner multi-policy identity — agents bake a `policy_group`; `NcnnSync.multi_policy`
+    (default false) decides whether to honor it in `agent_policy_names`, so the single hide&seek world
+    scene serves both the shared and the distinct-policy examples with no cmdline gate. Note: GitHub
+    issue #73.),
     43 (stochastic action sampling — `deterministic_inference`/`inference_seed` on controllers,
     discrete softmax-sample via seedable RNG in core),
     22 (recurrent/LSTM deploy — `NcnnRunner.run_inference_multi` multi-IO + `NcnnControllerCore`

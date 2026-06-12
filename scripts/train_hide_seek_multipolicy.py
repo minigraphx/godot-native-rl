@@ -6,7 +6,8 @@ vectorizes over the N Godot agents as N parallel envs; this trainer reads agent_
 each agent index to its policy, maintains one PPO learner per distinct name, and exports each actor
 to TorchScript (+ a shape sidecar) for scripts/export_to_ncnn.py --via torchscript -> native ncnn.
 
-Run this FIRST (opens the server on 11008, waits), THEN launch the Godot scene with --multi-policy.
+Run this FIRST (opens the server on 11008, waits), THEN launch the Godot scene (the multi-policy
+train scene self-declares multi_policy on its Sync node — no --multi-policy cmdline gate; see #73).
 See scripts/train_hide_seek_multipolicy.sh. Design:
 docs/superpowers/specs/2026-06-05-multi-policy-trained-example-design.md
 

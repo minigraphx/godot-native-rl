@@ -128,11 +128,3 @@ static func step_reward(is_seeker: bool, has_los: bool, caught: bool, catch_bonu
 
 static func assemble_obs(own_obs: Array, wall_obs: Array, opp_obs: Array, role: float) -> Array:
 	return own_obs + wall_obs + opp_obs + [role]
-
-# Multi-policy identity gate (see docs spec + issue #73). With "--multi-policy" on the cmdline the
-# seeker/hider get DISTINCT policy names (two networks); otherwise both keep godot_rl's "shared_policy"
-# default so the existing shared-policy example's wire handshake is unchanged.
-static func policy_name_for(is_seeker: bool, cmdline_args: Array) -> String:
-	if "--multi-policy" in cmdline_args:
-		return "seeker" if is_seeker else "hider"
-	return "shared_policy"
