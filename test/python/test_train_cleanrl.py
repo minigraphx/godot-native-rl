@@ -129,11 +129,22 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(cfg.onnx_export_path, "models/chase_cleanrl_policy.onnx")
         self.assertAlmostEqual(cfg.gamma, 0.99)
         self.assertAlmostEqual(cfg.gae_lambda, 0.95)
+        self.assertEqual(cfg.intrinsic, "none")          # intrinsic reward off by default (#27)
+        self.assertAlmostEqual(cfg.intrinsic_coef, 0.5)
 
     def test_override(self):
         cfg = tc.parse_args(["--gamma", "0.9", "--timesteps", "1000"])
         self.assertAlmostEqual(cfg.gamma, 0.9)
         self.assertEqual(cfg.timesteps, 1000)
+
+    def test_intrinsic_rnd_opt_in(self):
+        cfg = tc.parse_args(["--intrinsic", "rnd", "--intrinsic_coef", "0.1"])
+        self.assertEqual(cfg.intrinsic, "rnd")
+        self.assertAlmostEqual(cfg.intrinsic_coef, 0.1)
+
+    def test_intrinsic_rejects_unknown_signal(self):
+        with self.assertRaises(SystemExit):
+            tc.parse_args(["--intrinsic", "icm"])  # not implemented yet (phase 2)
 
     def test_config_is_immutable(self):
         cfg = tc.parse_args([])

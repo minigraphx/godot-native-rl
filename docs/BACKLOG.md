@@ -374,10 +374,14 @@ the same change. New items → GitHub issue only.
     golden-inference regression, a deterministic behavioral floor (seeker LOS ≥ 8%, reproducibly 22.6%),
     a wire smoke test, and an `--atol` override on `export_to_ncnn.py` (trained logits drift slightly
     past 1e-2 while argmax stays exact).
-51. ⬜ **Intrinsic reward (Curiosity/ICM + RND)** — a pluggable intrinsic-reward signal addable to any
-    training script, for sparse-reward games (most real games). Ship RND (Random Network Distillation —
-    simpler) first, then ICM. Python-side; composes with the existing reward path. *(from item 20;
-    roadmap Track C)*
+51. 🔄 **Intrinsic reward (Curiosity/ICM + RND)** — a pluggable intrinsic-reward signal addable to any
+    training script, for sparse-reward games (most real games). *(from item 20; roadmap Track C)*
+    **RND done 2026-06-12 (#27)** — `scripts/intrinsic.py`: pure stdlib helpers (`RunningMeanStd`
+    Welford, `combine_rewards`, `normalize_intrinsic`) + a torch `RNDModel` (frozen random target +
+    trained predictor; novelty = predictor error). Wired into `train_cleanrl.py` behind
+    `--intrinsic rnd`/`--intrinsic_coef` (`INTRINSIC=rnd ./scripts/train_cleanrl.sh`); training-only,
+    deploy unchanged; pure helpers + torch-guarded RND tests + a guarded CleanRL+RND CI smoke. **ICM
+    (forward/inverse dynamics) is the phase-2 follow-up** — tracked separately as a sub-issue of #27.
 52. ✅ **Curriculum learning** — shipped **game-side first** (works with every training backend,
     zero protocol change): pure `Curriculum` promotion logic + `CurriculumController` node apply
     stage params at episode boundaries, promotion gated on rolling mean-reward/success-rate;
