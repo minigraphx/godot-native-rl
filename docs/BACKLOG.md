@@ -399,9 +399,14 @@ the same change. New items → GitHub issue only.
     (`hide_and_seek_selfplay_{seeker,hider}.tscn`); unit + integration smoke coverage. Follow-ups
     filed: simultaneous two-sided training, ELO-proximity matchmaking. *(from item 20; roadmap
     Track B; novel-addons "behavior snapshots")*
-54. ⬜ **Cooperative MA-POCA** — multi-agent centralized-critic training with a shared team reward
-    (Unity-parity stretch). Heavy; needs a multi-agent backend (items 18/19). *(from item 20;
-    roadmap Track B)*
+54. 🔄 **Cooperative MA-POCA** — multi-agent centralized-critic training with a shared team reward
+    (Unity-parity stretch). *(from item 20; roadmap Track B)*
+    **M1 done 2026-06-12 (#30)** — cooperative environment foundation: `examples/coop_collect/`
+    (shared-team-reward "collect" task; pure `coop_collect_math.gd` + `coop_collect_game.gd` +
+    parameter-sharing `coop_collect_agent.gd`; world/train/parallel scenes; math unit test +
+    headless behavioral smoke). Trainable today with shared-policy PPO as the cooperative baseline.
+    **M2 (MA-POCA centralized critic) + M3 (posthumous credit) need a training run** — speced in
+    `docs/superpowers/specs/2026-06-12-coop-mapoca-design.md`, owned by the training box.
 
 ## Distribution & DX
 
