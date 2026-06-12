@@ -163,6 +163,15 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   `.venv-train/bin/python scripts/export_int8.py models/m.ncnn.param models/m.ncnn.bin
   --width W --height H --channels C --outdir models` (optimize → KL-calibrate → ncnn2int8 →
   argmax-parity). Produces `m_int8.ncnn.{param,bin}`; deploy via `NcnnRunner` like fp32.
+- **Record + replay episodes (#39):** drop a `ReplayRecorder` node
+  (`addons/godot_native_rl/training/replay_recorder.gd`) into any training scene — it taps
+  `NcnnSync`'s additive `actions_received`/`step_sent` signals (zero agent changes) and writes one
+  `gnrl_replay_v1` JSON per episode (ring of `keep_last`) to `out_dir`; opt-in
+  `game.get_replay_state()` enables exact initial-state restore. Replay via `ReplayPlayer`
+  (`chase_replay.tscn`, set `replay_path`) — feeds recorded actions at the recorded
+  `action_repeat` cadence, no policy involved. Exact for kinematic seeded games (chase —
+  CI-asserted by `replay_determinism_scene.tscn`); approximate under physics (Jolt
+  cross-run nondeterminism, see #60).
 - **Record expert demos:** `godot --headless --path . res://examples/chase_the_target/record_chase_demos.tscn -- --demo-out=PATH --demo-trajectories=N`
   (offline — no trainer/socket; `gnrl_v1` default format; set `demo_format="godot_rl"` on the `NcnnSync` node for stock-tooling interop).
 - **Behavior cloning:** `.venv-train/bin/python scripts/train_bc.py --demos PATH --out models/bc.pt`

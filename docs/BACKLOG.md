@@ -541,10 +541,15 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
 
 ## Visualization
 
-34. ⬜ **Episode replay** — save episode trajectories (obs, actions, rewards per step) during
-    training or inference and replay them deterministically in Godot. Enables post-hoc inspection of
-    specific turns/steps without re-running training. Compatible with gym-trained models deployed
-    via ncnn (item 31).
+34. ✅ **Episode replay** — shipped (#39): `gnrl_replay_v1` format + drop-in `ReplayRecorder`
+    (taps two additive `NcnnSync` signals — actions + rewards per step, zero agent changes, opt-in
+    `get_replay_state()` initial-state snapshot, ring of `keep_last` episodes) + `ReplayPlayer`
+    (restores state via `apply_replay_state()`, feeds actions at the recorded `action_repeat`
+    cadence, no policy involved). Exact-reproduction CI check on chase
+    (`replay_determinism_scene.tscn`); approximate under physics (Jolt cross-run nondeterminism).
+    Obs deliberately not stored (actions+rewards reproduce the episode; demo format keeps obs where
+    needed). Follow-ups filed: inference-time recording, multi-agent capture. Item 35 (#40) builds
+    on this.
 35. ⬜ **Record to video** — render a Godot replay to a video file using Godot 4's `MovieWriter`
     API. Pairs with item 34: train in Python, pick a replay, export a clip. Useful for sharing
     results and debugging policy behaviour visually.

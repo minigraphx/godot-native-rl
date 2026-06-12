@@ -51,6 +51,11 @@ batch, decodes each via `ActionDecode`, and scatters `set_action()` back. See `e
   camera 2D/3D with a pre-wired `SubViewport`) and an "NCNN AI Controller" script template,
   auto-installed to your project's script-template folder (`res://script_templates/` by
   default) when the plugin is enabled.
+- **Episode replay** (`training/replay_recorder.gd` + `replay_player.gd`): drop a `ReplayRecorder`
+  into any training scene to save per-episode trajectories (actions + rewards + an opt-in
+  initial-state snapshot — zero agent changes), then replay them deterministically in Godot
+  (`chase_replay.tscn`). Exact for kinematic seeded games; approximate for physics envs (Jolt is
+  not cross-run deterministic). Foundation for record-to-video (#40).
 - godot_rl v0.8.2-compatible training bridge (`NcnnSync`) incl. multi-policy + parallel arenas.
   Training backends: SB3 (`train_chase.sh`), CleanRL (`train_cleanrl.sh`), SampleFactory async PPO
   (`train_sf.sh`, isolated `.venv-sf`, exports via TorchScript→ncnn), Ray/RLlib new-API-stack PPO
