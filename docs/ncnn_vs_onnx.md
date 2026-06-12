@@ -15,14 +15,21 @@ SB3/PPO exactly as before, then export to ONNX and convert ONNX → ncnn. The on
 the *deployment* runtime. So the honest question is never "ncnn or ONNX the format"; it is **"native
 ncnn inference, or ONNX Runtime inference?"** for the platform you intend to ship on.
 
+> **"ONNX Runtime inference" itself now splits two ways in Godot.** Besides the stock **.NET** path,
+> there is a community **native C++ ORT GDExtension** ([`godot_onnx_extension`][godot-onnx-ext]) that
+> drops the .NET requirement — so there are really *three* ways to run a policy without a Python
+> server. The runtime-level comparisons below (ncnn vs "ONNX Runtime") still hold regardless of which
+> ORT binding you pick; if you want the integration-by-integration breakdown, jump to
+> [Three ways to run a trained policy natively](#three-ways-to-run-a-trained-policy-natively-no-python-server).
+
 ---
 
 ## At a glance
 
 | Dimension | ncnn (this project) | ONNX Runtime |
 |---|---|---|
-| **Integration model** | Statically-linked C++ in a Godot **GDExtension** (no separate runtime) | C/C++ core, but the common Godot/game path is the **.NET/WinML** binding |
-| **Web / HTML5 export** | ✅ Works — but requires a `wasm32` **dlink** GDExtension build; CPU/SIMD only (no in-browser GPU) | ✅ ORT Web (WASM/WebGPU/WebGL) exists, but it's a **JS/WASM lib outside** the Godot runtime; the godot_rl native-ONNX path needs Godot **Mono**, which **can't web-export** |
+| **Integration model** | Statically-linked C++ in a Godot **GDExtension** (no separate runtime) | C/C++ core; the stock godot_rl path is the **.NET/WinML** binding, but a community **native C++ GDExtension** ([`godot_onnx_extension`][godot-onnx-ext]) now exists too (Windows/Android) |
+| **Web / HTML5 export** | ✅ Works — but requires a `wasm32` **dlink** GDExtension build; CPU/SIMD only (no in-browser GPU) | 🔴 In Godot today: the stock path needs Godot **Mono**, which **can't web-export**; the native GDExtension doesn't ship a WASM build either. (ORT Web exists as a **JS/WASM lib outside** the Godot runtime.) |
 | **Console** | No managed runtime to certify (AOT static C++, W^X-clean) — but **no turnkey console build** either | Native core *can* be embedded, but documented gaming path is managed/WinML; no official Switch/PS build |
 | **Mobile size** | ~3.4 MB (arm64, stripped), dependency-free | ~3.3 MB (`onnxruntime-mobile`, reduced-op) up to ~12 MB (full AAR); small size needs custom build + `.ort` |
 | **INT8** | `ncnn2table` + `ncnn2int8` (KL/ACIQ); transparent at inference | dynamic + static (QDQ); ~4× smaller weights |
@@ -40,11 +47,59 @@ ncnn inference, or ONNX Runtime inference?"** for the platform you intend to shi
 
 ---
 
+## Three ways to run a trained policy natively (no Python server)
+
+"ONNX Runtime" is no longer synonymous with ".NET" in Godot — there are now **three** ways to run a
+godot_rl policy without a Python server. They differ less in raw speed (all three are fast for the small
+MLPs that RL policies usually are) than in **which platforms you can ship to** and **how much pipeline
+you get**. Pick by deployment target, not by benchmark.
+
+| | **.NET ONNX** (stock godot_rl) | **Native ORT GDExtension** ([`godot_onnx_extension`][godot-onnx-ext]) | **ncnn** (this project) |
+|---|---|---|---|
+| Runtime | ONNX Runtime via Godot **Mono/.NET** | ONNX Runtime, native C++ GDExtension | ncnn, statically-linked C++ GDExtension |
+| Needs .NET / C# | yes | no | no |
+| Conversion step | none — loads `.onnx` | none — loads `.onnx` | **required** (ONNX/TorchScript → ncnn via pnnx, verified) |
+| Web / HTML5 | 🔴 structurally can't ([godot#70796][gh-70796]) | 🔴 not supported today (Windows/Android builds) | 🟢 **proven in-browser** (WASM, no COOP/COEP) |
+| Desktop (Win/Mac/Linux) | 🟢 | 🟢 (Windows shown; other desktops build-dependent) | 🟢 |
+| Mobile (iOS/Android) | 🟡 (.NET mobile narrower) | 🟢 Android shown | 🟢 tiny, dependency-free (~3.4 MB) |
+| Console | 🔴 managed runtime to certify | 🟡 native, but larger footprint / cert surface | 🟢 nothing managed to certify |
+| Operator / model intake | broad (full ORT) | broad (full ORT) | leaner curated set (~120 layers) |
+| GPU / NPU | ORT EPs (CUDA/DirectML/CoreML/NNAPI…) | same ORT EPs | Vulkan only |
+| INT8 quantization | — | — | 🟢 game-side pipeline |
+| Batched multi-agent / crowds | — | — | 🟢 `run_inference_batch` (thread-parallel, one shared net) |
+| Recurrent / LSTM deploy | — | — | 🟢 hidden-state carry |
+| VecNormalize obs parity | on you | on you | 🟢 replayed game-side |
+| Scope | inference runtime | inference runtime | full train→convert→deploy pipeline (wire protocol, sensors, reward authoring, golden tests) |
+| Maintenance / maturity | ORT actively maintained (Microsoft); shipped in godot_rl | ORT is rock-solid, but the **Godot glue is a stale one-dev POC** — last commit Feb 2024, no releases, godot-cpp pinned to a 2024-era commit (likely needs reviving for Godot 4.5+) | actively maintained: CI across all platforms, tagged releases, Godot 4.5/4.6 |
+| License | MIT | MIT (ORT) | BSD-3 (ncnn) |
+
+**How to choose:**
+
+- **Desktop/Android only, want zero conversion, broad/exotic ops, or NVIDIA-GPU/NPU acceleration?** →
+  a **native ORT GDExtension** ([`godot_onnx_extension`][godot-onnx-ext]) is the simplest fit: loads
+  `.onnx` directly, full operator coverage, no .NET.
+- **Shipping to the browser, console, or mobile/edge at a tiny footprint — and want INT8, batched
+  crowds, or a complete train→deploy pipeline?** → **ncnn (this project)**. The convert+verify step is
+  the price; web/console/footprint/INT8 are what you get.
+- **Server-side, rapid iteration, or already happy on desktop with .NET?** → **stock ONNX Runtime**
+  via godot_rl is fine; don't switch.
+
+> **Two honesty hedges.** (1) `godot_onnx_extension` documents Windows + Android builds and doesn't
+> mention web, INT8, or batching — the 🔴/— cells above mean "not supported today / build-dependent,"
+> **not** "impossible." (2) The one row where ncnn clearly *loses* is the **conversion step**: native
+> ORT loads `.onnx` directly, ncnn does not. The native-ORT path is the subject of godot_rl issue
+> [#249][grl-249]; see the moat-risk note under "Web / HTML5" below for why it matters strategically.
+
+---
+
 ## Quick lookup: which runtime for your target?
 
 Fit rating for each deployment target / use case. **🟢 strong fit · 🟡 workable, with caveats ·
 🔴 weak / not recommended.** "ONNX Runtime" below means the **stock `godot_rl_agents` native path**
-(which runs through Godot Mono/.NET) unless noted.
+(which runs through Godot Mono/.NET) unless noted — for the **native C++ ORT GDExtension** option, see
+[Three ways to run a trained policy natively](#three-ways-to-run-a-trained-policy-natively-no-python-server)
+above (it lifts the web/console/mobile rows where the limitation is *.NET*, not ORT, but keeps the
+GPU/op-coverage/no-conversion columns).
 
 | Target / use case | ncnn (this project) | ONNX Runtime (godot_rl path) | Notes |
 |---|:--:|:--:|---|
@@ -82,17 +137,19 @@ author ([ncnn-webassembly-nanodet][ncnn-wasm]). Because it's dependency-free C++
 existing GDExtension web pipeline instead of needing .NET.
 
 > **Moat-risk note (the web edge is a *godot_rl* limitation, not an ONNX one).** godot_rl can't web-export
-> only because its no-Python inference path runs through Godot **Mono/.NET**. That's a property of *how
-> godot_rl integrated ONNX*, not of ONNX Runtime itself — ORT has a native C/C++ core, and embedding it as
-> a **GDExtension** (no .NET) would let godot_rl web-export *without* converting to ncnn, and with no
-> conversion step at all. So this row is the single most likely way godot_rl closes its biggest gap, and
-> "native ONNX is interesting" is really "interesting *for godot_rl*." It does **not** fully neutralise the
-> moat: ORT-on-WASM rides the same brittle `wasm32` dlink pipeline and carries a heavier footprint than
-> ncnn's ~3.4 MB static `.so`, and the console-certification / edge-footprint / game-side-INT8 wins below
-> survive regardless. But the positioning should lean on *those* pillars, not on "godot_rl literally can't
-> reach the browser," which a native-ORT backend would erase. (Architecturally we could ship such a backend
-> ourselves — the swappable inference seam in `docs/dev/DEVELOPMENT.md` is exactly this — but doing so as an
-> upstream godot_rl contribution narrows our own differentiation; it's a positioning call, not a code task.)
+> only because its *stock* no-Python path runs through Godot **Mono/.NET** — a property of *how it integrated
+> ONNX*, not of ONNX Runtime itself. A community **native C++ ORT GDExtension** has been demonstrated
+> ([`godot_onnx_extension`][godot-onnx-ext], the subject of godot_rl issue [#249][grl-249]): it drops .NET
+> and reaches desktop + Android, but **does not ship a WASM build today**, so as of now **ncnn is still the
+> only one of the three native paths proven in the browser**. It's also an **unmaintained proof-of-concept**
+> (last commit Feb 2024, no releases, godot-cpp pinned to a 2024-era commit — likely needs reviving for
+> Godot 4.5+), so the risk is doubly latent: someone must first *revive* it **and** then *add* a web target
+> before "godot_rl literally can't reach the browser" stops being true. Even then it would not fully neutralise the moat: ORT-on-WASM would ride the same brittle `wasm32`
+> dlink pipeline and carry a heavier footprint than ncnn's ~3.4 MB static `.so`, and the
+> console-certification / edge-footprint / game-side-INT8 wins below survive regardless. So lean the
+> positioning on *those* pillars, not on the browser alone. (We could also ship a native-ORT backend
+> ourselves — the swappable inference seam in `docs/dev/DEVELOPMENT.md` is exactly this — but as an upstream
+> godot_rl contribution it narrows our own differentiation; it's a positioning call, not a code task.)
 
 **Honest caveat — this is not free:**
 - You must build a `web`/`wasm32` **dlink** GDExtension, and the extension's thread mode must match the
@@ -153,13 +210,15 @@ inference API; you own the thread either way.
 
 ## When ONNX Runtime is genuinely the better choice
 
-Be honest with yourself here — if any of these describe you, **stay on the stock `godot_rl_agents` ONNX
-path** rather than converting:
+Be honest with yourself here — if any of these describe you, **stay on ONNX Runtime** rather than
+converting (the stock `godot_rl_agents` .NET path, or — if you want native, no-.NET inference without
+a conversion step — the native [`godot_onnx_extension`][godot-onnx-ext] on its supported platforms):
 
-1. **No conversion step / rapid iteration.** ORT loads `.onnx` directly. ncnn requires conversion to
-   `.param`/`.bin`, and even the modern `pnnx` path can fail on unsupported operators or dynamic shapes
-   (see real conversion-failure issues [ncnn#2331][ncnn-2331], [#3936][ncnn-3936], [#5057][ncnn-5057]).
-   If you re-train constantly and don't want a convert+verify gate, ORT wins.
+1. **No conversion step / rapid iteration.** ORT loads `.onnx` directly (both the .NET path and the
+   native GDExtension). ncnn requires conversion to `.param`/`.bin`, and even the modern `pnnx` path can
+   fail on unsupported operators or dynamic shapes (see real conversion-failure issues
+   [ncnn#2331][ncnn-2331], [#3936][ncnn-3936], [#5057][ncnn-5057]). If you re-train constantly and don't
+   want a convert+verify gate, ORT wins.
 2. **NVIDIA / datacenter GPU inference.** ORT's TensorRT and CUDA execution providers
    ([TensorRT EP][ort-trt]) are capability ncnn (Vulkan-only GPU) does not match.
 3. **Mobile NPU acceleration.** ORT can dispatch to NNAPI (Android), CoreML (iOS), and QNN (Qualcomm)
@@ -278,7 +337,11 @@ with only an attribution/notice requirement. ncnn's lean, near-dependency-free d
 ## Bottom line
 
 - **Shipping a native game** to web, console, mobile, or edge, and willing to add a convert+verify step?
-  → **ncnn (this project).** That is exactly the gap the stock godot_rl .NET-ONNX path can't cover.
+  → **ncnn (this project).** Web/console/footprint are exactly the gap the other two paths don't cover —
+  today ncnn is the only one of the three proven in the browser.
+- **Desktop/Android only, want native (no .NET) inference with zero conversion and full ONNX op coverage?**
+  → a **native ORT GDExtension** ([`godot_onnx_extension`][godot-onnx-ext]). Simpler than ncnn where its
+  platform limits don't bite you.
 - **Iterating fast server-side, on NVIDIA GPUs, with exotic models, or on desktop Windows?**
   → **ONNX Runtime** via stock `godot_rl_agents`. Don't convert just because you can.
 
@@ -287,6 +350,8 @@ with only an attribution/notice requirement. ncnn's lean, near-dependency-free d
 ## Sources
 
 - godot_rl_agents (native ONNX needs Godot Mono): <https://github.com/edbeeching/godot_rl_agents> [grl]
+- Native ORT GDExtension for Godot (no .NET): <https://github.com/joemarshall/godot_onnx_extension> [godot-onnx-ext]
+- godot_rl issue: compiling ONNX runtime from source / dropping C#: <https://github.com/edbeeching/godot_rl_agents/issues/249> [grl-249]
 - Godot C#/.NET web export tracking issue: <https://github.com/godotengine/godot/issues/70796> [gh-70796]
 - ncnn WebAssembly demo: <https://github.com/nihui/ncnn-webassembly-nanodet> [ncnn-wasm]
 - GDExtension web dlink thread-mode mismatch: <https://github.com/godotengine/godot/issues/94537> [gh-94537]
@@ -310,6 +375,8 @@ with only an attribution/notice requirement. ncnn's lean, near-dependency-free d
 - ONNX Runtime LICENSE (MIT): <https://github.com/microsoft/onnxruntime/blob/main/LICENSE> [ort-license]
 
 [grl]: https://github.com/edbeeching/godot_rl_agents
+[godot-onnx-ext]: https://github.com/joemarshall/godot_onnx_extension
+[grl-249]: https://github.com/edbeeching/godot_rl_agents/issues/249
 [gh-70796]: https://github.com/godotengine/godot/issues/70796
 [ncnn-wasm]: https://github.com/nihui/ncnn-webassembly-nanodet
 [gh-94537]: https://github.com/godotengine/godot/issues/94537

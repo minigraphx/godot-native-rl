@@ -109,6 +109,38 @@ func reload_model(param_path: String, bin_path: String) -> bool:
 func set_ncnn_runner_for_test(runner) -> void:
 	_ncnn_runner = runner
 
+# Hot-swap the deployed policy at runtime (NCNN_INFERENCE only): reloads the ncnn model in place,
+# in the same scene, without recreating the controller or runner. Used by demos/tooling to compare
+# policies live (e.g. trained vs untrained) — the same scene, a different .ncnn pair, different
+# behaviour, no recompile and no Python. Returns true on success; on failure it push_errors and
+# leaves the previously loaded model active (returns false). Carried recurrent state, if any, is
+# zeroed since the new policy may have a different memory shape.
+func swap_model(param_path: String, bin_path: String) -> bool:
+	if control_mode != ControlModes.NCNN_INFERENCE:
+		push_error("NcnnAIController3D.swap_model: only valid in NCNN_INFERENCE mode.")
+		return false
+	if param_path.is_empty() or bin_path.is_empty():
+		push_error("NcnnAIController3D.swap_model: param_path and bin_path must be non-empty.")
+		return false
+	if _ncnn_runner == null:
+		# Runner not yet created (e.g. initial load failed) — set up fresh from the new paths.
+		model_param_path = param_path
+		model_bin_path = bin_path
+		_setup_ncnn_runner()
+		return _ncnn_runner != null
+	var param_bytes := FileAccess.get_file_as_bytes(param_path)
+	var bin_bytes := FileAccess.get_file_as_bytes(bin_path)
+	if param_bytes.is_empty() or bin_bytes.is_empty():
+		push_error("NcnnAIController3D.swap_model: cannot read model files '%s' / '%s'." % [param_path, bin_path])
+		return false
+	if not _ncnn_runner.load_model_from_buffers(param_bytes, bin_bytes):
+		push_error("NcnnAIController3D.swap_model: failed to load ncnn model '%s'." % param_path)
+		return false
+	model_param_path = param_path
+	model_bin_path = bin_path
+	_core.init_recurrent_state()  # clear stale hidden state across a policy swap (no-op if feed-forward)
+	return true
+
 func _load_obs_norm_stats() -> void:
 	if obs_norm_stats_path.is_empty():
 		return
