@@ -50,6 +50,14 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   ~15. Bump `CACHE_VERSION` in the
   workflow to force a cold rebuild (also busts this `bin/` cache); bump the Godot patch versions in the
   `test` matrix to track new releases.
+- **Train (chase, curriculum):** `SCENE=res://examples/chase_the_target/chase_the_target_train_curriculum.tscn
+  ./scripts/train_chase.sh` — 3-stage difficulty curriculum (#28): `CurriculumController` promotes
+  stages **game-side** when rolling mean episode reward clears the threshold (works with every
+  backend, zero protocol change; stages in `examples/chase_the_target/chase_curriculum.json`,
+  promotions print + surface via the per-agent `info` field as `curriculum_stage`). Custom trainer
+  loops can override with the additive `{"type":"curriculum","stage":N}` wire message
+  (`scripts/curriculum_client.py` encoders). Library: `addons/godot_native_rl/training/curriculum.gd`
+  (pure logic) + `curriculum_controller.gd` (apply-at-episode-boundary node).
 - **Train (chase):** `TIMESTEPS=120000 ./scripts/train_chase.sh` (starts SB3 trainer, launches headless
   Godot training scene which connects on port 11008). ~34 min at 120k steps.
 - **Train (rover, resumable):** `./scripts/train_rover.sh` — checkpoints to `models/rover_checkpoints/`
@@ -66,6 +74,14 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 - **Train (hide & seek self-play):** `./scripts/train_hide_seek.sh` (one shared PPO policy over a
   seeker+hider AGENT group; `SCENE=res://examples/hide_and_seek/hide_and_seek_train_parallel.tscn`
   for 8 tiled worlds via `ParallelArena2D`).
+- **Train (league self-play, opponent pool + ELO):** `./scripts/train_selfplay.sh` — alternating
+  phases (#29): each phase trains ONE side with stock single-policy SB3 while the other plays as a
+  frozen **native-ncnn ghost** (`NCNN_INFERENCE` agent — invisible to the trainer since `n_agents`
+  counts only TRAINING agents) whose snapshot the in-scene `SelfPlayManager` swaps per episode from
+  the opponent pool with ELO tracking (`pool.json` ledger). Phase exports land in
+  `models/selfplay_pool/{seeker,hider}` (gitignored) via `selfplay_phase.py register-snapshot`.
+  `PHASES`/`TIMESTEPS_PER_PHASE`/`SPEEDUP`/`ACTION_REPEAT` overrides. Library:
+  `training/{elo,opponent_pool,self_play_manager}.gd` + `reload_model()` on both controllers.
 - **Train (hide & seek, two distinct policies):** `./scripts/train_hide_seek_multipolicy.sh` — custom
   single-file multi-policy PPO; seeker + hider learn separate networks (distinct `policy_name`s via the
   `--multi-policy` cmdline gate read by `HideSeekAgent`), each exported to ncnn via

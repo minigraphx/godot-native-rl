@@ -73,6 +73,12 @@ echo "== Quadruped walk smoke test (headless) =="
 echo "== Trained quadruped behavioral check (headless) =="
 "$GODOT" --headless --path . res://test/integration/quadruped_trained_scene.tscn
 
+echo "== Curriculum promotion smoke (headless) =="
+"$GODOT" --headless --path . res://test/integration/curriculum_smoke_scene.tscn
+
+echo "== Self-play pool/ELO smoke (headless) =="
+"$GODOT" --headless --path . res://test/integration/selfplay_smoke_scene.tscn
+
 echo "== Episode-replay determinism check (headless) =="
 "$GODOT" --headless --path . res://test/integration/replay_determinism_scene.tscn
 

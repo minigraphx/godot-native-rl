@@ -34,9 +34,15 @@ models/*_pnnx.py
 logs/
 models/chase_policy.*
 models/rover_checkpoints/
+<<<<<<< HEAD
+# Self-play league artifacts (#29): pools of frozen snapshots + ELO ledgers + phase temps
+models/selfplay_pool/
+models/selfplay_tmp/
+=======
 models/quadruped_walk.zip
 models/quadruped_walk_action_dist.json
 models/quadruped_walk_ckpts/
+>>>>>>> origin/main
 # Trained SB3/ONNX artifacts (the deployable ncnn model goes to examples/rover_3d/models/ instead)
 models/rover_policy.*
 

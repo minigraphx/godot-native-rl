@@ -1,0 +1,9 @@
+{
+	"stages": [
+		{"name": "easy", "params": {"touch_radius": 120.0, "arena_size_x": 500.0, "arena_size_y": 300.0},
+		 "promote": {"metric": "mean_reward", "threshold": 8.0, "window": 20, "min_episodes": 20}},
+		{"name": "mid", "params": {"touch_radius": 80.0, "arena_size_x": 750.0, "arena_size_y": 450.0},
+		 "promote": {"metric": "mean_reward", "threshold": 8.0, "window": 20, "min_episodes": 20}},
+		{"name": "hard", "params": {"touch_radius": 40.0, "arena_size_x": 1000.0, "arena_size_y": 600.0}}
+	]
+}

@@ -124,6 +124,23 @@ def main():
             elif any(cam_bytes[i] != (255 if i % 3 == 0 else 0) for i in range(len(cam_bytes))):
                 failures.append("camera_2d bytes not all-red")
 
+        # Curriculum override messages (#28): stage jump, then raw params injection.
+        # Effects are asserted through the existing "call" round-trip (probe methods on the
+        # stub agent; the scene's CurriculumController points game_path at the agent).
+        send(conn, {"type": "curriculum", "stage": 1})
+        send(conn, {"type": "call", "method": "get_curriculum_stage"})
+        reply = recv(conn)
+        if reply.get("type") != "call":
+            failures.append("curriculum stage call reply type (got %r)" % reply.get("type"))
+        elif reply.get("returns") != [1]:
+            failures.append("curriculum stage != 1 after override (got %r)" % reply.get("returns"))
+
+        send(conn, {"type": "curriculum", "params": {"touch_radius": 7.0}})
+        send(conn, {"type": "call", "method": "get_curriculum_param"})
+        reply = recv(conn)
+        if reply.get("returns") != [7.0]:
+            failures.append("curriculum params not applied (got %r)" % reply.get("returns"))
+
         send(conn, {"type": "close"})
     finally:
         if proc is not None:
