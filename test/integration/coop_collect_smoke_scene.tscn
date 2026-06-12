@@ -1,0 +1,21 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://examples/coop_collect/coop_collect_game.gd" id="1"]
+[ext_resource type="Script" path="res://test/integration/coop_collect_smoke_checker.gd" id="2"]
+
+[node name="CoopCollectSmoke" type="Node2D"]
+
+[node name="CoopCollectGame" type="Node2D" parent="."]
+script = ExtResource("1")
+agent_a_body_path = NodePath("AgentABody")
+agent_b_body_path = NodePath("AgentBBody")
+
+[node name="AgentABody" type="Node2D" parent="CoopCollectGame"]
+position = Vector2(80, 240)
+
+[node name="AgentBBody" type="Node2D" parent="CoopCollectGame"]
+position = Vector2(80, 360)
+
+[node name="Checker" type="Node" parent="."]
+script = ExtResource("2")
+game_path = NodePath("../CoopCollectGame")
