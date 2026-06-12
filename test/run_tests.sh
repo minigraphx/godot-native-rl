@@ -79,6 +79,9 @@ echo "== Curriculum promotion smoke (headless) =="
 echo "== Self-play pool/ELO smoke (headless) =="
 "$GODOT" --headless --path . res://test/integration/selfplay_smoke_scene.tscn
 
+echo "== Episode-replay determinism check (headless) =="
+"$GODOT" --headless --path . res://test/integration/replay_determinism_scene.tscn
+
 echo "== Expert-demo record smoke test (headless) =="
 "$GODOT" --headless --path . res://examples/chase_the_target/record_chase_demos.tscn
 

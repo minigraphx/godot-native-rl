@@ -377,11 +377,14 @@ the same change. New items → GitHub issue only.
     training script, for sparse-reward games (most real games). Ship RND (Random Network Distillation —
     simpler) first, then ICM. Python-side; composes with the existing reward path. *(from item 20;
     roadmap Track C)*
-<<<<<<< HEAD
-52. ⬜ **Curriculum learning** — progressive difficulty via environment-parameter randomization,
-    driven from the trainer. Requires a side-channel or cmdline parameterization to push curriculum
-    params into the Godot scene each episode. Python + a small Godot-side param hook. *(from item 20;
-    roadmap Track C)*
+52. ✅ **Curriculum learning** — shipped **game-side first** (works with every training backend,
+    zero protocol change): pure `Curriculum` promotion logic + `CurriculumController` node apply
+    stage params at episode boundaries, promotion gated on rolling mean-reward/success-rate;
+    stage surfaces to trainers via the existing per-agent `info` field. The trainer-driven
+    side-channel exists too: an additive `"curriculum"` wire message (`stage`/`params`) +
+    stdlib `scripts/curriculum_client.py` for custom loops. 3-stage chase demo
+    (`chase_the_target_train_curriculum.tscn` + `chase_curriculum.json`), headless promotion
+    smoke + unit/wire/Python tests. (#28) *(from item 20; roadmap Track C)*
 53. ✅ **Competitive self-play** — shipped as a **native-ghost league** (#29): the frozen opponent
     is a stock `NCNN_INFERENCE` agent (invisible to the trainer — `n_agents` counts only TRAINING
     agents), so any single-policy backend trains against it. `training/elo.gd` (pure ELO) +
@@ -391,20 +394,6 @@ the same change. New items → GitHub issue only.
     (`hide_and_seek_selfplay_{seeker,hider}.tscn`); unit + integration smoke coverage. Follow-ups
     filed: simultaneous two-sided training, ELO-proximity matchmaking. *(from item 20; roadmap
     Track B; novel-addons "behavior snapshots")*
-=======
-52. ✅ **Curriculum learning** — shipped **game-side first** (works with every training backend,
-    zero protocol change): pure `Curriculum` promotion logic + `CurriculumController` node apply
-    stage params at episode boundaries, promotion gated on rolling mean-reward/success-rate;
-    stage surfaces to trainers via the existing per-agent `info` field. The trainer-driven
-    side-channel exists too: an additive `"curriculum"` wire message (`stage`/`params`) +
-    stdlib `scripts/curriculum_client.py` for custom loops. 3-stage chase demo
-    (`chase_the_target_train_curriculum.tscn` + `chase_curriculum.json`), headless promotion
-    smoke + unit/wire/Python tests. (#28) *(from item 20; roadmap Track C)*
-53. ⬜ **Competitive self-play** — a ghost controller backed by a frozen policy snapshot, opponent-pool
-    / league training, and ELO tracking. Natural consumer of the `policy_name` field (item 20) +
-    item 45. Heavy; multi-agent track. *(from item 20; roadmap Track B; novel-addons "behavior
-    snapshots")*
->>>>>>> origin/main
 54. ⬜ **Cooperative MA-POCA** — multi-agent centralized-critic training with a shared team reward
     (Unity-parity stretch). Heavy; needs a multi-agent backend (items 18/19). *(from item 20;
     roadmap Track B)*
@@ -568,10 +557,15 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
 
 ## Visualization
 
-34. ⬜ **Episode replay** — save episode trajectories (obs, actions, rewards per step) during
-    training or inference and replay them deterministically in Godot. Enables post-hoc inspection of
-    specific turns/steps without re-running training. Compatible with gym-trained models deployed
-    via ncnn (item 31).
+34. ✅ **Episode replay** — shipped (#39): `gnrl_replay_v1` format + drop-in `ReplayRecorder`
+    (taps two additive `NcnnSync` signals — actions + rewards per step, zero agent changes, opt-in
+    `get_replay_state()` initial-state snapshot, ring of `keep_last` episodes) + `ReplayPlayer`
+    (restores state via `apply_replay_state()`, feeds actions at the recorded `action_repeat`
+    cadence, no policy involved). Exact-reproduction CI check on chase
+    (`replay_determinism_scene.tscn`); approximate under physics (Jolt cross-run nondeterminism).
+    Obs deliberately not stored (actions+rewards reproduce the episode; demo format keeps obs where
+    needed). Follow-ups filed: inference-time recording, multi-agent capture. Item 35 (#40) builds
+    on this.
 35. ⬜ **Record to video** — render a Godot replay to a video file using Godot 4's `MovieWriter`
     API. Pairs with item 34: train in Python, pick a replay, export a clip. Useful for sharing
     results and debugging policy behaviour visually.

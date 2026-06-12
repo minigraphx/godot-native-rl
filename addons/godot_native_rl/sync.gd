@@ -44,6 +44,11 @@ func extract_action_dict(action_array: Array, action_space: Dictionary) -> Dicti
 		index += size
 	return result
 
+# Episode-replay taps (#39): additive observation points for ReplayRecorder. Signals with no
+# listeners cost nothing; stock training behavior is unchanged.
+signal actions_received(actions: Array)        ## per "action" message, before application
+signal step_sent(rewards: Array, dones: Array) ## per step message sent to the trainer
+
 # --- Configuration ---
 @export var control_mode: ControlModes = ControlModes.TRAINING
 @export_range(1, 10, 1, "or_greater") var action_repeat := 8
@@ -219,6 +224,7 @@ func _training_process() -> void:
 		var info_arr := _get_info_from_agents()
 		var t_obs_done := Time.get_ticks_usec()
 		_send_dict_as_json_message(build_step_message(obs, reward_arr, done_arr, info_arr))
+		step_sent.emit(reward_arr, done_arr)
 		var t_sent := Time.get_ticks_usec()
 		did_send = true
 		if _profiler != null:
@@ -340,6 +346,7 @@ func handle_message() -> bool:
 			_send_dict_as_json_message({"type": "call", "returns": returns})
 			return handle_message()
 		"action":
+			actions_received.emit(message["action"])
 			_set_agent_actions(message["action"], agents_training)
 			need_to_send_obs = true
 			get_tree().set_pause(false)
