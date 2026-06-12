@@ -24,12 +24,12 @@ from verify_ncnn_parity import VerifyResult, parity_summary
 _FIRST_GROUP = re.compile(r"\[([^\[\]]*)\]")
 
 
-def obs_dim_from_inputshape(inputshape: str) -> int:
-    """Return the observation dim N from a pnnx `inputshape` string.
+def obs_dims_from_inputshape(inputshape: str) -> list[int]:
+    """Return the full dim list of the FIRST `[...]` group of a pnnx `inputshape`.
 
-    Reads the last integer of the FIRST `[...]` group, e.g. `[1,5]` or `[1,5],[1]`
-    -> 5, ` [1, 8] ` -> 8. Raises ValueError when no leading `[...]` group with a
-    positive trailing integer can be parsed.
+    e.g. `[1,5]` or `[1,5],[1]` -> [1, 5]; `[1,3,36,36]` -> [1, 3, 36, 36] (conv
+    stems). Raises ValueError when no leading `[...]` group of positive integers
+    can be parsed.
     """
     m = _FIRST_GROUP.search(inputshape)
     if m is None:
@@ -38,15 +38,19 @@ def obs_dim_from_inputshape(inputshape: str) -> int:
     if not parts:
         raise ValueError(f"empty input-shape group in {inputshape!r}")
     try:
-        n = int(parts[-1])
+        dims = [int(p) for p in parts]
     except ValueError:
         raise ValueError(
-            f"could not parse obs dim from inputshape {inputshape!r} "
-            f"(last dim {parts[-1]!r} is not an int)"
+            f"could not parse dims from inputshape {inputshape!r}"
         ) from None
-    if n <= 0:
-        raise ValueError(f"obs dim must be positive, got {n} from {inputshape!r}")
-    return n
+    if any(d <= 0 for d in dims):
+        raise ValueError(f"dims must be positive, got {dims} from {inputshape!r}")
+    return dims
+
+
+def obs_dim_from_inputshape(inputshape: str) -> int:
+    """Return the observation dim N (the last dim of the first group), e.g. `[1,5]` -> 5."""
+    return obs_dims_from_inputshape(inputshape)[-1]
 
 
 def verify_torchscript_parity(
@@ -65,7 +69,14 @@ def verify_torchscript_parity(
     import torch
     import ncnn
 
-    obs_dim = obs_dim_from_inputshape(inputshape)
+    dims = obs_dims_from_inputshape(inputshape)
+    # ncnn sees the input without the leading batch dim (a 3D numpy array maps to a
+    # c/h/w Mat — the layout pnnx emits for conv stems; 1D stays the flat MLP case).
+    ncnn_dims = tuple(dims[1:]) if len(dims) > 1 and dims[0] == 1 else tuple(dims)
+    # Conv stems consume images: the deploy contract (run_inference_image,
+    # normalize_to_zero_one=true) feeds [0,1], so verify in-distribution — uniform(-1,1)
+    # is far outside it and flips near-tie argmaxes. Flat obs keep the (-1,1) range.
+    lo, hi = (0.0, 1.0) if len(dims) >= 4 else (-1.0, 1.0)
     rng = np.random.default_rng(seed)
 
     model = torch.jit.load(pt_path)
@@ -81,7 +92,7 @@ def verify_torchscript_parity(
 
     with torch.no_grad():
         for _ in range(n_samples):
-            obs = rng.uniform(-1.0, 1.0, size=(1, obs_dim)).astype(np.float32)
+            obs = rng.uniform(lo, hi, size=tuple(dims)).astype(np.float32)
             torch_out = model(torch.from_numpy(obs))
             if isinstance(torch_out, (tuple, list)):
                 torch_out = torch_out[0]
@@ -89,7 +100,7 @@ def verify_torchscript_parity(
             torch_arg = int(np.argmax(torch_logits))
 
             ex = net.create_extractor()
-            ex.input(in_blob, ncnn.Mat(obs.reshape(obs_dim)))
+            ex.input(in_blob, ncnn.Mat(np.ascontiguousarray(obs.reshape(ncnn_dims))))
             _, out = ex.extract(out_blob)
             ncnn_logits = np.array(out, dtype=np.float32)
             ncnn_arg = int(np.argmax(ncnn_logits))
