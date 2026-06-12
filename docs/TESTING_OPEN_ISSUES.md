@@ -112,7 +112,7 @@ Before creating the PR that closes an issue:
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| Headless Godot hangs ~0% CPU | Missing/stale `global_script_class_cache.cfg` | `run_tests.sh` regenerates it automatically; manually: `godot --headless --editor --quit` then `git clean -f -- '*.gd.uid'` |
+| Headless Godot hangs ~0% CPU | Missing/stale `global_script_class_cache.cfg` | `run_tests.sh` regenerates it automatically; manually: `godot --headless --editor --quit` (the scattered `*.gd.uid` are gitignored — #181 — so no cleanup needed) |
 | `Could not find base class` | `extends SomeClassName` — bare class_name unreliable headless | Use path-based extends: `extends "res://addons/godot_native_rl/.../foo.gd"` |
 | ncnn runner returns `-1` | Blob names not set before inference | Set `input_blob_name = "in0"` / `output_blob_name = "out0"` on the runner |
 | `Array[int]` assignment hangs | Assigning untyped `[2,3]` literal to typed @export | Type the local first: `var x: Array[int] = [2,3]` |
