@@ -73,6 +73,12 @@ overlays live observations, action probabilities, the loaded policy/model, and a
 you expose. Press **F3** to toggle; in release builds it removes itself at startup unless you set
 `debug_build_only = false`. Worked example: `examples/chase_the_target/chase_the_target_debug.tscn`.
 
+That same debug scene also carries a **live policy switcher** (`chase_model_switcher.gd`): a dropdown
+that hot-swaps the deployed `.ncnn` model at runtime via the controllers' `swap_model(param, bin)` —
+same scene, same engine, a different model file, visibly different behaviour, no recompile and no
+Python. It's the most direct way to show native inference is real and model-driven (great for the
+web demo); pair it with the overlay to watch the obs/action-probabilities change as you swap.
+
 ## The moat
 ncnn statically linked enables web/WASM and console deployment (ONNX/.NET can't), game-side INT8
 quantization, async inference, LOD policy switching (`NcnnLODRunner`), and Godot-native ideas (Signal→Reward, `NavMeshSensor`, `AnimationPolicyAdapter`) — none
