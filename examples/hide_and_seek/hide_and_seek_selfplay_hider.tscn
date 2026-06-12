@@ -1,0 +1,40 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://examples/hide_and_seek/hide_seek_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/hide_and_seek/hide_seek_agent.gd" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/training/self_play_manager.gd" id="3"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="4"]
+
+[node name="HideSeekGame" type="Node2D"]
+script = ExtResource("1")
+seeker_body_path = NodePath("SeekerBody")
+hider_body_path = NodePath("HiderBody")
+
+[node name="SeekerBody" type="Node2D" parent="."]
+position = Vector2(100, 300)
+
+[node name="HiderBody" type="Node2D" parent="."]
+position = Vector2(900, 300)
+
+[node name="SelfPlay" type="Node" parent="."]
+script = ExtResource("3")
+ghost_agent_path = NodePath("../Seeker")
+pool_dir = "res://models/selfplay_pool/seeker"
+
+[node name="Seeker" type="Node2D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+is_seeker = true
+control_mode = 3
+model_param_path = "res://examples/hide_and_seek/models/hide_seek_seeker.ncnn.param"
+model_bin_path = "res://examples/hide_and_seek/models/hide_seek_seeker.ncnn.bin"
+
+[node name="Hider" type="Node2D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+is_seeker = false
+control_mode = 2
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("4")
+control_mode = 1
