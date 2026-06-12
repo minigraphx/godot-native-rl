@@ -15,13 +15,13 @@ GODOT="${GODOT:-godot}"
 # catches both, for a few seconds' cost. See CLAUDE.md ("Fresh-clone trap").
 echo "== (Re)generating script-class cache (editor import; headless --script can't write it) =="
 rm -f .godot/global_script_class_cache.cfg
+# The import pass scatters per-script *.uid sidecars; they're gitignored (#181), so no cleanup is
+# needed — they no longer appear as untracked noise or risk an accidental commit.
 "$GODOT" --headless --editor --quit >/dev/null 2>&1 || true
-git clean -fq -- '*.gd.uid' 2>/dev/null || true
 if [ ! -f .godot/global_script_class_cache.cfg ]; then
 	echo "ERROR: could not generate .godot/global_script_class_cache.cfg (script-class registry)." >&2
 	echo "       Generate it manually before running the suite, then re-run:" >&2
 	echo "         $GODOT --headless --editor --quit   # imports the project, writes the cache" >&2
-	echo "         git clean -f -- '*.gd.uid'          # that pass scatters *.gd.uid — don't commit them" >&2
 	exit 1
 fi
 
