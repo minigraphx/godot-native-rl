@@ -1,6 +1,8 @@
 #include "ncnn_runner.h"
 
 #include <godot_cpp/core/class_db.hpp>
+#include <godot_cpp/core/object.hpp>
+#include <godot_cpp/variant/callable_method_pointer.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
 #include <mat.h>
@@ -18,7 +20,13 @@ using namespace godot;
 NcnnRunner::NcnnRunner() : net_(std::make_unique<ncnn::Net>()) {
 }
 
-NcnnRunner::~NcnnRunner() = default;
+NcnnRunner::~NcnnRunner() {
+    // Join any in-flight async worker before members (net_ in particular) are destroyed, so the
+    // worker can't touch a freed Net. The worker is short-lived; this is a bounded wait.
+    if (async_worker_.joinable()) {
+        async_worker_.join();
+    }
+}
 
 void NcnnRunner::_bind_methods() {
     ClassDB::bind_method(D_METHOD("load_model", "param_path", "bin_path"), &NcnnRunner::load_model);
@@ -28,6 +36,8 @@ void NcnnRunner::_bind_methods() {
     ClassDB::bind_method(D_METHOD("run_inference_multi", "inputs", "output_names"), &NcnnRunner::run_inference_multi);
     ClassDB::bind_method(D_METHOD("run_inference_batch", "inputs", "num_threads"), &NcnnRunner::run_inference_batch, DEFVAL(-1));
     ClassDB::bind_method(D_METHOD("run_discrete_action", "input"), &NcnnRunner::run_discrete_action);
+    ClassDB::bind_method(D_METHOD("run_inference_async", "input"), &NcnnRunner::run_inference_async);
+    ClassDB::bind_method(D_METHOD("is_inference_running"), &NcnnRunner::is_inference_running);
     ClassDB::bind_method(D_METHOD("is_model_loaded"), &NcnnRunner::is_model_loaded);
     ClassDB::bind_method(D_METHOD("set_input_blob_name", "name"), &NcnnRunner::set_input_blob_name);
     ClassDB::bind_method(D_METHOD("get_input_blob_name"), &NcnnRunner::get_input_blob_name);
@@ -40,11 +50,17 @@ void NcnnRunner::_bind_methods() {
     ADD_PROPERTY(PropertyInfo(Variant::STRING, "input_blob_name"), "set_input_blob_name", "get_input_blob_name");
     ADD_PROPERTY(PropertyInfo(Variant::STRING, "output_blob_name"), "set_output_blob_name", "get_output_blob_name");
     ADD_PROPERTY(PropertyInfo(Variant::PACKED_INT32_ARRAY, "input_shape"), "set_input_shape", "get_input_shape");
+
+    ADD_SIGNAL(MethodInfo("inference_completed",
+        PropertyInfo(Variant::PACKED_FLOAT32_ARRAY, "output")));
 }
 
 bool NcnnRunner::load_model(const String &p_param_path, const String &p_bin_path) {
     if (p_param_path.is_empty() || p_bin_path.is_empty()) {
         UtilityFunctions::push_error("NcnnRunner.load_model: param_path and bin_path must be non-empty.");
+        return false;
+    }
+    if (!ready_to_swap_net("NcnnRunner.load_model")) {
         return false;
     }
 
@@ -75,6 +91,9 @@ bool NcnnRunner::load_model(const String &p_param_path, const String &p_bin_path
 bool NcnnRunner::load_model_from_buffers(const PackedByteArray &p_param, const PackedByteArray &p_bin) {
     if (p_param.is_empty() || p_bin.is_empty()) {
         UtilityFunctions::push_error("NcnnRunner.load_model_from_buffers: param and bin buffers must be non-empty.");
+        return false;
+    }
+    if (!ready_to_swap_net("NcnnRunner.load_model_from_buffers")) {
         return false;
     }
 
@@ -358,6 +377,102 @@ int NcnnRunner::run_discrete_action(const PackedFloat32Array &p_input) {
 
 bool NcnnRunner::is_model_loaded() const {
     return model_loaded_ && static_cast<bool>(net_);
+}
+
+bool NcnnRunner::ready_to_swap_net(const char *p_where) {
+    // Reject a model reload while an async forward pass is in flight: the worker thread holds the
+    // current net_, so replacing it would free the Net out from under a running extractor
+    // (use-after-free). LOD policy switching (#21) makes runtime model swapping a real path, so
+    // this is load-bearing, not just an edge case. When inference_running_ is false, async_finish
+    // has already joined the worker; the defensive join below covers the theoretical window.
+    if (inference_running_.load()) {
+        UtilityFunctions::push_error(p_where, ": cannot reload the model while an async inference "
+            "is in flight; await inference_completed first.");
+        return false;
+    }
+    if (async_worker_.joinable()) {
+        async_worker_.join();
+    }
+    return true;
+}
+
+bool NcnnRunner::run_inference_async(const PackedFloat32Array &p_input) {
+    if (inference_running_.load()) {
+        UtilityFunctions::push_error("NcnnRunner.run_inference_async: a request is already in flight; "
+            "await inference_completed before requesting again.");
+        return false;
+    }
+    if (!model_loaded_ || !net_) {
+        UtilityFunctions::push_error("NcnnRunner.run_inference_async: model is not loaded.");
+        return false;
+    }
+    // Build the input Mat on the calling (main) thread so any size/shape error logs here, not
+    // off-thread (same discipline as run_inference_batch).
+    ncnn::Mat input_mat;
+    if (!create_input_mat_from_array(p_input, input_mat)) {
+        return false;
+    }
+#ifdef __EMSCRIPTEN__
+    // WASM is single-threaded (see docs/dev/building.md): no worker thread is available, so run
+    // inline and emit synchronously. The API contract (accept -> later signal) is preserved.
+    ncnn::Mat out_mat;
+    PackedFloat32Array out;
+    if (run_inference_internal(input_mat, out_mat)) {
+        out = output_mat_to_packed_float_array(out_mat);
+    }
+    if (out.is_empty()) {
+        UtilityFunctions::push_error("NcnnRunner.run_inference_async: inference produced no output "
+            "(check blob names / input shape).");
+    }
+    emit_signal("inference_completed", out);
+    return true;
+#else
+    // A finished worker from a prior request is joined here (inference_running_ is false, so it has
+    // already exited); join is instant and keeps async_worker_ assignable.
+    if (async_worker_.joinable()) {
+        async_worker_.join();
+    }
+    inference_running_.store(true);
+    // Hoist the blob-name conversions onto this thread; they're immutable for the call. The worker
+    // runs a *quiet* extractor (no push_error off-thread) — failure surfaces as an empty output,
+    // reported on the main thread in async_finish.
+    const CharString input_blob_utf8 = input_blob_name_.utf8();
+    const CharString output_blob_utf8 = output_blob_name_.utf8();
+    async_worker_ = std::thread([this, input_mat, input_blob_utf8, output_blob_utf8]() {
+        PackedFloat32Array out;
+        ncnn::Extractor ex = net_->create_extractor();
+        if (ex.input(input_blob_utf8.get_data(), input_mat) == 0) {
+            ncnn::Mat out_mat;
+            if (ex.extract(output_blob_utf8.get_data(), out_mat) == 0) {
+                out = output_mat_to_packed_float_array(out_mat);
+            }
+        }
+        // Marshal the result back to the main thread; Godot's deferred-call queue is thread-safe,
+        // and a freed runner's queued call is dropped against the ObjectDB. callable_mp (not a
+        // bound method name) keeps async_finish off the public GDScript surface so a stray script
+        // call can't fake a completion.
+        callable_mp(this, &NcnnRunner::async_finish).call_deferred(out);
+    });
+    return true;
+#endif
+}
+
+void NcnnRunner::async_finish(const PackedFloat32Array &p_output) {
+    // Main thread (via call_deferred). The worker called us as its last act, so it has finished —
+    // join is instant and resets the thread for the next request.
+    if (async_worker_.joinable()) {
+        async_worker_.join();
+    }
+    inference_running_.store(false);
+    if (p_output.is_empty()) {
+        UtilityFunctions::push_error("NcnnRunner.run_inference_async: inference produced no output "
+            "(check blob names / input shape).");
+    }
+    emit_signal("inference_completed", p_output);
+}
+
+bool NcnnRunner::is_inference_running() const {
+    return inference_running_.load();
 }
 
 bool NcnnRunner::create_input_mat_from_array(const PackedFloat32Array &p_input, ncnn::Mat &r_input) const {
