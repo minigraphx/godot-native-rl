@@ -143,7 +143,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `GDRLPettingZooEnv` (PettingZoo, multi-policy) | ✅ | ✅ `GodotParallelEnv` in `scripts/godot_pettingzoo_env.py` — `GDRLPettingZooEnv` functionality without the upstream class; `parallel_api_test` conformance; live-trained two-policy fixtures + golden/LOS regression shipped (#118) | ✅ done (#111) |
 | `SampleFactoryEnvWrapper` (batched + non-batched) | ✅ | ✅ done (#24) — `train_sf.sh`, async PPO, TorchScript→ncnn, isolated `.venv-sf` | — |
 | ONNX export helper (`OnnxablePolicy`) | ✅ SB3/SAC → ONNX | ✅ `export_to_ncnn.py` ONNX+TorchScript→ncnn | Different, covered |
-| Optuna HP tuning example | ✅ | ❌ | Nice-to-have (#113) |
+| Optuna HP tuning example | ✅ | ✅ done (#113) — `tune_optuna.sh`/`tune_optuna.py`: Optuna PPO study over an example, maximizes `ep_rew_mean`, one Godot client per trial, isolated `optuna` dep (`requirements-tune.txt`), pure helpers unit-tested | — |
 
 ---
 
@@ -211,7 +211,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | ✅ Done | RLlib training-script interop — new-API-stack PPO, custom gymnasium adapter (stock `RayVectorGodotEnv` is old-API-stack only), shares `.venv-train` (#126) | #110 |
 | 🟡 M1 done | Continuous-control **locomotion** showcase (Unity Crawler/Walker territory): `quadruped_walk` — code-built 8-hinge-joint articulated quadruped on Jolt; M1 ships a trained PPO ncnn net that walks ~21m straight at ~1.1 m/s (forward-velocity + lateral-penalty reward) + learning-stage spread + behavioral/golden regressions. Epic ongoing (hurdles, race, morphologies, video = M2–M5) | #60 |
 | ✅ Done | Plugin editor-DX parity: drop-in sensor scenes (`sensors/scenes/`) + `NcnnAIController` script templates auto-installed on enable | #112 |
-| ⚪ P5 | Optuna hyperparameter-tuning example (nice-to-have) | #113 |
+| ✅ Done | Optuna hyperparameter-tuning example — `tune_optuna.sh`/`.py`, PPO study maximizing `ep_rew_mean`, per-trial Godot client, isolated `optuna` dep, unit-tested helpers | #113 |
 | ⚪ P4 | CameraSensor: configurable render res + downscale + RGBA | #36 |
 | ⚪ P4 | Grayscale camera deploy (C++ `PIXEL_GRAY` path) | #36 |
 | 🔴 P5 | `terminated`/`truncated` split — wire semantics change; blocked on upstream godot_rl TODO | #12 |

@@ -125,6 +125,16 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   exports the RLModule actor → TorchScript → `export_to_ncnn.py`. Ecosystem interop (#110), not a
   replacement for the custom trainers. `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`/`BASE_PORT`/
   `EXPERIMENT`/`TRAIN_DIR`/`OUTDIR`/`SCENE` overrides.
+- **Tune hyperparameters (Optuna):** `./scripts/tune_optuna.sh` — an Optuna PPO HP search over an
+  example via the godot-rl bridge (#113, godot_rl parity). Each trial samples a PPO HP set, runs a
+  short training trial, and reports `ep_rew_mean` (maximized); prints + writes the best set to
+  `models/best_hyperparams.json`. The tuner spawns one headless Godot client **per trial** (each on
+  `base_port + trial.number`, so back-to-back trials don't collide on a TIME_WAIT socket). Isolated
+  dep — install once: `.venv-train/bin/pip install -r requirements-tune.txt`. Overrides:
+  `N_TRIALS`/`TRIAL_TIMESTEPS`/`SCENE` (a `*_train_parallel.tscn` is faster where it exists)`/SPEEDUP`/
+  `ACTION_REPEAT`/`BASE_PORT`/`STORAGE` (e.g. `sqlite:///optuna.db` to persist/resume)`/STUDY_NAME`.
+  Pure helpers (HP space, minibatch-divisibility fix, `ep_rew_mean` extraction) unit-tested in
+  `test/python/test_tune_optuna.py`.
 - **Throughput check:** `./scripts/throughput_compare.sh` — short fresh runs of the parallel vs
   single-agent scene into temp dirs (never touches `models/`); prints samples/sec + speedup **plus a
   per-step phase breakdown** (`collect_obs` / `serialize_send` / `await_action`) so you can see whether
