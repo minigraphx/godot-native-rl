@@ -6,15 +6,15 @@
 [ext_resource type="Script" path="res://examples/quadruped_walk/race_leaderboard.gd" id="4"]
 
 [sub_resource type="BoxShape3D" id="GroundShape"]
-size = Vector3(120, 1, 120)
+size = Vector3(160, 1, 120)
 
 [sub_resource type="BoxMesh" id="GroundMesh"]
-size = Vector3(120, 1, 120)
+size = Vector3(160, 1, 120)
 
 [node name="QuadrupedRace" type="Node3D"]
 
 [node name="Ground" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, -0.5, 15)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, -0.5, 15)
 
 [node name="GroundCol" type="CollisionShape3D" parent="Ground"]
 shape = SubResource("GroundShape")
@@ -38,7 +38,7 @@ model_param_path = "res://examples/quadruped_walk/models/stages/quadruped_walk_s
 model_bin_path = "res://examples/quadruped_walk/models/stages/quadruped_walk_step500000.ncnn.bin"
 
 [node name="Lane1" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 0)
 script = ExtResource("1")
 finish_path = NodePath("Finish")
 
@@ -53,7 +53,7 @@ model_param_path = "res://examples/quadruped_walk/models/stages/quadruped_walk_s
 model_bin_path = "res://examples/quadruped_walk/models/stages/quadruped_walk_step2500000.ncnn.bin"
 
 [node name="Lane2" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 0, 0)
 script = ExtResource("1")
 finish_path = NodePath("Finish")
 
@@ -70,15 +70,15 @@ model_bin_path = "res://examples/quadruped_walk/models/stages/quadruped_walk_ste
 [node name="Sync" type="Node" parent="."]
 script = ExtResource("3")
 control_mode = 2
-action_repeat = 4
+action_repeat = 8
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-55, -35, 0)
 shadow_enabled = true
 
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 8, -10)
-rotation_degrees = Vector3(-18, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 18, -22)
+rotation_degrees = Vector3(-22, 0, 0)
 current = true
 
 [node name="HUD" type="CanvasLayer" parent="."]
