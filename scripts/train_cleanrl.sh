@@ -26,6 +26,10 @@ INTRINSIC_FLAGS=""
 if [ -n "${INTRINSIC:-}" ]; then
 	INTRINSIC_FLAGS="--intrinsic ${INTRINSIC} --intrinsic_coef ${INTRINSIC_COEF:-0.5}"
 fi
+# IMITATION=gail DEMOS=path replaces the env reward with a GAIL discriminator reward (#61).
+if [ -n "${IMITATION:-}" ]; then
+	INTRINSIC_FLAGS="$INTRINSIC_FLAGS --imitation ${IMITATION} --demos ${DEMOS:-}"
+fi
 
 echo "Starting CleanRL trainer (timesteps=$TIMESTEPS)..."
 # shellcheck disable=SC2086

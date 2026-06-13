@@ -46,6 +46,8 @@ class PPOConfig(NamedTuple):
     onnx_export_path: str
     intrinsic: str          # "none" | "rnd" | "icm" — intrinsic-reward signal added to the env reward (#27/#201)
     intrinsic_coef: float   # weight on the (normalized) intrinsic reward
+    imitation: str          # "none" | "gail" — replace the env reward with a GAIL imitation reward (#61)
+    demos: str              # path to expert demos (gnrl_v1/godot_rl) when imitation == "gail"
 
 
 def parse_args(argv: Sequence[str] | None = None) -> PPOConfig:
@@ -73,6 +75,11 @@ def parse_args(argv: Sequence[str] | None = None) -> PPOConfig:
                         "Module (forward-model error, needs the action). Training-only — deploy unchanged.")
     p.add_argument("--intrinsic_coef", type=float, default=0.5,
                    help="weight on the normalized intrinsic reward when --intrinsic != none")
+    p.add_argument("--imitation", type=str, default="none", choices=["none", "gail"],
+                   help="GAIL adversarial imitation (#61): REPLACE the env reward with a discriminator "
+                        "reward so the policy imitates --demos. Discrete single-head only.")
+    p.add_argument("--demos", type=str, default="",
+                   help="expert demo file (gnrl_v1/godot_rl) to imitate when --imitation gail")
     a = p.parse_args(argv)
     return PPOConfig(
         timesteps=a.timesteps,
@@ -93,6 +100,8 @@ def parse_args(argv: Sequence[str] | None = None) -> PPOConfig:
         onnx_export_path=a.onnx_export_path,
         intrinsic=a.intrinsic,
         intrinsic_coef=a.intrinsic_coef,
+        imitation=a.imitation,
+        demos=a.demos,
     )
 
 
@@ -315,6 +324,23 @@ def main(argv: Sequence[str] | None = None) -> None:
         intrinsic_rms = intrinsic_mod.RunningMeanStd()
         print(f"intrinsic reward: ICM (coef={cfg.intrinsic_coef})")
 
+    # GAIL imitation (#61): a discriminator-derived reward REPLACES the env reward so the policy
+    # imitates the expert demos. Discrete single head (chase). Loads expert (obs, action) pairs once.
+    gail_disc = None
+    gail_optimizer = None
+    expert_obs_t = None
+    expert_act_t = None
+    if cfg.imitation == "gail":
+        import gail as gail_mod
+        from load_expert_demos import load_demos, flatten_pairs
+        if not cfg.demos:
+            raise SystemExit("--imitation gail requires --demos <path>")
+        x, y = flatten_pairs(load_demos(cfg.demos))
+        expert_obs_t = torch.tensor(np.asarray(x, dtype=np.float32), device=device)
+        expert_act_t = torch.tensor(np.asarray(y, dtype=np.int64).reshape(-1), device=device)
+        gail_disc, gail_optimizer = gail_mod.make_discriminator(observation_dim, int(nvec[0]), device=device)
+        print(f"imitation: GAIL ({expert_obs_t.shape[0]} expert pairs from {cfg.demos}) — env reward REPLACED")
+
     next_obs_np, _ = env.reset(cfg.seed)
     next_obs = torch.tensor(np.asarray(next_obs_np, dtype=np.float32), device=device)
     next_done = torch.zeros(n_envs, device=device)
@@ -364,6 +390,11 @@ def main(argv: Sequence[str] | None = None) -> None:
                     step_reward.cpu().tolist(), intrinsic, cfg.intrinsic_coef)
                 step_reward = torch.tensor(combined, dtype=torch.float32, device=device)
 
+            # GAIL (#61): REPLACE the env reward with the discriminator's imitation reward on the
+            # (pre-step obs, taken action) pair — the policy is trained only to look expert-like.
+            if gail_disc is not None:
+                step_reward = gail_disc.reward(obs_buf[step], action[:, 0]).to(device)
+
             rewards_buf[step] = step_reward
 
         with torch.no_grad():
@@ -397,6 +428,17 @@ def main(argv: Sequence[str] | None = None) -> None:
         b_advantages = advantages.reshape(-1)
         b_returns = returns.reshape(-1)
         b_values = values_buf.reshape(-1)
+
+        # GAIL discriminator update (#61): train D to tell this rollout's (obs, action) pairs (label
+        # 0) from a same-size sampled batch of expert pairs (label 1). Done before the PPO epochs so
+        # the next rollout's reward reflects the sharpened discriminator.
+        if gail_disc is not None:
+            pol_obs = b_obs
+            pol_act = b_actions[:, 0]
+            e_idx = torch.tensor(
+                gail_mod.sample_indices(expert_obs_t.shape[0], pol_obs.shape[0], seed=update),
+                device=device)
+            gail_disc.update(pol_obs, pol_act, expert_obs_t[e_idx], expert_act_t[e_idx], gail_optimizer)
 
         b_inds = np.arange(batch_size)
         for _ in range(cfg.update_epochs):

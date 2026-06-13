@@ -149,7 +149,7 @@ PY_TRAIN="${PY_TRAIN:-.venv-train/bin/python}"
 # Backstop cleanup: with `set -e`, a crash in export_int8.py / train_sf.sh aborts before the
 # inline `rm -rf` runs, so these temp dirs would leak. The EXIT trap reaps whichever are set.
 INT8_TMP="" SF_TMP=""
-trap 'rm -rf "${INT8_TMP:-}" "${SF_TMP:-}" "${RLLIB_TMP:-}" "${CLEANRL_TMP:-}" "${CLEANRL_ICM_TMP:-}" "${MAPOCA_TMP:-}" 2>/dev/null || true' EXIT
+trap 'rm -rf "${INT8_TMP:-}" "${SF_TMP:-}" "${RLLIB_TMP:-}" "${CLEANRL_TMP:-}" "${CLEANRL_ICM_TMP:-}" "${CLEANRL_GAIL_TMP:-}" "${MAPOCA_TMP:-}" 2>/dev/null || true' EXIT
 INT8_TMP="$(mktemp -d)"
 "$PY_TRAIN" scripts/export_int8.py models/synthetic_cnn.ncnn.param models/synthetic_cnn.ncnn.bin \
 	--width 8 --height 8 --channels 3 --samples 256 --n-verify 100 --outdir "$INT8_TMP"
@@ -221,6 +221,23 @@ if [ -x .venv-train/bin/python ] && .venv-train/bin/python -c "import godot_rl" 
 	echo "CleanRL+ICM smoke OK."
 else
 	echo "SKIP: godot_rl not installed in .venv-train (run scripts/setup_training.sh to enable the CleanRL+ICM smoke)."
+fi
+
+echo "== CleanRL + GAIL imitation smoke (skipped if godot_rl absent in .venv-train) =="
+# Exercises the #61 GAIL path end-to-end (load expert demos, discriminator reward REPLACES the env
+# reward, adversarial D update) on a tiny chase run imitating the committed expert demos.
+if [ -x .venv-train/bin/python ] && .venv-train/bin/python -c "import godot_rl" >/dev/null 2>&1; then
+	CLEANRL_GAIL_TMP="$(mktemp -d)"
+	TIMESTEPS="${CLEANRL_GAIL_SMOKE_TIMESTEPS:-2000}" IMITATION=gail \
+	DEMOS=examples/chase_the_target/demos/chase_expert_demos.json \
+	SAVE_MODEL_PATH="$CLEANRL_GAIL_TMP/chase_cleanrl_gail.pt" \
+	ONNX_EXPORT_PATH="$CLEANRL_GAIL_TMP/chase_cleanrl_gail.onnx" \
+		./scripts/train_cleanrl.sh
+	test -f "$CLEANRL_GAIL_TMP/chase_cleanrl_gail.pt" || { echo "FAIL: CleanRL+GAIL .pt not produced" >&2; rm -rf "$CLEANRL_GAIL_TMP"; exit 1; }
+	rm -rf "$CLEANRL_GAIL_TMP"
+	echo "CleanRL+GAIL smoke OK."
+else
+	echo "SKIP: godot_rl not installed in .venv-train (run scripts/setup_training.sh to enable the CleanRL+GAIL smoke)."
 fi
 
 echo "== MA-POCA cooperative trainer smoke (skipped if godot_rl absent in .venv-train) =="
