@@ -117,5 +117,60 @@ class TestRNDModel(unittest.TestCase):
         self.assertLess(last, first)
 
 
+@unittest.skipUnless(HAVE_TORCH, "torch not installed")
+class TestICMModel(unittest.TestCase):
+    def test_intrinsic_reward_shape_and_nonneg(self):
+        model, _ = ic.make_icm(obs_dim=5, n_actions=4)
+        obs = torch.randn(8, 5)
+        next_obs = torch.randn(8, 5)
+        action = torch.randint(0, 4, (8,))
+        r = model.intrinsic_reward(obs, action, next_obs)
+        self.assertEqual(tuple(r.shape), (8,))
+        self.assertTrue(bool((r >= 0).all()))  # squared forward-error is non-negative
+
+    def test_update_reduces_novelty_on_repeated_transitions(self):
+        torch.manual_seed(0)
+        model, opt = ic.make_icm(obs_dim=6, n_actions=3, lr=1e-3)
+        obs = torch.randn(16, 6)
+        next_obs = torch.randn(16, 6)
+        action = torch.randint(0, 3, (16,))
+        before = float(model.intrinsic_reward(obs, action, next_obs).mean())
+        for _ in range(80):
+            model.update(obs, action, next_obs, opt)
+        after = float(model.intrinsic_reward(obs, action, next_obs).mean())
+        # The forward model learns these transitions' dynamics -> novelty drops.
+        self.assertLess(after, before)
+
+    def test_update_returns_decreasing_loss(self):
+        torch.manual_seed(0)
+        model, opt = ic.make_icm(obs_dim=4, n_actions=5, lr=1e-3)
+        obs = torch.randn(32, 4)
+        next_obs = torch.randn(32, 4)
+        action = torch.randint(0, 5, (32,))
+        first = model.update(obs, action, next_obs, opt)
+        for _ in range(40):
+            last = model.update(obs, action, next_obs, opt)
+        self.assertLess(last, first)
+
+    def test_inverse_model_learns_action_from_transition(self):
+        # The inverse model should recover the action that caused a (deterministic) transition,
+        # which is what shapes the encoder toward action-relevant features.
+        torch.manual_seed(0)
+        import torch.nn.functional as F
+        model, opt = ic.make_icm(obs_dim=4, n_actions=3, lr=2e-3)
+        obs = torch.randn(24, 4)
+        action = torch.randint(0, 3, (24,))
+        # next_obs is obs shifted by an action-dependent offset (so the action IS recoverable).
+        offset = torch.eye(3)[action] @ torch.randn(3, 4)
+        next_obs = obs + offset
+        for _ in range(200):
+            model.update(obs, action, next_obs, opt)
+        phi = model.encoder(obs)
+        phi_next = model.encoder(next_obs)
+        logits = model.inverse(torch.cat([phi, phi_next], dim=-1))
+        acc = float((logits.argmax(dim=-1) == action).float().mean())
+        self.assertGreater(acc, 0.7)
+
+
 if __name__ == "__main__":
     unittest.main()
