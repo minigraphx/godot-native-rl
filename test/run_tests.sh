@@ -70,6 +70,9 @@ echo "== Parallel arena smoke test (headless) =="
 echo "== Cooperative Collect smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/coop_collect_smoke_scene.tscn
 
+echo "== Trained MA-POCA cooperative behavioral check (headless, #30 M2) =="
+"$GODOT" --headless --path . res://test/integration/coop_mapoca_trained_scene.tscn
+
 echo "== BallChase parallel arena smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/ball_chase_parallel_smoke_scene.tscn
 
