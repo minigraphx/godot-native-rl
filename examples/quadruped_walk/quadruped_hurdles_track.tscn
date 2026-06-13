@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_game.gd" id="1"]
 [ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_hurdles_agent.gd" id="2"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://addons/godot_native_rl/sensors/raycast_sensor_3d.gd" id="4"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="5"]
 [ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_hud.gd" id="6"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/debug/policy_debug_overlay.gd" id="7"]
 
 [sub_resource type="BoxShape3D" id="GroundShape"]
 size = Vector3(80, 1, 80)
@@ -75,3 +76,6 @@ offset_left = 16.0
 offset_top = 16.0
 script = ExtResource("6")
 game_path = NodePath("../..")
+
+[node name="PolicyDebugOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("7")

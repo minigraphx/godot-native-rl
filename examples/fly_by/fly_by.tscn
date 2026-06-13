@@ -1,10 +1,11 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://examples/fly_by/fly_by_game.gd" id="1"]
 [ext_resource type="Script" path="res://examples/fly_by/fly_by_agent.gd" id="2"]
 [ext_resource type="PackedScene" path="res://examples/fly_by/cartoon_plane/scene.gltf" id="3"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="4"]
 [ext_resource type="Texture2D" path="res://examples/fly_by/sky.hdr" id="5"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/debug/policy_debug_overlay.gd" id="6"]
 
 [sub_resource type="PanoramaSkyMaterial" id="Sky"]
 panorama = ExtResource("5")
@@ -65,3 +66,6 @@ deterministic_inference = true
 [node name="Sync" type="Node" parent="."]
 script = ExtResource("4")
 control_mode = 2
+
+[node name="PolicyDebugOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("6")

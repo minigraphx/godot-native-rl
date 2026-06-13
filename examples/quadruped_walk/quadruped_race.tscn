@@ -1,9 +1,10 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_game.gd" id="1"]
 [ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_agent.gd" id="2"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="3"]
 [ext_resource type="Script" path="res://examples/quadruped_walk/sequential_race.gd" id="4"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/debug/policy_debug_overlay.gd" id="5"]
 
 [sub_resource type="BoxShape3D" id="GroundShape"]
 size = Vector3(120, 1, 120)
@@ -64,3 +65,6 @@ frames_per_gen = 4000
 gen_params = ["res://examples/quadruped_walk/models/stages/quadruped_walk_step500000.ncnn.param", "res://examples/quadruped_walk/models/stages/quadruped_walk_step2500000.ncnn.param", "res://examples/quadruped_walk/models/stages/quadruped_walk_step6000000.ncnn.param"]
 gen_bins = ["res://examples/quadruped_walk/models/stages/quadruped_walk_step500000.ncnn.bin", "res://examples/quadruped_walk/models/stages/quadruped_walk_step2500000.ncnn.bin", "res://examples/quadruped_walk/models/stages/quadruped_walk_step6000000.ncnn.bin"]
 gen_labels = ["gen-500k", "gen-2.5M", "gen-6M"]
+
+[node name="PolicyDebugOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("5")

@@ -2,6 +2,14 @@
 
 These ship with pre-trained ncnn models — run them with no Python setup.
 
+## Inspecting a running policy (F3)
+
+Every example play scene ships the **Policy Debugger** overlay. Press **F3** while a scene runs to
+toggle a panel showing each agent's live observations, action probabilities, and identity. It is a
+developer tool: hidden by default and automatically removed from release/exported builds, so it
+never affects a shipped game. (The `chase_the_target_debug.tscn` scene additionally shows it on by
+default alongside a live model switcher.)
+
 ## Chase the Target (2D)
 
 A complete, runnable 2D example: an agent learns to chase a relocating target, trained with
