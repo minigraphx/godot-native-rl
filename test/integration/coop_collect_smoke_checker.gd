@@ -17,8 +17,11 @@ func _ready() -> void:
 	_game = get_node_or_null(game_path)
 	if _game == null:
 		_fail("game_path not set")
+		return
 
 func _physics_process(_delta: float) -> void:
+	if _game == null:
+		return
 	_frames += 1
 	# The game integrates + collects at priority -10 (before us), so team_reward()/collected() now
 	# reflect this frame. Record that a positive team reward fired the frame an item was collected.
@@ -26,19 +29,24 @@ func _physics_process(_delta: float) -> void:
 		_saw_positive_team_reward = true
 
 	if _game.is_terminal():
+		# quit(code) only QUEUES the exit; a later quit() overwrites it, so each _fail must `return`
+		# immediately or a trailing quit(0) masks the failure (#206). Match the repo-wide pattern.
 		var all := true
 		for c in _game.collected():
 			all = all and c
 		if not all:
 			_fail("terminal reached but not all items collected (timeout)")
+			return
 		if not _saw_positive_team_reward:
 			_fail("episode finished without any positive team reward")
+			return
 		print("COOP COLLECT SMOKE PASSED (frames=%d, items=%d, shared team reward observed)" % [_frames, _game.collected().size()])
 		get_tree().quit(0)
 		return
 
 	if _frames >= max_frames:
 		_fail("did not collect all items within %d frames" % max_frames)
+		return
 
 	# Greedy scripted steering: each agent heads to its nearest UNCOLLECTED item. Two agents naturally
 	# split across items, exercising the multi-agent collection path.
