@@ -1,0 +1,54 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_hurdles_agent.gd" id="2"]
+[ext_resource type="Script" path="res://examples/quadruped_walk/hurdle_track.gd" id="3"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sensors/raycast_sensor_3d.gd" id="4"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/training/curriculum_controller.gd" id="5"]
+
+[sub_resource type="BoxShape3D" id="GroundShape"]
+size = Vector3(80, 1, 80)
+
+[sub_resource type="BoxMesh" id="GroundMesh"]
+size = Vector3(80, 1, 80)
+
+[node name="Game" type="Node3D"]
+script = ExtResource("1")
+finish_path = NodePath("Finish")
+
+[node name="Ground" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="GroundCol" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("GroundShape")
+
+[node name="GroundMesh" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("GroundMesh")
+
+[node name="Finish" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 40)
+
+[node name="Hurdles" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Curriculum" type="Node" parent="."]
+script = ExtResource("5")
+game_path = NodePath("../Hurdles")
+stages_json_path = "res://examples/quadruped_walk/quadruped_hurdles_curriculum.json"
+
+[node name="RaySensor" type="Node3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.5, 0)
+script = ExtResource("4")
+n_rays_width = 3
+n_rays_height = 2
+ray_length = 6.0
+horizontal_fov = 40.0
+vertical_fov = 25.0
+collision_mask = 2
+
+[node name="Agent" type="Node3D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+hurdle_track_path = NodePath("../Hurdles")
+ray_sensor_path = NodePath("../RaySensor")
+curriculum_path = NodePath("../Curriculum")

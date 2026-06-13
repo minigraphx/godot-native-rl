@@ -1,0 +1,9 @@
+{
+	"stages": [
+		{"name": "flat", "params": {"hurdle_count": 0, "hurdle_height": 0.15, "hurdle_spacing": 8.0},
+		 "promote": {"metric": "mean_reward", "threshold": 40.0, "window": 30, "min_episodes": 30}},
+		{"name": "low", "params": {"hurdle_count": 4, "hurdle_height": 0.15, "hurdle_spacing": 8.0},
+		 "promote": {"metric": "mean_reward", "threshold": 45.0, "window": 30, "min_episodes": 30}},
+		{"name": "race", "params": {"hurdle_count": 6, "hurdle_height": 0.3, "hurdle_spacing": 6.0}}
+	]
+}
