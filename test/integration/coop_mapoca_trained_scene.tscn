@@ -1,0 +1,46 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://examples/coop_collect/coop_collect_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/coop_collect/coop_collect_agent.gd" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="3"]
+[ext_resource type="Script" path="res://test/integration/coop_mapoca_trained_checker.gd" id="4"]
+
+[node name="CoopCollectGame" type="Node2D"]
+script = ExtResource("1")
+agent_a_body_path = NodePath("AgentABody")
+agent_b_body_path = NodePath("AgentBBody")
+
+[node name="AgentABody" type="Node2D" parent="."]
+position = Vector2(80, 240)
+
+[node name="AgentBBody" type="Node2D" parent="."]
+position = Vector2(80, 360)
+
+[node name="AgentA" type="Node2D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+agent_index = 0
+control_mode = 3
+model_param_path = "res://examples/coop_collect/models/coop_mapoca.ncnn.param"
+model_bin_path = "res://examples/coop_collect/models/coop_mapoca.ncnn.bin"
+
+[node name="AgentB" type="Node2D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+agent_index = 1
+control_mode = 3
+model_param_path = "res://examples/coop_collect/models/coop_mapoca.ncnn.param"
+model_bin_path = "res://examples/coop_collect/models/coop_mapoca.ncnn.bin"
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("3")
+control_mode = 2
+action_repeat = 8
+
+[node name="Checker" type="Node" parent="."]
+script = ExtResource("4")
+game_path = NodePath("..")
+agent_a_path = NodePath("../AgentA")
+agent_b_path = NodePath("../AgentB")
+frames_to_run = 1200
+min_collected = 3

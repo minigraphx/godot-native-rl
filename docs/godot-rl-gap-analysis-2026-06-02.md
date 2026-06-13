@@ -26,6 +26,13 @@ added (#79).)
 signal, F3 toggle, debug-build gate, auto-discovery; closes #23. Continuous DiagGaussian action
 sampling via log_std sidecar shipped (#64) — game-side `mean + std·N(0,1)` for PPO continuous
 policies via `action_dist_stats_path`; closes #64. SAC ncnn export standardised on TorchScript (#81).)
+(2026-06-13 refresh: MA-POCA cooperative training shipped (item 54 M2 / #30) — single-file
+`scripts/train_coop_mapoca.py`: shared decentralized actor + a centralized attention critic over the
+team's obs + a per-agent leave-one-out counterfactual baseline, over coop_collect via CleanRLGodotEnv.
+Pure credit/masking helpers unit-tested; world-major team grouping verified at runtime via the
+shared-reward invariant; the trained actor collects 4/4 items cooperatively under ncnn. This closes
+the last Unity-ML-Agents MARL-parity gap that had a trained deliverable (centralized-critic credit
+assignment); M3 posthumous credit is the remaining stretch, masking helpers already in place.)
 (2026-06-13 refresh: trained CNN visual example shipped (item 37 / #35) — `examples/visual_chase`,
 pixels-only chase via a code-rasterized 36×36×3 `camera_2d` obs (godot_rl's "*2d"→uint8 mapping →
 SB3 NatureCNN), trained fully headless, deployed through the item-36 image route

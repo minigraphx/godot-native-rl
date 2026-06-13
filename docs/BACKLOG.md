@@ -405,8 +405,15 @@ the same change. New items → GitHub issue only.
     (shared-team-reward "collect" task; pure `coop_collect_math.gd` + `coop_collect_game.gd` +
     parameter-sharing `coop_collect_agent.gd`; world/train/parallel scenes; math unit test +
     headless behavioral smoke). Trainable today with shared-policy PPO as the cooperative baseline.
-    **M2 (MA-POCA centralized critic) + M3 (posthumous credit) need a training run** — speced in
-    `docs/superpowers/specs/2026-06-12-coop-mapoca-design.md`, owned by the training box.
+    **M2 done 2026-06-13 (#30)** — single-file MA-POCA trainer `scripts/train_coop_mapoca.py`:
+    shared decentralized actor + a **centralized attention critic** over the whole team's obs + a
+    per-agent **leave-one-out counterfactual baseline**; pure credit/masking helpers
+    (`scripts/coop_mapoca.py`, 14 unit tests); world-major team-grouping verified at runtime via the
+    shared-reward invariant. The 1.5M-step actor collects **4/4 items cooperatively** under ncnn
+    (`ep_rew_mean` −2.95 → +0.30); committed net + behavioral + golden regressions + guarded CI smoke.
+    **M3 (posthumous credit) still needs a run** — masking helpers (`alive_mask`/`masked_mean`)
+    written + tested; needs an early-finish env variant. Spec:
+    `docs/superpowers/specs/2026-06-12-coop-mapoca-design.md`.
 
 ## Distribution & DX
 

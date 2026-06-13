@@ -70,6 +70,9 @@ echo "== Parallel arena smoke test (headless) =="
 echo "== Cooperative Collect smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/coop_collect_smoke_scene.tscn
 
+echo "== Trained MA-POCA cooperative behavioral check (headless, #30 M2) =="
+"$GODOT" --headless --path . res://test/integration/coop_mapoca_trained_scene.tscn
+
 echo "== BallChase parallel arena smoke test (headless) =="
 "$GODOT" --headless --path . res://test/integration/ball_chase_parallel_smoke_scene.tscn
 
@@ -137,7 +140,7 @@ PY_TRAIN="${PY_TRAIN:-.venv-train/bin/python}"
 # Backstop cleanup: with `set -e`, a crash in export_int8.py / train_sf.sh aborts before the
 # inline `rm -rf` runs, so these temp dirs would leak. The EXIT trap reaps whichever are set.
 INT8_TMP="" SF_TMP=""
-trap 'rm -rf "${INT8_TMP:-}" "${SF_TMP:-}" "${RLLIB_TMP:-}" "${CLEANRL_TMP:-}" 2>/dev/null || true' EXIT
+trap 'rm -rf "${INT8_TMP:-}" "${SF_TMP:-}" "${RLLIB_TMP:-}" "${CLEANRL_TMP:-}" "${MAPOCA_TMP:-}" 2>/dev/null || true' EXIT
 INT8_TMP="$(mktemp -d)"
 "$PY_TRAIN" scripts/export_int8.py models/synthetic_cnn.ncnn.param models/synthetic_cnn.ncnn.bin \
 	--width 8 --height 8 --channels 3 --samples 256 --n-verify 100 --outdir "$INT8_TMP"
@@ -193,6 +196,21 @@ if [ -x .venv-train/bin/python ] && .venv-train/bin/python -c "import godot_rl" 
 	echo "CleanRL+RND smoke OK."
 else
 	echo "SKIP: godot_rl not installed in .venv-train (run scripts/setup_training.sh to enable the CleanRL+RND smoke)."
+fi
+
+echo "== MA-POCA cooperative trainer smoke (skipped if godot_rl absent in .venv-train) =="
+# Exercises the #30 M2 centralized-critic path end-to-end on a tiny single-world coop_collect run:
+# socket -> team-grouped rollout -> attention critic + counterfactual baseline -> PPO update ->
+# TorchScript actor export. The world-major grouping assertion runs inside (single team here).
+if [ -x .venv-train/bin/python ] && .venv-train/bin/python -c "import godot_rl" >/dev/null 2>&1; then
+	MAPOCA_TMP="$(mktemp -d)"
+	TIMESTEPS="${MAPOCA_SMOKE_TIMESTEPS:-3000}" OUT="$MAPOCA_TMP/coop_mapoca" \
+		./scripts/train_coop_mapoca.sh
+	test -f "$MAPOCA_TMP/coop_mapoca.pt" || { echo "FAIL: MA-POCA actor .pt not produced" >&2; rm -rf "$MAPOCA_TMP"; exit 1; }
+	rm -rf "$MAPOCA_TMP"
+	echo "MA-POCA smoke OK."
+else
+	echo "SKIP: godot_rl not installed in .venv-train (run scripts/setup_training.sh to enable the MA-POCA smoke)."
 fi
 
 echo "All tests passed."
