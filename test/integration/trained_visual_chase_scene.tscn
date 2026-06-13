@@ -20,8 +20,6 @@ game_path = NodePath("..")
 control_mode = 3
 model_param_path = "res://examples/visual_chase/models/visual_chase.ncnn.param"
 model_bin_path = "res://examples/visual_chase/models/visual_chase.ncnn.bin"
-deterministic_inference = false
-inference_seed = 42
 
 [node name="Sync" type="Node" parent="."]
 script = ExtResource("4")
@@ -31,6 +29,6 @@ control_mode = 2
 script = ExtResource("3")
 game_path = NodePath("..")
 agent_path = NodePath("../Agent")
-frames_to_run = 1800
+frames_to_run = 3600
 min_catches = 5
 game_seed = 7
