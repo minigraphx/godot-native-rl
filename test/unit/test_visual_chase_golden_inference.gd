@@ -3,9 +3,10 @@ extends SceneTree
 # frames through the REAL deploy image route (run_inference_image) must reproduce the baked
 # argmax actions. Catches a silently-corrupted/retrained net or an image-path layout change.
 #
-# Baked 2026-06-13 from the 1.5M-step net via record_visual_chase_golden.gd. Only probes whose
-# top-2 logit gap is >= 3 are baked, so argmax survives cross-platform fp16 conv drift; logits
+# Baked 2026-06-13 from the 3M-step border-obs net via record_visual_chase_golden.gd. Only probes
+# whose top-2 logit gap is >= 3 are baked, so argmax survives cross-platform fp16 conv drift; logits
 # themselves are NOT asserted (ncnn runs convs in fp16 on ARM — argmax is the deploy contract).
+# These are directionally correct (target-right -> move-right etc.), unlike the pre-border net.
 
 const Harness = preload("res://test/harness.gd")
 const VObs = preload("res://examples/visual_chase/visual_chase_obs.gd")
@@ -13,12 +14,12 @@ const VObs = preload("res://examples/visual_chase/visual_chase_obs.gd")
 const ARENA := Vector2(1000, 600)
 # [agent, target, expected argmax]  (1=up, 2=down, 3=left, 4=right)
 const GOLDEN := [
-	[Vector2(500, 300), Vector2(500, 50), 1],
-	[Vector2(100, 100), Vector2(950, 550), 4],
-	[Vector2(900, 500), Vector2(100, 100), 1],
-	[Vector2(500, 500), Vector2(500, 100), 1],
-	[Vector2(800, 100), Vector2(200, 500), 2],
-	[Vector2(100, 500), Vector2(900, 100), 1],
+	[Vector2(500, 300), Vector2(900, 300), 4],  # target right    -> move right (gap 7.1)
+	[Vector2(500, 300), Vector2(500, 50), 1],   # target up       -> move up    (gap 6.5)
+	[Vector2(500, 300), Vector2(500, 550), 2],  # target down     -> move down  (gap 7.9)
+	[Vector2(100, 100), Vector2(950, 550), 4],  # target far +x   -> move right (gap 4.9)
+	[Vector2(900, 500), Vector2(100, 100), 1],  # target up-left  -> move up    (gap 6.6)
+	[Vector2(200, 300), Vector2(800, 300), 4],  # target right    -> move right (gap 4.3)
 ]
 
 func _initialize() -> void:
