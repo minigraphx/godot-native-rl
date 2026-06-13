@@ -64,3 +64,31 @@ static func item_block(agent_pos: Vector2, item_pos: Vector2, collected: bool, n
 	var block := rel_obs(agent_pos, item_pos, norm)
 	block.append(1.0 if collected else 0.0)
 	return block
+
+# --- Early-finish ("bank and leave") helpers, #30 M3 ---
+
+# True when `pos` is inside the right-edge bank zone (x within `bank_width` of the right wall).
+static func in_bank_zone(pos: Vector2, arena_x: float, bank_width: float) -> bool:
+	return pos.x >= arena_x - bank_width
+
+# Should an agent bank out THIS frame? Only when it's in the zone, the team has already collected at
+# least one item (so banking immediately without contributing isn't rewarded), and it hasn't banked.
+static func should_bank(in_zone: bool, items_collected: int, already_banked: bool) -> bool:
+	return in_zone and items_collected > 0 and not already_banked
+
+# True when every agent has banked out (early-finish terminal). Empty -> false.
+static func all_banked(banked: Array) -> bool:
+	if banked.is_empty():
+		return false
+	for b in banked:
+		if not b:
+			return false
+	return true
+
+# Count collected items in a `collected` bool array.
+static func count_collected(collected: Array) -> int:
+	var n := 0
+	for c in collected:
+		if c:
+			n += 1
+	return n
