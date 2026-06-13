@@ -163,7 +163,10 @@ echo "== SampleFactory backend smoke (skipped if .venv-sf absent) =="
 if [ -x .venv-sf/bin/python ]; then
 	SF_TMP="$(mktemp -d)"
 	# Tiny run: enough env steps to write one checkpoint; serial/sync mode keeps it deterministic.
-	TIMESTEPS="${SF_SMOKE_TIMESTEPS:-3000}" \
+	# SKIP_VERIFY=1: the ~3000-step model has near-uniform logits so strict argmax parity flakes
+	# (#86) — the committed #79 golden (test_chase_sf_golden_inference.gd) gates deploy correctness;
+	# this smoke only asserts "trains + exports + converts".
+	TIMESTEPS="${SF_SMOKE_TIMESTEPS:-3000}" SKIP_VERIFY=1 \
 	TRAIN_DIR="$SF_TMP/logs" OUTDIR="$SF_TMP/models" EXPERIMENT="chase_sf_smoke" \
 		./scripts/train_sf.sh
 	test -f "$SF_TMP/models/chase_sf_policy.ncnn.param" || { echo "FAIL: SF ncnn .param not produced" >&2; rm -rf "$SF_TMP"; exit 1; }

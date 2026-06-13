@@ -119,7 +119,7 @@ class TestObsAndActLayout(unittest.TestCase):
         self.assertEqual(nvec, [5])
 
 
-@unittest.skipUnless(HAVE_DEPS, "numpy not installed")
+# No skipUnless: parse_args is pure stdlib (argparse + NamedTuple); these run everywhere (#204).
 class TestParseArgs(unittest.TestCase):
     def test_defaults(self):
         cfg = tc.parse_args([])

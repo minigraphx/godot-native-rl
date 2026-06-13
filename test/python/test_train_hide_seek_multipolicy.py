@@ -49,7 +49,7 @@ class TestSplitStitch(unittest.TestCase):
         np.testing.assert_array_equal(stitched, actions)
 
 
-@unittest.skipUnless(HAVE_DEPS, "numpy not installed")
+# No skipUnless: parse_args is pure stdlib; these run everywhere (#204).
 class TestParseArgs(unittest.TestCase):
     def test_defaults(self):
         cfg = mp.parse_args([])

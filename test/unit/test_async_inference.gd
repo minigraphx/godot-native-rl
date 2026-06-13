@@ -19,6 +19,9 @@ var _runner
 var _captured: Array = []
 var _frames := 0
 var _done := false
+var _quitting := false  # one-shot guard: _process keeps firing after a queued quit, so without this
+                        # the timeout branch re-enters every frame, double-frees the runner, and spams
+                        # errors forever instead of exiting (#208).
 
 func _initialize() -> void:
 	_h = Harness.new()
@@ -59,9 +62,12 @@ func _initialize() -> void:
 	# _process below waits for the completion signal.
 
 func _process(_delta: float) -> bool:
+	if _quitting:  # quit is queued, not immediate — stop doing anything until the tree tears down.
+		return true
 	_frames += 1
 	if not _done and not _captured.is_empty():
 		_done = true
+		_quitting = true
 		var async_out: PackedFloat32Array = _captured[0]
 		_h.assert_true(async_out.size() > 0, "async inference produced non-empty output")
 		_h.assert_true(not _runner.is_inference_running(), "is_inference_running false after completion")
@@ -70,12 +76,20 @@ func _process(_delta: float) -> bool:
 		_h.assert_eq(async_out, sync_out, "async output matches synchronous run_inference")
 		# After the signal the runner accepts a fresh request (flag was cleared).
 		_h.assert_true(_runner.run_inference_async(INPUT), "runner accepts a new request after completion")
-		_runner.free()
+		_free_runner()
 		_h.finish(self)
 		return true
 	if _frames > 600:  # ~10s at 60 Hz — generous; a working path completes in a frame or two.
-		_h.assert_true(false, "async inference timed out (signal never fired)")
-		_runner.free()
-		_h.finish(self)
+		_quitting = true
+		# Fail loud and force the exit code directly — `finish()` queues a quit that _process would
+		# otherwise outrun, re-firing this branch and double-freeing the runner forever (#208).
+		printerr("ASYNC INFERENCE FAILED: timed out (inference_completed never fired)")
+		_free_runner()
+		quit(1)  # this script IS the SceneTree; call quit() directly (no get_tree()).
 		return true
 	return false
+
+func _free_runner() -> void:
+	if _runner != null:
+		_runner.free()
+		_runner = null

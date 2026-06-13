@@ -112,7 +112,16 @@ echo "Exporting SF checkpoint -> TorchScript..."
 mkdir -p "$OUTDIR"
 "$PY_SF" scripts/export_sf_to_torchscript.py --train_dir "$TRAIN_DIR" --experiment "$EXPERIMENT" --out "$PT_PATH"
 
-echo "Converting TorchScript -> ncnn (+ parity)..."
-"$PY_CONVERT" scripts/export_to_ncnn.py "$PT_PATH" --outdir "$OUTDIR"
+# SKIP_VERIFY=1 drops the strict TorchScript-vs-ncnn argmax parity check. Used by the run_tests
+# smoke: its ~3000-step model has near-uniform logits, so argmax flips at a tie ~occasionally and
+# reddens CI for unrelated PRs (#86). Deploy correctness is covered by the committed #79 golden
+# (test_chase_sf_golden_inference.gd); the smoke only needs "it trains, exports, and converts".
+VERIFY_FLAG=""
+if [ "${SKIP_VERIFY:-0}" = "1" ]; then
+	VERIFY_FLAG="--skip-verify"
+fi
+echo "Converting TorchScript -> ncnn${VERIFY_FLAG:+ (parity skipped)}..."
+# shellcheck disable=SC2086
+"$PY_CONVERT" scripts/export_to_ncnn.py "$PT_PATH" --outdir "$OUTDIR" $VERIFY_FLAG
 
 echo "Done. ncnn model in $OUTDIR/ (chase_sf_policy.ncnn.param/.bin)"
