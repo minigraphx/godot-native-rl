@@ -1,9 +1,10 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://examples/rover_3d/rover_game.gd" id="1"]
 [ext_resource type="Script" path="res://examples/rover_3d/rover_agent.gd" id="2"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/sensors/raycast_sensor_3d.gd" id="3"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="4"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/debug/policy_debug_overlay.gd" id="5"]
 
 [sub_resource type="BoxShape3D" id="Box"]
 size = Vector3(4, 2, 4)
@@ -140,3 +141,6 @@ model_bin_path = "res://examples/rover_3d/models/rover_policy.ncnn.bin"
 [node name="Sync" type="Node" parent="."]
 script = ExtResource("4")
 control_mode = 2
+
+[node name="PolicyDebugOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("5")

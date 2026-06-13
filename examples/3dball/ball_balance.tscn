@@ -1,8 +1,9 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://examples/3dball/ball_balance_game.gd" id="1"]
 [ext_resource type="Script" path="res://examples/3dball/ball_balance_agent.gd" id="2"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="3"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/debug/policy_debug_overlay.gd" id="4"]
 
 [sub_resource type="BoxShape3D" id="PlatformShape"]
 size = Vector3(5, 0.4, 5)
@@ -58,3 +59,6 @@ shadow_enabled = true
 position = Vector3(7, 5, 7)
 rotation_degrees = Vector3(-28, 45, 0)
 current = true
+
+[node name="PolicyDebugOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("4")
