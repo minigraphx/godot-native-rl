@@ -15,11 +15,15 @@ ACTION_REPEAT="${ACTION_REPEAT:-8}"
 TEAM_SIZE="${TEAM_SIZE:-2}"
 SCENE="${SCENE:-res://examples/coop_collect/coop_collect_train.tscn}"
 OUT="${OUT:-models/coop_mapoca}"
+EARLY_FINISH_FLAG=""
+if [ "${EARLY_FINISH:-0}" = "1" ]; then
+	EARLY_FINISH_FLAG="--early-finish"   # posthumous-credit mode (#30 M3); scene must set early_finish=true
+fi
 
 echo "Starting MA-POCA trainer (timesteps=$TIMESTEPS, team_size=$TEAM_SIZE)..."
 "$PY" scripts/train_coop_mapoca.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" \
 	--action-repeat "$ACTION_REPEAT" --team-size "$TEAM_SIZE" \
-	--save-model-path "$OUT.pt" --pt-export-path "$OUT.pt" &
+	--save-model-path "$OUT.pt" --pt-export-path "$OUT.pt" $EARLY_FINISH_FLAG &
 TRAINER_PID=$!
 
 sleep 5

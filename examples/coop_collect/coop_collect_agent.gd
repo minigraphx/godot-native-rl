@@ -27,9 +27,16 @@ func action_to_velocity(idx: int, speed: float) -> Vector2:
 		_: return Vector2.ZERO
 
 func _obs_size() -> int:
-	# own(2) + teammate(2) + item_count * (rel 2 + flag 1)
+	# own(2) + teammate(2) + item_count * (rel 2 + flag 1); + 1 active flag in early_finish mode (#30 M3)
 	var n_items: int = _game.item_count if _game != null else 4
-	return 4 + n_items * 3
+	var base := 4 + n_items * 3
+	if _game != null and _game.early_finish:
+		base += 1
+	return base
+
+# True when this agent should append its presence flag (early-finish mode only — keeps M2 obs 16-dim).
+func _has_active_flag() -> bool:
+	return _game != null and _game.early_finish
 
 func _zero_obs() -> Array:
 	var z: Array = []
@@ -58,7 +65,12 @@ func get_obs() -> Dictionary:
 	var blocks: Array = []
 	for i in range(items.size()):
 		blocks.append(M.item_block(self_pos, items[i], collected[i], _game.item_norm))
-	return {"obs": M.assemble_obs(own, teammate, blocks)}
+	var obs: Array = M.assemble_obs(own, teammate, blocks)
+	# Early-finish: append this agent's presence flag (1 active, 0 banked) as the last obs dim. The
+	# MA-POCA trainer reads it to mask banked agents out of the centralized critic (posthumous credit).
+	if _has_active_flag():
+		obs.append(1.0 if _game.agent_active(agent_index) else 0.0)
+	return {"obs": obs}
 
 func get_reward() -> float:
 	return reward

@@ -44,6 +44,7 @@ class Config(NamedTuple):
     seed: int
     save_model_path: str
     pt_export_path: str
+    early_finish: bool
 
 
 def parse_args(argv: Sequence[str] | None = None) -> Config:
@@ -65,6 +66,10 @@ def parse_args(argv: Sequence[str] | None = None) -> Config:
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--save-model-path", type=str, default="models/coop_mapoca.pt")
     p.add_argument("--pt-export-path", type=str, default="models/coop_mapoca.pt")
+    p.add_argument("--early-finish", action="store_true",
+                   help="posthumous-credit mode (#30 M3): the env's last obs dim is a per-agent "
+                        "active flag; banked agents' inert steps are masked out of the actor loss "
+                        "while their pre-bank steps keep advantage from the team's later return.")
     a = p.parse_args(argv)
     return Config(
         timesteps=a.timesteps, team_size=a.team_size, num_steps=a.num_steps,
@@ -72,7 +77,7 @@ def parse_args(argv: Sequence[str] | None = None) -> Config:
         gae_lambda=a.gae_lambda, clip_coef=a.clip_coef, ent_coef=a.ent_coef, vf_coef=a.vf_coef,
         learning_rate=a.learning_rate, max_grad_norm=a.max_grad_norm, speedup=a.speedup,
         action_repeat=a.action_repeat, seed=a.seed, save_model_path=a.save_model_path,
-        pt_export_path=a.pt_export_path)
+        pt_export_path=a.pt_export_path, early_finish=a.early_finish)
 
 
 def layer_init(layer, std: float = 2.0 ** 0.5, bias_const: float = 0.0):
@@ -275,6 +280,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         b_adv = adv_agent_t.reshape(S * A)
         b_team_obs = obs_buf.reshape(S * T, K, obs_dim)
         b_ret = ret_team_t.reshape(S * T)
+        # Posthumous-credit mask (#30 M3): the env's last obs dim is 1 while an agent is active, 0
+        # once it has banked. Banked agents' post-bank steps are inert (parked) -> masked OUT of the
+        # actor loss so the policy isn't trained on the no-op; their PRE-bank steps keep full
+        # advantage from the team return (which includes reward earned after they left). Without
+        # early_finish every step is active -> ordinary PPO.
+        if cfg.early_finish:
+            b_active = obs_buf[:, :, -1].reshape(S * A)
+        else:
+            b_active = torch.ones(S * A, device=device)
 
         agent_idx = np.arange(S * A)
         team_idx = np.arange(S * T)
@@ -289,8 +303,12 @@ def main(argv: Sequence[str] | None = None) -> None:
                 a_mb = b_adv[mb]
                 l1 = -a_mb * ratio
                 l2 = -a_mb * torch.clamp(ratio, 1 - cfg.clip_coef, 1 + cfg.clip_coef)
-                pg_loss = torch.max(l1, l2).mean()
-                ent = dist.entropy().mean()
+                # Active-masked means: banked agents' inert steps contribute nothing (M3). With no
+                # early_finish, m is all ones -> ordinary mean. denom guarded against an all-banked mb.
+                m = b_active[mb]
+                denom = m.sum().clamp(min=1.0)
+                pg_loss = (torch.max(l1, l2) * m).sum() / denom
+                ent = (dist.entropy() * m).sum() / denom
                 actor_loss = pg_loss - cfg.ent_coef * ent
                 # Critic update on team minibatch (centralized value -> team return).
                 np.random.shuffle(team_idx)
