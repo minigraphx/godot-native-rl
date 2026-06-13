@@ -48,6 +48,19 @@ func _initialize() -> void:
 	h.assert_true(not a.swap_model("", ""), "empty paths rejected")
 	h.assert_true(not a.swap_model("res://no/such.param", "res://no/such.bin"), "missing files rejected")
 
+	# #197: a readable-but-MALFORMED param destroys the old net inside load_model_from_buffers, so
+	# the controller must re-load the last-good bytes to honour "previous model stays active".
+	if loaded:
+		var garbage := "user://swap_garbage.ncnn.param"
+		var gf := FileAccess.open(garbage, FileAccess.WRITE)
+		gf.store_string("not a valid ncnn param header\n")
+		gf.close()
+		h.assert_true(not a.swap_model(garbage, TRAINED_BIN), "malformed param swap rejected")
+		h.assert_true(runner.is_model_loaded(), "previous model restored after malformed swap (#197)")
+		var still := runner.run_discrete_action(
+			PackedFloat32Array([0.5479, -0.1222, 0.7172, 0.3947, -0.8116]))
+		h.assert_eq(still, 2, "restored model still infers the golden argmax")
+
 	a.free()
 	runner.free()
 	h.finish(self)

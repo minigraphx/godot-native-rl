@@ -31,6 +31,10 @@ enum ControlModes { INHERIT_FROM_SYNC, HUMAN, TRAINING, NCNN_INFERENCE }
 
 var _core := NcnnControllerCore.new()
 var _ncnn_runner = null
+# Last successfully-loaded model bytes — kept so swap_model can restore the previous model if a new
+# one is malformed (load_model_from_buffers destroys the old net before parsing the new). (#197)
+var _last_param_bytes := PackedByteArray()
+var _last_bin_bytes := PackedByteArray()
 var _reward_adapters: Array = []
 
 # --- Forwarding properties: preserve the historical public state API (subclasses + NcnnSync) ---
@@ -102,6 +106,8 @@ func reload_model(param_path: String, bin_path: String) -> bool:
 	if not _ncnn_runner.load_model_from_buffers(param_bytes, bin_bytes):
 		push_error("NcnnAIController3D: failed to load ncnn model '%s'." % param_path)
 		return false
+	_last_param_bytes = param_bytes
+	_last_bin_bytes = bin_bytes
 	model_param_path = param_path
 	model_bin_path = bin_path
 	_core.init_recurrent_state()  # fresh memory for a fresh policy
@@ -114,8 +120,12 @@ func set_ncnn_runner_for_test(runner) -> void:
 # in the same scene, without recreating the controller or runner. Used by demos/tooling to compare
 # policies live (e.g. trained vs untrained) — the same scene, a different .ncnn pair, different
 # behaviour, no recompile and no Python. Returns true on success; on failure it push_errors and
-# leaves the previously loaded model active (returns false). Carried recurrent state, if any, is
-# zeroed since the new policy may have a different memory shape.
+# leaves the previously loaded model active (returns false) — even for a readable-but-malformed
+# file, by re-loading the last-good bytes (#197). Carried recurrent state, if any, is zeroed since
+# the new policy may have a different memory shape.
+# NOTE: swap_model swaps ONLY the net. The obs-norm (VecNormalize), action-dist (DiagGaussian std),
+# and recurrent sidecars keep whatever the ORIGINAL model configured — swapping to a policy trained
+# with different VecNormalize stats will misnormalize obs. Re-configure those explicitly if needed.
 func swap_model(param_path: String, bin_path: String) -> bool:
 	if control_mode != ControlModes.NCNN_INFERENCE:
 		push_error("NcnnAIController3D.swap_model: only valid in NCNN_INFERENCE mode.")
@@ -124,11 +134,17 @@ func swap_model(param_path: String, bin_path: String) -> bool:
 		push_error("NcnnAIController3D.swap_model: param_path and bin_path must be non-empty.")
 		return false
 	if _ncnn_runner == null:
-		# Runner not yet created (e.g. initial load failed) — set up fresh from the new paths.
+		# Assign the exported paths only AFTER setup succeeds (#197 part 2).
+		var prev_param := model_param_path
+		var prev_bin := model_bin_path
 		model_param_path = param_path
 		model_bin_path = bin_path
 		_setup_ncnn_runner()
-		return _ncnn_runner != null
+		if _ncnn_runner == null:
+			model_param_path = prev_param
+			model_bin_path = prev_bin
+			return false
+		return true
 	var param_bytes := FileAccess.get_file_as_bytes(param_path)
 	var bin_bytes := FileAccess.get_file_as_bytes(bin_path)
 	if param_bytes.is_empty() or bin_bytes.is_empty():
@@ -136,7 +152,12 @@ func swap_model(param_path: String, bin_path: String) -> bool:
 		return false
 	if not _ncnn_runner.load_model_from_buffers(param_bytes, bin_bytes):
 		push_error("NcnnAIController3D.swap_model: failed to load ncnn model '%s'." % param_path)
+		# The old net was destroyed before parsing the malformed new one — restore last-good (#197).
+		if not _last_param_bytes.is_empty() and _ncnn_runner.load_model_from_buffers(_last_param_bytes, _last_bin_bytes):
+			push_warning("NcnnAIController3D.swap_model: restored the previous model after a failed swap.")
 		return false
+	_last_param_bytes = param_bytes
+	_last_bin_bytes = bin_bytes
 	model_param_path = param_path
 	model_bin_path = bin_path
 	_core.init_recurrent_state()  # clear stale hidden state across a policy swap (no-op if feed-forward)

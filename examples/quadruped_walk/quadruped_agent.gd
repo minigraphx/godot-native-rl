@@ -130,6 +130,8 @@ func _physics_process(delta: float) -> void:
 		needs_reset = false
 		_game.reset_positions()
 		reset()
-		zero_reward()
+		# NO zero_reward() here (#207): the bridge reads reward+done together THEN zeroes, so zeroing
+		# now wipes this terminal frame's fall_penalty before the sync reads it (the penalty knob would
+		# be dead). Mirrors hide&seek/gridworld/3dball/coop. Keep reset() + reward_source.reset().
 		if reward_source != null:
 			reward_source.reset()
