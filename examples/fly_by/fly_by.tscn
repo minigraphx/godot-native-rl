@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://examples/fly_by/fly_by_game.gd" id="1"]
 [ext_resource type="Script" path="res://examples/fly_by/fly_by_agent.gd" id="2"]
@@ -6,9 +6,13 @@
 [ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="4"]
 [ext_resource type="Texture2D" path="res://examples/fly_by/sky.hdr" id="5"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/debug/policy_debug_overlay.gd" id="6"]
+[ext_resource type="Script" path="res://examples/fly_by/fly_by_camera.gd" id="7"]
 
-[sub_resource type="PanoramaSkyMaterial" id="Sky"]
+[sub_resource type="PanoramaSkyMaterial" id="SkyMat"]
 panorama = ExtResource("5")
+
+[sub_resource type="Sky" id="Sky"]
+sky_material = SubResource("SkyMat")
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 2
@@ -27,12 +31,13 @@ environment = SubResource("Env")
 transform = Transform3D(1, 0, 0, 0, 0.7, 0.7, 0, -0.7, 0.7, 0, 50, 0)
 
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.9, 0.43, 0, -0.43, 0.9, 0, 60, 90)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 14)
+script = ExtResource("7")
 
 [node name="PlaneBody" type="Node3D" parent="."]
 
 [node name="PlaneMesh" parent="PlaneBody" instance=ExtResource("3")]
-transform = Transform3D(0.5, 0, 0, 0, 0.5, 0, 0, 0, 0.5, 0, 0, 0)
+transform = Transform3D(0.005, 0, 0, 0, 0.005, 0, 0, 0, 0.005, 0, 0, 0)
 
 [node name="Goals" type="Node3D" parent="."]
 
