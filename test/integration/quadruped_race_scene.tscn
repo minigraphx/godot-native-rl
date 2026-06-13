@@ -1,0 +1,81 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_agent.gd" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="3"]
+[ext_resource type="Script" path="res://examples/quadruped_walk/race_leaderboard.gd" id="4"]
+[ext_resource type="Script" path="res://test/integration/quadruped_race_checker.gd" id="5"]
+
+[sub_resource type="BoxShape3D" id="GroundShape"]
+size = Vector3(120, 1, 120)
+
+[node name="QuadrupedRace" type="Node3D"]
+
+[node name="Ground" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, -0.5, 15)
+
+[node name="GroundCol" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("GroundShape")
+
+[node name="Lane0" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+script = ExtResource("1")
+finish_path = NodePath("Finish")
+
+[node name="Finish" type="Marker3D" parent="Lane0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 40)
+
+[node name="Agent" type="Node3D" parent="Lane0"]
+script = ExtResource("2")
+game_path = NodePath("..")
+control_mode = 3
+model_param_path = "res://examples/quadruped_walk/models/stages/quadruped_walk_step500000.ncnn.param"
+model_bin_path = "res://examples/quadruped_walk/models/stages/quadruped_walk_step500000.ncnn.bin"
+
+[node name="Lane1" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, 0)
+script = ExtResource("1")
+finish_path = NodePath("Finish")
+
+[node name="Finish" type="Marker3D" parent="Lane1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 40)
+
+[node name="Agent" type="Node3D" parent="Lane1"]
+script = ExtResource("2")
+game_path = NodePath("..")
+control_mode = 3
+model_param_path = "res://examples/quadruped_walk/models/stages/quadruped_walk_step2500000.ncnn.param"
+model_bin_path = "res://examples/quadruped_walk/models/stages/quadruped_walk_step2500000.ncnn.bin"
+
+[node name="Lane2" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 0)
+script = ExtResource("1")
+finish_path = NodePath("Finish")
+
+[node name="Finish" type="Marker3D" parent="Lane2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 40)
+
+[node name="Agent" type="Node3D" parent="Lane2"]
+script = ExtResource("2")
+game_path = NodePath("..")
+control_mode = 3
+model_param_path = "res://examples/quadruped_walk/models/stages/quadruped_walk_step6000000.ncnn.param"
+model_bin_path = "res://examples/quadruped_walk/models/stages/quadruped_walk_step6000000.ncnn.bin"
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("3")
+control_mode = 2
+action_repeat = 4
+
+[node name="RaceLeaderboard" type="Node" parent="."]
+script = ExtResource("4")
+lane_game_paths = [NodePath("../Lane0"), NodePath("../Lane1"), NodePath("../Lane2")]
+lane_labels = ["gen-500k", "gen-2.5M", "gen-6M"]
+finish_z = 40.0
+
+[node name="Checker" type="Node" parent="."]
+script = ExtResource("5")
+leaderboard_path = NodePath("../RaceLeaderboard")
+agent_paths = [NodePath("../Lane0/Agent"), NodePath("../Lane1/Agent"), NodePath("../Lane2/Agent")]
+frames_to_run = 4000
+min_arc_gap = 5.0
