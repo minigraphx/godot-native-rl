@@ -164,6 +164,14 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   action, shaping the encoder toward controllable features) + forward model (predicts next features;
   its error is the bonus, so it needs the action + next obs). Pure helpers + torch-guarded RND/ICM
   tests + guarded CleanRL+RND and CleanRL+ICM CI smokes.
+  **GAIL imitation (#61):** `IMITATION=gail DEMOS=examples/chase_the_target/demos/chase_expert_demos.json
+  ./scripts/train_cleanrl.sh` REPLACES the env reward with a GAIL discriminator reward (`scripts/gail.py`):
+  D(obs, action)→P(expert), reward = softplus(D), D trained adversarially (expert pairs→1, policy→0)
+  on the recorded demos (#10). The policy learns to imitate with **zero env reward**. Pure helpers +
+  torch-guarded discriminator tests + guarded CleanRL+GAIL CI smoke. Discrete single-head (chase);
+  pure GAIL on a small demo set is sample-inefficient (learns to chase but not robustly in ~300k steps
+  — lower the discriminator LR + train longer for a deploy net). AMP (reference-motion priors) is the
+  deferred half — needs motion-clip data this repo doesn't have.
 - **Train (chase, SampleFactory backend):** `./scripts/train_sf.sh` — SampleFactory async PPO over
   godot_rl's bridge (same chase scene; serial/sync + `normalize_input=False` so the actor is a plain
   MLP). Runs in the isolated **`.venv-sf`** (SF pins `gymnasium<1.0`); exports the SF checkpoint to

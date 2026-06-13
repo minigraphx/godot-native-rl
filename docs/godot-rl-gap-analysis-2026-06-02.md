@@ -32,6 +32,14 @@ the action, shaping the encoder toward controllable features) + forward model (p
 features; its error is the bonus); the rollout passes `(obs, action, next_obs)` into the signal since
 ICM is transition-based, not state-only. Torch-guarded tests + guarded CleanRL+ICM CI smoke;
 training-only, deploy unchanged. Completes the intrinsic-reward parity item (both RND and ICM).)
+(2026-06-13 refresh: GAIL adversarial imitation shipped (#61, the GAIL half) — `scripts/gail.py`: a
+discriminator D(obs, action)→P(expert), reward = softplus(D), trained adversarially against the
+recorded expert demos (#10). Wired into `train_cleanrl.py` as `--imitation gail` — REPLACES the env
+reward so the policy imitates with zero env reward. Pure helpers + torch-guarded discriminator tests +
+guarded CleanRL+GAIL CI smoke. Shipped as a training *method* (like RND/#27 — no committed deploy net):
+pure GAIL on the small chase demo set learns to chase but is sample-inefficient (4 catches in a 300k
+run, not yet robust). AMP — adversarial *reference-motion* priors — is the deferred half; it needs
+motion-clip data this repo doesn't record. #62 Eureka (LLM reward design) is the last batch item.)
 (2026-06-13 refresh: #60 M4 the generation race shipped — `quadruped_race.tscn` runs the committed
 500k/2.5M/6M training generations as a SEQUENTIAL race (one creature, model-swapped between runs in
 clean solo physics) onto a leaderboard. The learning arc: 500k ~12 m, 2.5M ~21 m, 6M ~26 m —

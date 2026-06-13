@@ -42,7 +42,7 @@ def sample_indices(n_expert: int, batch: int, seed: int = 0) -> list:
     return [rng.randrange(n_expert) for _ in range(max(0, batch))]
 
 
-def make_discriminator(obs_dim: int, n_actions: int, hidden: int = 64, lr: float = 3e-4, device=None):
+def make_discriminator(obs_dim: int, n_actions: int, hidden: int = 64, lr: float = 1e-4, device=None):
     """Construct a (Discriminator, optimizer) pair. torch imported here, not at module load."""
     import torch
 
