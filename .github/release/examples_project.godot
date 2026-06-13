@@ -1,0 +1,23 @@
+; Minimal project shipped INSIDE the examples release zip (#224) so "extract addon zip +
+; extract examples zip = a runnable project" with zero manual file creation. The plugin is
+; pre-enabled and run/main_scene points at the demo launcher (#226) — open the project, press F5,
+; pick a demo. config/features must match the addon's minimum Godot version (4.5).
+config_version=5
+
+[application]
+
+config/name="Godot Native RL — Examples"
+run/main_scene="res://examples/launcher.tscn"
+config/features=PackedStringArray("4.5")
+
+[autoload]
+
+DemoNav="*res://examples/demo_nav.gd"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godot_native_rl/plugin.cfg")
+
+[debug]
+
+gdscript/warnings/enable=false

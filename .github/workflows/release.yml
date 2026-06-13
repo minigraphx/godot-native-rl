@@ -197,13 +197,20 @@ jobs:
           mkdir -p dist
           # Addon zip: the whole addon (GDScript + .gdextension + bin/), drop-in at a project root.
           zip -r -q "dist/godot-native-rl-addon-${ver}.zip" addons/godot_native_rl
-          # Examples zip: lean — example scenes + a sample model + a short README. No binaries.
+          # Examples zip: lean — a runnable project.godot (#224: plugin pre-enabled, main_scene =
+          # the demo launcher), example scenes + a sample model + a short README. No binaries.
+          # The repo's own project.godot is the DEV project; swap the shipped one in just for this
+          # zip, then restore it (later steps must keep working against the real project).
           cp .github/release/examples-README.md examples/README_RELEASE.md
-          zip -r -q "dist/godot-native-rl-examples-${ver}.zip" examples models/chase_cleanrl_policy.ncnn.param models/chase_cleanrl_policy.ncnn.bin examples/README_RELEASE.md \
+          mv project.godot project.godot.dev
+          cp .github/release/examples_project.godot project.godot
+          zip -r -q "dist/godot-native-rl-examples-${ver}.zip" project.godot examples models/chase_cleanrl_policy.ncnn.param models/chase_cleanrl_policy.ncnn.bin examples/README_RELEASE.md \
             -x 'examples/**/*.import'
+          mv project.godot.dev project.godot
+          rm -f examples/README_RELEASE.md
           ( cd dist && sha256sum ./*.zip > SHA256SUMS.txt )
           cat dist/SHA256SUMS.txt
-      - name: Drop-in smoke (extract addon zip into a clean project, load NcnnRunner)
+      - name: Drop-in smoke (extract BOTH zips into a clean project, use the SHIPPED project.godot)
         run: |
           GODOT_URL="https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip"
           curl -fsSL "$GODOT_URL" -o godot.zip
@@ -211,8 +218,13 @@ jobs:
           godot_bin="$(ls Godot_v4.5.2-stable_linux.x86_64)"
           chmod +x "$godot_bin"
           mkdir -p smoke/proj
+          # A real user's flow: extract the addon zip AND the examples zip into one folder. The
+          # examples zip ships the runnable project.godot (#224) — we DON'T generate one, so this
+          # exercises exactly what downloaders get.
           ( cd smoke/proj && unzip -q "$GITHUB_WORKSPACE/dist/godot-native-rl-addon-${GITHUB_REF_NAME}.zip" )
-          printf '%s\n' 'config_version=5' '[application]' 'config/features=PackedStringArray("4.5")' '[debug]' 'gdscript/warnings/enable=false' > smoke/proj/project.godot
+          ( cd smoke/proj && unzip -q "$GITHUB_WORKSPACE/dist/godot-native-rl-examples-${GITHUB_REF_NAME}.zip" )
+          test -f smoke/proj/project.godot || { echo "FAIL: examples zip did not ship a project.godot (#224)"; exit 1; }
+          test -f smoke/proj/examples/launcher.tscn || { echo "FAIL: launcher scene missing from examples zip (#226)"; exit 1; }
           cat > smoke/proj/smoke.gd <<'EOF'
           extends SceneTree
           func _init() -> void:
@@ -220,9 +232,11 @@ jobs:
               if r == null:
                   push_error("NcnnRunner not registered — extension failed to load")
                   quit(1)
-              else:
-                  print("OK: NcnnRunner loaded from packaged addon")
-                  quit(0)
+              if not ResourceLoader.exists("res://examples/launcher.tscn"):
+                  push_error("launcher scene (main_scene) does not resolve")
+                  quit(1)
+              print("OK: NcnnRunner loaded + launcher resolves from the shipped project")
+              quit(0)
           EOF
           # GDExtensions only load from .godot/extension_list.cfg, which an editor import pass
           # generates — without it a fresh --script run never registers NcnnRunner.

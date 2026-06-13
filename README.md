@@ -112,7 +112,16 @@ You don't need the C++/SCons/ncnn toolchain to *use* this framework — just the
   macOS/Windows/Linux/Android/iOS/web) into your project.
 - **Manual:** download `godot-native-rl-addon-<version>.zip` from
   [Releases](../../releases) and unzip at your project root. For the demo scenes, also grab
-  `godot-native-rl-examples-<version>.zip` (drop it in alongside the addon).
+  `godot-native-rl-examples-<version>.zip` (it ships a ready-to-run `project.godot` + a demo
+  launcher — extract the addon into the same folder, open it, press F5).
+
+> **macOS:** the prebuilt native library isn't Apple-notarized, so a browser download tags it
+> `com.apple.quarantine` and Godot refuses to load it (every example silently falls back to "no
+> inference" with a parse error on `NcnnAIController2D`). Clear the quarantine once after unzipping:
+> ```
+> xattr -dr com.apple.quarantine addons/godot_native_rl/bin
+> ```
+> (or right-click each `.dylib` → Open once). AssetLib installs aren't affected.
 
 Then enable the plugin in **Project → Project Settings → Plugins**.
 
