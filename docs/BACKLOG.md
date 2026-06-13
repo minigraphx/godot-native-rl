@@ -374,14 +374,19 @@ the same change. New items → GitHub issue only.
     golden-inference regression, a deterministic behavioral floor (seeker LOS ≥ 8%, reproducibly 22.6%),
     a wire smoke test, and an `--atol` override on `export_to_ncnn.py` (trained logits drift slightly
     past 1e-2 while argmax stays exact).
-51. 🔄 **Intrinsic reward (Curiosity/ICM + RND)** — a pluggable intrinsic-reward signal addable to any
+51. ✅ **Intrinsic reward (Curiosity/ICM + RND)** — a pluggable intrinsic-reward signal addable to any
     training script, for sparse-reward games (most real games). *(from item 20; roadmap Track C)*
     **RND done 2026-06-12 (#27)** — `scripts/intrinsic.py`: pure stdlib helpers (`RunningMeanStd`
     Welford, `combine_rewards`, `normalize_intrinsic`) + a torch `RNDModel` (frozen random target +
     trained predictor; novelty = predictor error). Wired into `train_cleanrl.py` behind
     `--intrinsic rnd`/`--intrinsic_coef` (`INTRINSIC=rnd ./scripts/train_cleanrl.sh`); training-only,
-    deploy unchanged; pure helpers + torch-guarded RND tests + a guarded CleanRL+RND CI smoke. **ICM
-    (forward/inverse dynamics) is the phase-2 follow-up** — tracked separately as a sub-issue of #27.
+    deploy unchanged; pure helpers + torch-guarded RND tests + a guarded CleanRL+RND CI smoke.
+    **ICM done 2026-06-13 (#201)** — added `--intrinsic icm`: a learned feature encoder + inverse
+    model (predicts the action from a transition → shapes the encoder toward controllable features) +
+    forward model (predicts next features; its error is the curiosity bonus). Unlike RND it needs the
+    action + next obs, so the CleanRL rollout passes `(obs, action, next_obs)` into the signal.
+    Torch-guarded ICM tests (incl. the inverse model recovering the action) + a guarded CleanRL+ICM
+    CI smoke. Training-only; deploy unchanged.
 52. ✅ **Curriculum learning** — shipped **game-side first** (works with every training backend,
     zero protocol change): pure `Curriculum` promotion logic + `CurriculumController` node apply
     stage params at episode boundaries, promotion gated on rolling mean-reward/success-rate;

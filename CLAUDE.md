@@ -157,10 +157,13 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 - **Train (chase, CleanRL backend):** `./scripts/train_cleanrl.sh` — single-file CleanRL-style PPO over
   godot_rl's `CleanRLGodotEnv` (same chase scene + port 11008; `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`
   overrides). Exports ONNX (`models/chase_cleanrl_policy.onnx`) consumable unchanged by `export_to_ncnn.py`.
-  **Intrinsic reward (#27):** `INTRINSIC=rnd [INTRINSIC_COEF=0.5] ./scripts/train_cleanrl.sh` adds a
-  Random Network Distillation curiosity bonus to the env reward for sparse-reward exploration
-  (training-only — deploy unchanged; pluggable `scripts/intrinsic.py`, pure helpers unit-tested,
-  guarded CleanRL+RND CI smoke). ICM is the planned phase-2 follow-up.
+  **Intrinsic reward (#27/#201):** `INTRINSIC=rnd|icm [INTRINSIC_COEF=0.5] ./scripts/train_cleanrl.sh`
+  adds a curiosity bonus to the env reward for sparse-reward exploration (training-only — deploy
+  unchanged; pluggable `scripts/intrinsic.py`). `rnd` = Random Network Distillation (state-only, #27);
+  `icm` = Intrinsic Curiosity Module (#201) — a learned feature encoder + inverse model (predicts the
+  action, shaping the encoder toward controllable features) + forward model (predicts next features;
+  its error is the bonus, so it needs the action + next obs). Pure helpers + torch-guarded RND/ICM
+  tests + guarded CleanRL+RND and CleanRL+ICM CI smokes.
 - **Train (chase, SampleFactory backend):** `./scripts/train_sf.sh` — SampleFactory async PPO over
   godot_rl's bridge (same chase scene; serial/sync + `normalize_input=False` so the actor is a plain
   MLP). Runs in the isolated **`.venv-sf`** (SF pins `gymnasium<1.0`); exports the SF checkpoint to

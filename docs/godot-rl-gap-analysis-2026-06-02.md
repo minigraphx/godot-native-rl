@@ -26,6 +26,12 @@ added (#79).)
 signal, F3 toggle, debug-build gate, auto-discovery; closes #23. Continuous DiagGaussian action
 sampling via log_std sidecar shipped (#64) — game-side `mean + std·N(0,1)` for PPO continuous
 policies via `action_dist_stats_path`; closes #64. SAC ncnn export standardised on TorchScript (#81).)
+(2026-06-13 refresh: ICM intrinsic reward shipped (item 51 / #201) — `--intrinsic icm` in
+`train_cleanrl.py`, the phase-2 follow-up to #27's RND. A learned encoder + inverse model (predicts
+the action, shaping the encoder toward controllable features) + forward model (predicts next
+features; its error is the bonus); the rollout passes `(obs, action, next_obs)` into the signal since
+ICM is transition-based, not state-only. Torch-guarded tests + guarded CleanRL+ICM CI smoke;
+training-only, deploy unchanged. Completes the intrinsic-reward parity item (both RND and ICM).)
 (2026-06-13 refresh: MA-POCA cooperative training shipped (item 54 M2 / #30) — single-file
 `scripts/train_coop_mapoca.py`: shared decentralized actor + a centralized attention critic over the
 team's obs + a per-agent leave-one-out counterfactual baseline, over coop_collect via CleanRLGodotEnv.

@@ -152,9 +152,93 @@ def _rnd_model_base():
     return RNDModel
 
 
-# Expose RNDModel as a module attribute built lazily on first access, so `intrinsic.RNDModel` works
-# where torch is installed while a bare `import intrinsic` (no torch) stays cheap and import-safe.
+def make_icm(obs_dim: int, n_actions: int, feature_dim: int = 64, hidden_dim: int = 128,
+             beta: float = 0.2, lr: float = 1e-4, device=None):
+    """Construct an (ICMModel, optimizer) pair (#201). Unlike RND (state-only), ICM needs the action
+    and next state, so the trainer must pass (obs, action, next_obs) into the signal. torch is
+    imported here, not at module load. The optimizer trains ALL ICM params (encoder + both models)."""
+    import torch
+
+    cls = _icm_model_base()
+    model = cls(obs_dim, n_actions, feature_dim=feature_dim, hidden_dim=hidden_dim, beta=beta)
+    if device is not None:
+        model.to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    return model, optimizer
+
+
+def _icm_model_base():
+    """Build the ICMModel class against torch.nn at call time (torch resolved only when present)."""
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+
+    class ICMModel(nn.Module):
+        """Intrinsic Curiosity Module (Pathak et al.) for DISCRETE actions.
+
+        Three nets share a learned feature encoder phi(obs):
+          * inverse model: (phi(s), phi(s')) -> action logits. Its cross-entropy trains phi to keep
+            only action-relevant features (so the curiosity signal ignores uncontrollable noise).
+          * forward model: (phi(s), one_hot(a)) -> predicted phi(s'). Its prediction error IS the
+            intrinsic reward — high in states whose dynamics the agent hasn't learned yet.
+        Total loss = beta * forward_mse + (1 - beta) * inverse_cross_entropy."""
+
+        def __init__(self, obs_dim: int, n_actions: int, feature_dim: int = 64,
+                     hidden_dim: int = 128, beta: float = 0.2) -> None:
+            super().__init__()
+            self.n_actions = n_actions
+            self.beta = beta
+            self.encoder = nn.Sequential(
+                nn.Linear(obs_dim, hidden_dim), nn.ReLU(),
+                nn.Linear(hidden_dim, feature_dim),
+            )
+            self.inverse = nn.Sequential(
+                nn.Linear(feature_dim * 2, hidden_dim), nn.ReLU(),
+                nn.Linear(hidden_dim, n_actions),
+            )
+            self.forward_net = nn.Sequential(
+                nn.Linear(feature_dim + n_actions, hidden_dim), nn.ReLU(),
+                nn.Linear(hidden_dim, feature_dim),
+            )
+
+        def _one_hot(self, action):
+            return F.one_hot(action.long().view(-1), self.n_actions).float()
+
+        def intrinsic_reward(self, obs, action, next_obs):
+            """Per-sample forward-model error (the curiosity bonus). Detached — reward, not policy
+            graph. Shapes: obs/next_obs (batch, obs_dim), action (batch,). Returns (batch,)."""
+            with torch.no_grad():
+                phi = self.encoder(obs)
+                phi_next = self.encoder(next_obs)
+                pred_next = self.forward_net(torch.cat([phi, self._one_hot(action)], dim=-1))
+                return ((pred_next - phi_next) ** 2).mean(dim=-1)
+
+        def update(self, obs, action, next_obs, optimizer) -> float:
+            """One gradient step on the combined forward+inverse loss. Returns the scalar loss.
+            Training the forward model is what makes revisited dynamics progressively less novel."""
+            phi = self.encoder(obs)
+            phi_next = self.encoder(next_obs)
+            onehot = self._one_hot(action)
+            # Forward loss: detach the target features so the encoder is shaped by the INVERSE model
+            # (the canonical ICM choice — prevents the trivial collapse of phi to a constant).
+            pred_next = self.forward_net(torch.cat([phi, onehot], dim=-1))
+            forward_loss = ((pred_next - phi_next.detach()) ** 2).mean()
+            inv_logits = self.inverse(torch.cat([phi, phi_next], dim=-1))
+            inverse_loss = F.cross_entropy(inv_logits, action.long().view(-1))
+            loss = self.beta * forward_loss + (1.0 - self.beta) * inverse_loss
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            return float(loss.detach())
+
+    return ICMModel
+
+
+# Expose RNDModel / ICMModel as module attributes built lazily on first access, so the class is
+# available where torch is installed while a bare `import intrinsic` (no torch) stays import-safe.
 def __getattr__(name: str):
     if name == "RNDModel":
         return _rnd_model_base()
+    if name == "ICMModel":
+        return _icm_model_base()
     raise AttributeError("module %r has no attribute %r" % (__name__, name))

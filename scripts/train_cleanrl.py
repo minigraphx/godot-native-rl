@@ -44,7 +44,7 @@ class PPOConfig(NamedTuple):
     max_grad_norm: float
     save_model_path: str
     onnx_export_path: str
-    intrinsic: str          # "none" | "rnd" — intrinsic-reward signal added to the env reward (#27)
+    intrinsic: str          # "none" | "rnd" | "icm" — intrinsic-reward signal added to the env reward (#27/#201)
     intrinsic_coef: float   # weight on the (normalized) intrinsic reward
 
 
@@ -67,9 +67,10 @@ def parse_args(argv: Sequence[str] | None = None) -> PPOConfig:
     p.add_argument("--max_grad_norm", type=float, default=0.5)
     p.add_argument("--save_model_path", type=str, default="models/chase_cleanrl_policy.pt")
     p.add_argument("--onnx_export_path", type=str, default="models/chase_cleanrl_policy.onnx")
-    p.add_argument("--intrinsic", type=str, default="none", choices=["none", "rnd"],
-                   help="intrinsic-reward signal added to the env reward for exploration (#27); "
-                        "'rnd' = Random Network Distillation. Training-only — deploy is unchanged.")
+    p.add_argument("--intrinsic", type=str, default="none", choices=["none", "rnd", "icm"],
+                   help="intrinsic-reward signal added to the env reward for exploration (#27/#201); "
+                        "'rnd' = Random Network Distillation (state-only), 'icm' = Intrinsic Curiosity "
+                        "Module (forward-model error, needs the action). Training-only — deploy unchanged.")
     p.add_argument("--intrinsic_coef", type=float, default=0.5,
                    help="weight on the normalized intrinsic reward when --intrinsic != none")
     a = p.parse_args(argv)
@@ -287,6 +288,8 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     # Rollout storage.
     obs_buf = torch.zeros((num_steps, n_envs, observation_dim), device=device)
+    # Arrived-in state per step (s'), kept only for the ICM transition update (#201); harmless otherwise.
+    next_obs_buf = torch.zeros((num_steps, n_envs, observation_dim), device=device)
     actions_buf = torch.zeros((num_steps, n_envs, len(nvec)), dtype=torch.long, device=device)
     logprobs_buf = torch.zeros((num_steps, n_envs), device=device)
     rewards_buf = torch.zeros((num_steps, n_envs), device=device)
@@ -297,12 +300,20 @@ def main(argv: Sequence[str] | None = None) -> None:
     # exploration in sparse-reward tasks. Training-only — the exported policy is unchanged.
     rnd_model = None
     rnd_optimizer = None
+    icm_model = None
+    icm_optimizer = None
     intrinsic_rms = None
     if cfg.intrinsic == "rnd":
         import intrinsic as intrinsic_mod
         rnd_model, rnd_optimizer = intrinsic_mod.make_rnd(observation_dim, device=device)
         intrinsic_rms = intrinsic_mod.RunningMeanStd()
         print(f"intrinsic reward: RND (coef={cfg.intrinsic_coef})")
+    elif cfg.intrinsic == "icm":
+        import intrinsic as intrinsic_mod
+        # ICM is single-discrete-head: chase has one action key. nvec[0] is its action count.
+        icm_model, icm_optimizer = intrinsic_mod.make_icm(observation_dim, int(nvec[0]), device=device)
+        intrinsic_rms = intrinsic_mod.RunningMeanStd()
+        print(f"intrinsic reward: ICM (coef={cfg.intrinsic_coef})")
 
     next_obs_np, _ = env.reset(cfg.seed)
     next_obs = torch.tensor(np.asarray(next_obs_np, dtype=np.float32), device=device)
@@ -333,11 +344,21 @@ def main(argv: Sequence[str] | None = None) -> None:
             step_reward = torch.tensor(np.asarray(reward, dtype=np.float32), device=device)
             next_obs = torch.tensor(np.asarray(next_obs_np, dtype=np.float32), device=device)
             next_done = torch.tensor(done, device=device)
+            next_obs_buf[step] = next_obs
 
-            # RND curiosity bonus on the arrived-in state, normalized by its running std, then
-            # mixed into the env reward (#27). compute_gae sees the combined reward.
+            # Curiosity bonus, normalized by its running std, then mixed into the env reward
+            # (#27/#201). compute_gae sees the combined reward. RND scores the arrived-in state;
+            # ICM scores the (prev_obs, action, next_obs) transition via its forward-model error.
             if rnd_model is not None:
                 novelty = rnd_model.intrinsic_reward(next_obs).cpu().tolist()
+                intrinsic = intrinsic_mod.normalize_intrinsic(novelty, intrinsic_rms)
+                combined = intrinsic_mod.combine_rewards(
+                    step_reward.cpu().tolist(), intrinsic, cfg.intrinsic_coef)
+                step_reward = torch.tensor(combined, dtype=torch.float32, device=device)
+            elif icm_model is not None:
+                # obs_buf[step] is the pre-step state; action[:, 0] is the single discrete head.
+                novelty = icm_model.intrinsic_reward(
+                    obs_buf[step], action[:, 0], next_obs).cpu().tolist()
                 intrinsic = intrinsic_mod.normalize_intrinsic(novelty, intrinsic_rms)
                 combined = intrinsic_mod.combine_rewards(
                     step_reward.cpu().tolist(), intrinsic, cfg.intrinsic_coef)
@@ -365,6 +386,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         # Train the RND predictor on the states just visited so they become less novel next time (#27).
         if rnd_model is not None:
             rnd_model.update(b_obs, rnd_optimizer)
+        # Train ICM's forward+inverse models on the transitions just collected (#201): the forward
+        # model learning the dynamics is what makes revisited transitions progressively less novel.
+        if icm_model is not None:
+            b_next_obs = next_obs_buf.reshape(-1, observation_dim)
+            b_icm_actions = actions_buf.reshape(-1, len(nvec))[:, 0]
+            icm_model.update(b_obs, b_icm_actions, b_next_obs, icm_optimizer)
         b_actions = actions_buf.reshape(-1, len(nvec))
         b_logprobs = logprobs_buf.reshape(-1)
         b_advantages = advantages.reshape(-1)

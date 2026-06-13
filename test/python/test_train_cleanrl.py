@@ -142,9 +142,14 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(cfg.intrinsic, "rnd")
         self.assertAlmostEqual(cfg.intrinsic_coef, 0.1)
 
+    def test_intrinsic_icm_opt_in(self):
+        cfg = tc.parse_args(["--intrinsic", "icm", "--intrinsic_coef", "0.3"])
+        self.assertEqual(cfg.intrinsic, "icm")  # phase 2 shipped (#201)
+        self.assertAlmostEqual(cfg.intrinsic_coef, 0.3)
+
     def test_intrinsic_rejects_unknown_signal(self):
         with self.assertRaises(SystemExit):
-            tc.parse_args(["--intrinsic", "icm"])  # not implemented yet (phase 2)
+            tc.parse_args(["--intrinsic", "nope"])  # not a valid choice
 
     def test_config_is_immutable(self):
         cfg = tc.parse_args([])
