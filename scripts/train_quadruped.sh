@@ -18,10 +18,11 @@ ACTION_REPEAT="${ACTION_REPEAT:-4}"
 SCENE="${SCENE:-res://examples/quadruped_walk/quadruped_walk_train_parallel.tscn}"
 CHECKPOINT_FREQ="${CHECKPOINT_FREQ:-0}"  # >0 = save a .zip snapshot every N env-steps (learning-stage demos)
 OUT="${OUT:-models/quadruped_walk}"      # save/export stem: <OUT>.zip + <OUT>.pt (e.g. OUT=models/quadruped_hurdles for #60 M2)
+CKPT_DIR="${CKPT_DIR:-${OUT}_ckpts}"     # checkpoint dir follows the stem so runs don't mix
 
 echo "Starting SB3 PPO trainer (timesteps=$TIMESTEPS)..."
 "$PY" scripts/train_quadruped.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" --checkpoint_freq "$CHECKPOINT_FREQ" \
-	--save_model_path "$OUT.zip" --pt_export_path "$OUT.pt" &
+	--save_model_path "$OUT.zip" --pt_export_path "$OUT.pt" --checkpoint_dir "$CKPT_DIR" &
 TRAINER_PID=$!
 
 # Give the trainer a moment to bind the server socket before Godot connects.
