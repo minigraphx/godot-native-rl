@@ -32,12 +32,12 @@ the action, shaping the encoder toward controllable features) + forward model (p
 features; its error is the bonus); the rollout passes `(obs, action, next_obs)` into the signal since
 ICM is transition-based, not state-only. Torch-guarded tests + guarded CleanRL+ICM CI smoke;
 training-only, deploy unchanged. Completes the intrinsic-reward parity item (both RND and ICM).)
-(2026-06-13 refresh: #60 M4 the race shipped — `quadruped_race.tscn` runs three quadruped lanes in
-one physics space, each driven by a different training *generation* (the committed 500k/2.5M/6M ncnn
-stage nets), with a live leaderboard + timer HUD. The learning arc as a race: 500k flails ~5 m, 2.5M
-~30 m, 6M ~36 m — a CI-asserted learning-arc regression (later generation out-distances earlier).
-No training run — it composes the committed checkpoint spread. #60 M5 (record-to-video, needs #40)
-is the last sub-milestone.)
+(2026-06-13 refresh: #60 M4 the generation race shipped — `quadruped_race.tscn` runs the committed
+500k/2.5M/6M training generations as a SEQUENTIAL race (one creature, model-swapped between runs in
+clean solo physics) onto a leaderboard. The learning arc: 500k ~12 m, 2.5M ~21 m, 6M ~26 m —
+CI-asserted (later generation out-distances earlier by >=8 m). No training run. Sequential, not
+side-by-side: multiple articulated ragdolls in one Jolt space contend for the solver and all gaits
+collapse (gotcha documented). #60 M5 (record-to-video, needs #40) is the last sub-milestone.)
 (2026-06-13 refresh: #60 M3 multiple morphologies shipped — a 6-leg **hexapod** ('many-legged')
 locomotion example. The quadruped's game + agent were generalized to be leg-count-agnostic
 (`range(4)` → `range(_leg_count())`; agent derives motors=joint_count and obs=5·legs+9), so the

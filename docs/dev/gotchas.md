@@ -111,3 +111,14 @@ Gate on per-frame correctness instead: a golden test over fixed frames asserting
 probes whose top-2 logit gap exceeds the cross-platform drift (>= 3) baked. Cover the live wiring with
 an integration smoke (model loads, runs through the image route, emits varied actions). The
 trajectory/catch-count is a real result — report it in docs as a locally-measured number, not a gate.
+
+## Multiple articulated ragdolls in one Jolt physics space interfere
+
+A single code-built quadruped/hexapod walks ~21 m solo (even at a large lane X offset). But putting
+three of them in ONE shared Jolt space (3 × ~14 bodies + joints) makes every gait collapse to ~5 m
+or stall — the articulated bodies contend for the solver's iteration budget, not collision (it
+happens at 20 m lane spacing too). So a live side-by-side "race" of several ragdrolls is unstable.
+The #60 M4 race instead runs each creature SEQUENTIALLY in clean solo physics (model-swap between
+phases) and presents a leaderboard — robust, and each distance is the creature's true reach. If you
+ever need simultaneous articulated agents, raise the physics solver iterations/substeps first and
+verify each agent still matches its solo behaviour.

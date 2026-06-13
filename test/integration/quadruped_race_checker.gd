@@ -1,41 +1,42 @@
 extends Node
-# Headless behavioral check for the #60 M4 locomotion race: three quadruped lanes driven by the
-# 500k / 2.5M / 6M training-generation nets race in one physics space. Asserts the LEARNING ARC
-# holds — the latest generation (lane 2, 6M) out-distances the earliest (lane 0, 500k) — and that
-# every lane's net loaded and inferred. This is the showcase's "it actually got better" proof.
+# Headless learning-arc check for the #60 M4 sequential generation race: one quadruped runs the
+# 500k / 2.5M / 6M training-generation nets in turn (clean solo physics — no multi-ragdoll Jolt
+# interference), and we assert the recorded distances show the arc: the latest generation (6M) walks
+# substantially farther than the earliest (500k). Reads the SequentialRace controller's results once
+# it has cycled through all generations.
 
-@export var leaderboard_path: NodePath
-@export var agent_paths: Array[NodePath] = []
-@export var frames_to_run := 4000
-@export var min_arc_gap := 5.0   ## 6M lane must lead the 500k lane by at least this many metres
+@export var race_path: NodePath
+@export var max_frames := 14000   ## safety budget (3 gens * frames_per_gen + slack)
+@export var min_arc_gap := 8.0    ## 6M generation must out-walk 500k by at least this many metres
 
-var _board
-var _agents: Array = []
+var _race
 var _frames := 0
 
 func _ready() -> void:
-	_board = get_node_or_null(leaderboard_path)
-	for p in agent_paths:
-		_agents.append(get_node_or_null(p))
-	if _board == null or _agents.size() < 3:
-		_fail("missing leaderboard or < 3 lane agents")
+	_race = get_node_or_null(race_path)
+	if _race == null:
+		_fail("no SequentialRace node")
 
 func _physics_process(_delta: float) -> void:
-	if _board == null:
+	if _race == null:
 		return
-	for a in _agents:
-		if a == null or a._ncnn_runner == null or not a._ncnn_runner.is_model_loaded():
-			_fail("a lane's trained net is not loaded")
-			return
 	_frames += 1
-	if _frames >= frames_to_run:
-		var d: Array = _board.distances()
-		print("RACE DIAG: gen-500k=%.2f  gen-2.5M=%.2f  gen-6M=%.2f" % [d[0], d[1], d[2]])
-		if d[2] - d[0] >= min_arc_gap:
-			print("RACE LEARNING-ARC PASSED (6M ahead of 500k by %.2f m)" % (d[2] - d[0]))
+	if _race.is_done():
+		var results: Array = _race.results()
+		var by_label := {}
+		for r in results:
+			by_label[r["label"]] = r["distance"]
+		var early: float = by_label.get("gen-500k", 0.0)
+		var late: float = by_label.get("gen-6M", 0.0)
+		print("RACE DIAG: ", results)
+		if late - early >= min_arc_gap:
+			print("RACE LEARNING-ARC PASSED (6M %.2f m vs 500k %.2f m; +%.2f)" % [late, early, late - early])
 			get_tree().quit(0)
 		else:
-			_fail("6M lane led 500k by only %.2f m (need %.1f) — learning arc not shown" % [d[2] - d[0], min_arc_gap])
+			_fail("6M (%.2f) led 500k (%.2f) by only %.2f m (need %.1f)" % [late, early, late - early, min_arc_gap])
+		return
+	if _frames >= max_frames:
+		_fail("race did not finish within %d frames" % max_frames)
 
 func _fail(reason: String) -> void:
 	printerr("RACE CHECK FAILED: %s" % reason)
