@@ -22,6 +22,7 @@ import sys
 # light at module load: no torch).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from reward_checkpoint import make_reward_gated_checkpoint  # noqa: E402
+from checkpoints import deploy_export_checkpoint  # noqa: E402
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -85,8 +86,15 @@ def main() -> None:
     model.save(zip_path)
     print("Saved SB3 model to:", zip_path)
 
+    # Ship the reward-gated best checkpoint when --best_checkpoint blessed one (#146), else the
+    # just-trained model — so the inline TorchScript export honors the same "deploy prefers best".
     pt_path = pathlib.Path(args.pt_export_path).with_suffix(".pt")
-    _, sidecar = export_policy_as_torchscript(model, pt_path)
+    export_model = model
+    best = deploy_export_checkpoint(args.checkpoint_dir, str(zip_path), use_best=args.best_checkpoint)
+    if best:
+        print("[best_checkpoint] exporting blessed best instead of final model:", best)
+        export_model = PPO.load(best)
+    _, sidecar = export_policy_as_torchscript(export_model, pt_path)
     print("Exported TorchScript (deterministic actor = action mean) to:", pt_path)
     print("Wrote shape sidecar:", sidecar)
     print("Convert to ncnn with: export_to_ncnn.py %s" % pt_path)

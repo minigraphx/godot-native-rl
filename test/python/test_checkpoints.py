@@ -262,5 +262,45 @@ class TestBestZipPath(unittest.TestCase):
             self.assertEqual(cp.best_reward_checkpoint(d), str(best))
 
 
+class TestDeployExportCheckpoint(unittest.TestCase):
+    """The #146 decision: should the trainer's inline export ship a blessed best instead of final?"""
+
+    def test_use_best_false_returns_none(self):
+        # The gate wasn't requested -> export the final model (current behavior).
+        with tempfile.TemporaryDirectory() as d:
+            _touch(d, "chase_ckpt_best.zip")  # present, but use_best=False -> ignored
+            self.assertIsNone(cp.deploy_export_checkpoint(d, "models/chase_policy.zip", use_best=False))
+
+    def test_no_blessed_best_returns_none(self):
+        # use_best but nothing in the dir -> nothing better to ship than the final model.
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(cp.deploy_export_checkpoint(d, "models/chase_policy.zip", use_best=True))
+
+    def test_returns_best_zip_when_present(self):
+        with tempfile.TemporaryDirectory() as d:
+            best = _touch(d, "chase_ckpt_best.zip")
+            self.assertEqual(
+                cp.deploy_export_checkpoint(d, "models/chase_policy.zip", use_best=True),
+                str(best),
+            )
+
+    def test_prefers_manifest_best_over_higher_step_zip(self):
+        # Deploy precedence: a manifest-blessed best wins over a higher-step zip.
+        with tempfile.TemporaryDirectory() as d:
+            blessed = _touch(d, "chase_ckpt_120000_steps.zip")
+            _touch(d, "chase_ckpt_300000_steps.zip")  # higher step, but not blessed
+            cp.record_best_in_manifest(d, "chase_ckpt_120000_steps.zip", 9.5, 120000)
+            self.assertEqual(
+                cp.deploy_export_checkpoint(d, "models/chase_policy.zip", use_best=True),
+                str(blessed),
+            )
+
+    def test_returns_none_when_best_is_the_final_zip(self):
+        # If the blessed best resolves to the final zip, skip the redundant reload.
+        with tempfile.TemporaryDirectory() as d:
+            best = _touch(d, "chase_ckpt_best.zip")
+            self.assertIsNone(cp.deploy_export_checkpoint(d, str(best), use_best=True))
+
+
 if __name__ == "__main__":
     unittest.main()

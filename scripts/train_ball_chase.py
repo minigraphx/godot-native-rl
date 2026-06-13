@@ -20,7 +20,7 @@ import sys
 # Reuse the shared SAC actor-export helper + checkpoint picker (import-light: no torch).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from export_sac_torchscript import export_sac_actor_as_torchscript  # noqa: E402
-from checkpoints import select_checkpoint, sync_manifest_checkpoints  # noqa: E402
+from checkpoints import select_checkpoint, sync_manifest_checkpoints, deploy_export_checkpoint  # noqa: E402
 from reward_checkpoint import make_reward_gated_checkpoint  # noqa: E402
 
 
@@ -121,8 +121,16 @@ def main() -> None:
     model.save(zip_path)
     print("Saved SB3 model to:", zip_path)
 
+    # Ship the reward-gated best checkpoint when --best_checkpoint blessed one (#146), else the
+    # just-trained model. The gate earns its keep on noisy SAC runs (#138), so this is where the
+    # "deploy prefers best" promise matters most.
     pt_path = pathlib.Path(args.pt_export_path).with_suffix(".pt")
-    _, sidecar = export_sac_actor_as_torchscript(model, pt_path)
+    export_model = model
+    best = deploy_export_checkpoint(args.checkpoint_dir, str(zip_path), use_best=args.best_checkpoint)
+    if best:
+        print("[best_checkpoint] exporting blessed best instead of final model:", best)
+        export_model = SAC.load(best)
+    _, sidecar = export_sac_actor_as_torchscript(export_model, pt_path)
     print("Exported TorchScript (deterministic actor = tanh(mean)) to:", pt_path)
     print("Wrote shape sidecar:", sidecar)
     print("Convert to ncnn with: export_to_ncnn.py %s --via torchscript" % pt_path)

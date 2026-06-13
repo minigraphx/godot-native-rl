@@ -269,3 +269,32 @@ def select_checkpoint(checkpoint_dir: str, policy: str = "deploy") -> str | None
         if hit is not None:
             return hit
     return None
+
+
+def deploy_export_checkpoint(checkpoint_dir: str, final_zip: str, use_best: bool = False) -> str | None:
+    """Decide whether a trainer's inline end-of-run export should ship a *blessed best* checkpoint
+    instead of the just-trained in-memory model (#146).
+
+    With `BEST_CHECKPOINT=1` the reward gate (#138) writes a `*_best.zip` + blesses it in the run
+    manifest, but the chase/fly_by/ball_chase trainers export the FINAL in-memory model inline — so
+    the "deploy prefers the best" promise didn't hold in their default flow. This returns the path of
+    the best checkpoint to load+export, or None when the caller should just export the final model:
+
+      - None when `use_best` is False (the gate wasn't requested — current behavior, byte-identical),
+      - None when no blessed best exists (nothing better than the final model to ship),
+      - None when the blessed best *is* the final zip already (avoid a redundant reload),
+      - otherwise the best checkpoint path (deploy precedence: manifest best -> *_best.zip -> ...).
+
+    Pure (filesystem only, no torch), so the decision is unit-tested; the caller does the one-line
+    `PPO.load`/`SAC.load` of the returned path (mirrors export_checkpoint.py).
+    """
+    if not use_best:
+        return None
+    best = select_checkpoint(checkpoint_dir, policy="deploy")
+    if best is None:
+        return None
+    try:
+        same = pathlib.Path(best).resolve() == pathlib.Path(final_zip).resolve()
+    except OSError:
+        same = str(best) == str(final_zip)
+    return None if same else best
