@@ -18,6 +18,7 @@ const SCENES: Array[String] = [
 	"res://examples/quadruped_walk/hexapod_walk_track.tscn",
 	"res://examples/hide_and_seek/hide_and_seek.tscn",
 	"res://examples/hide_and_seek/hide_and_seek_multipolicy.tscn",
+	"res://examples/coop_collect/coop_collect.tscn",
 	"res://examples/gridworld/gridworld.tscn",
 	"res://examples/3dball/ball_balance.tscn",
 	"res://examples/visual_chase/visual_chase.tscn",

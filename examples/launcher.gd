@@ -16,6 +16,7 @@ const DEMOS := [
 	["res://examples/3dball/ball_balance.tscn", "3DBall (Unity parity)", "Balance a ball on a tilting platform (continuous)."],
 	["res://examples/gridworld/gridworld.tscn", "GridWorld (Unity parity)", "Navigate an 8x8 grid to the goal, avoid pits (GridSensor2D)."],
 	["res://examples/hide_and_seek/hide_and_seek_multipolicy.tscn", "Hide & Seek (multi-policy)", "Two distinct trained policies — seeker vs hider."],
+	["res://examples/coop_collect/coop_collect.tscn", "Coop Collect (MA-POCA)", "Two agents share a reward and split up to collect items."],
 	["res://examples/quadruped_walk/quadruped_walk_track.tscn", "Quadruped Walk (locomotion)", "Code-built quadruped walks ~21m toward the finish (Jolt)."],
 	["res://examples/quadruped_walk/quadruped_hurdles_track.tscn", "Quadruped Hurdles", "Quadruped runs and clears hurdles (raycast perception + curriculum)."],
 	["res://examples/quadruped_walk/hexapod_walk_track.tscn", "Hexapod Walk (6-leg)", "Many-legged morphology — same reward, walks ~21m."],
