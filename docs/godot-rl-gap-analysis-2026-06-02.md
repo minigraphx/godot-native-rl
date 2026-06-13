@@ -32,6 +32,12 @@ the action, shaping the encoder toward controllable features) + forward model (p
 features; its error is the bonus); the rollout passes `(obs, action, next_obs)` into the signal since
 ICM is transition-based, not state-only. Torch-guarded tests + guarded CleanRL+ICM CI smoke;
 training-only, deploy unchanged. Completes the intrinsic-reward parity item (both RND and ICM).)
+(2026-06-13 refresh: #60 M3 multiple morphologies shipped — a 6-leg **hexapod** ('many-legged')
+locomotion example. The quadruped's game + agent were generalized to be leg-count-agnostic
+(`range(4)` → `range(_leg_count())`; agent derives motors=joint_count and obs=5·legs+9), so the
+hexapod reuses ALL the obs/reward/locomotion logic — only `HexapodBuilder` differs. The quadruped's
+v3 reward transfers unchanged: the trained 12-motor/39-obs net walks ~21 m at ~1.0 m/s. Behavioral
++ golden regressions; quadruped tests unchanged. #60 M4 race + M5 record-to-video remain.)
 (2026-06-13 refresh: MA-POCA M3 posthumous credit shipped (item 54 M3 / #30) — an `early_finish`
 'bank and leave' env variant (an agent banks out after contributing; a per-active-agent step penalty
 makes collect-then-bank optimal) + `--early-finish` masking that drops banked agents' inert steps

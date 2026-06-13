@@ -1,0 +1,30 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://examples/quadruped_walk/hexapod_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_agent.gd" id="2"]
+
+[sub_resource type="BoxShape3D" id="GroundShape"]
+size = Vector3(80, 1, 80)
+
+[sub_resource type="BoxMesh" id="GroundMesh"]
+size = Vector3(80, 1, 80)
+
+[node name="Game" type="Node3D"]
+script = ExtResource("1")
+finish_path = NodePath("Finish")
+
+[node name="Ground" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="GroundCol" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("GroundShape")
+
+[node name="GroundMesh" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("GroundMesh")
+
+[node name="Finish" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 40)
+
+[node name="Agent" type="Node3D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")

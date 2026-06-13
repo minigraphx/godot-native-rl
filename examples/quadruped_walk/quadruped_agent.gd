@@ -3,8 +3,8 @@ class_name QuadrupedAgent
 extends "res://addons/godot_native_rl/controllers/ncnn_ai_controller_3d.gd"
 
 const ACTION_KEY := "motors"
-const ACTION_COUNT := 8
-const OBS_SIZE := 8 + 8 + 3 + 3 + 3 + 4  # joints+vels+up+localvel+dir+contacts = 29
+const ACTION_COUNT := 8  # quadruped fallback (used before the rig is built); 2 motors/leg
+const OBS_SIZE := 8 + 8 + 3 + 3 + 3 + 4  # quadruped fallback = 29; general = 5*legs + 9 (see _obs_dim)
 const QM = preload("res://examples/quadruped_walk/quadruped_math.gd")
 const RewardBuilderScript = preload("res://addons/godot_native_rl/reward/reward_builder.gd")
 # RewardAdapterScript is inherited from the controller — do not redeclare.
@@ -32,18 +32,32 @@ var _action: Array = []
 func set_game(g) -> void:
 	_game = g
 
+# Motor count = one per joint (2/leg). Falls back to the quadruped const before the rig exists.
+func _n_motors() -> int:
+	if _game != null and _game.joint_count() > 0:
+		return _game.joint_count()
+	return ACTION_COUNT
+
+# Obs dim is leg-count-agnostic: joints(2L) + vels(2L) + up(3) + localvel(3) + dir(3) + contacts(L)
+# = 5L + 9. Quadruped (L=4) -> 29; hexapod (L=6) -> 39.
+func _obs_dim() -> int:
+	if _game != null and _game.joint_count() > 0:
+		var legs: int = _game.joint_count() / 2
+		return 5 * legs + 9
+	return OBS_SIZE
+
 func get_action_space() -> Dictionary:
-	return {ACTION_KEY: {"size": ACTION_COUNT, "action_type": "continuous"}}
+	return {ACTION_KEY: {"size": _n_motors(), "action_type": "continuous"}}
 
 func expected_obs_size() -> int:
-	return OBS_SIZE
+	return _obs_dim()
 
 func stored_action_for_test() -> Array:
 	return _action
 
 func _zero_obs() -> Array:
 	var z: Array = []
-	z.resize(OBS_SIZE)
+	z.resize(_obs_dim())
 	z.fill(0.0)
 	return z
 
@@ -94,7 +108,7 @@ func _physics_process(delta: float) -> void:
 	super._physics_process(delta)
 	if _game == null:
 		return
-	if _action.size() == ACTION_COUNT:
+	if _action.size() == _n_motors():
 		_game.apply_motors(_action)
 	# Progress + alive come from reward_source; forward velocity (main driver) + upright + energy
 	# applied directly. Forward velocity is the dense locomotion signal: reward moving toward +Z.

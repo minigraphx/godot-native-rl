@@ -26,8 +26,16 @@ func set_finish(n: Node3D) -> void:
 func build_now() -> void:
 	if not _rig.is_empty():
 		return
-	_rig = Builder.build(self)
+	_rig = _make_rig()
 	_capture_start()
+
+# Override point for other morphologies (#60 M3): return a rig Dictionary with the same keys. The
+# rest of the game (obs surface, reward, reset) is leg-count-agnostic — it reads _rig sizes.
+func _make_rig() -> Dictionary:
+	return Builder.build(self)
+
+func _leg_count() -> int:
+	return _rig["uppers"].size()
 
 func _body_transform(b: RigidBody3D) -> Transform3D:
 	if b.is_inside_tree():
@@ -107,7 +115,7 @@ func lateral_velocity() -> float:
 # about the hinge (local X). Order matches the builder's joints array.
 func joint_angles() -> Array:
 	var out: Array = []
-	for i in range(4):
+	for i in range(_leg_count()):
 		out.append(_rel_pitch(_rig["torso"], _rig["uppers"][i]))
 		out.append(_rel_pitch(_rig["uppers"][i], _rig["lowers"][i]))
 	return out
@@ -123,7 +131,7 @@ func _rel_pitch(parent: RigidBody3D, child: RigidBody3D) -> float:
 
 func joint_velocities() -> Array:
 	var out: Array = []
-	for i in range(4):
+	for i in range(_leg_count()):
 		out.append(_rig["uppers"][i].angular_velocity.x)
 		out.append(_rig["lowers"][i].angular_velocity.x)
 	return out
