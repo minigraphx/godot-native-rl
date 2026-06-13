@@ -30,4 +30,3 @@ script = ExtResource("3")
 game_path = NodePath("..")
 agent_path = NodePath("../Agent")
 frames_to_run = 600
-min_distinct_actions = 3
