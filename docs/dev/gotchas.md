@@ -89,3 +89,11 @@
   cmdline args (seconds; `<= 0` disables). To exercise a scene's spawning/obs without training, still
   prefer a smoke scene with **no `Sync` node** (e.g. `parallel_arena_smoke_scene.tscn`), or just
   `load()` the `.tscn` as a `PackedScene` without instancing it into a running tree.
+
+## Deploy `action_repeat` must match the training cadence (locomotion)
+
+The quadruped hurdles policy trained at `action_repeat=4` collapses under the Sync default of 8
+at deploy (~4 m, zero hurdles vs ~31 m / 4 hurdles): motor-velocity targets held twice as long
+overshoot the joint swings of a dynamic gait. Statically-stable gaits (M1 walk) happen to
+tolerate it, which hides the bug. Pin `action_repeat` on the Sync node of every deploy/eval
+scene to the value the policy was trained with (the M2 scenes do).
