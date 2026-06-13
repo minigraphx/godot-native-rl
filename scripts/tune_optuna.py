@@ -23,6 +23,7 @@ need them, so the pure helpers below stay unit-testable with no ML stack install
 """
 import argparse
 import json
+import math
 import pathlib
 import subprocess
 import time
@@ -166,7 +167,20 @@ def main() -> None:
         study_name=args.study_name, storage=args.storage,
         direction="maximize", load_if_exists=args.storage is not None,
     )
-    study.optimize(lambda trial: run_trial(trial, args), n_trials=args.n_trials)
+    # catch=(Exception,): a single crashed trial (e.g. the headless Godot client fails to connect in
+    # its ~10s window) is recorded FAILED and the search continues, instead of re-raising and killing
+    # an unattended overnight study (#203). Failed trials still leave the study with no best value.
+    study.optimize(lambda trial: run_trial(trial, args), n_trials=args.n_trials,
+                   catch=(Exception,))
+
+    # study.best_value raises ValueError if every trial failed; and a best of -inf means no trial
+    # finished an episode (mean_episode_reward sentinel). Either way there's nothing useful to write.
+    completed = [t for t in study.trials if t.value is not None and math.isfinite(t.value)]
+    if not completed:
+        raise SystemExit(
+            "No trial finished an episode — every trial failed or ran zero episodes. "
+            "Raise TRIAL_TIMESTEPS (so a trial completes at least one episode) and re-run; "
+            "wrote no best_hyperparams.json.")
 
     summary = best_result(study)
     print("\n=== Best trial ===")
