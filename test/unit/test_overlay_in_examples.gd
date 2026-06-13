@@ -4,9 +4,10 @@ extends SceneTree
 # (no _ready, no ncnn model load, no inference) — we only assert the node is wired in.
 
 const Harness = preload("res://test/harness.gd")
+
 const OVERLAY_SCRIPT := "res://addons/godot_native_rl/debug/policy_debug_overlay.gd"
 
-const SCENES: Array = [
+const SCENES: Array[String] = [
 	"res://examples/chase_the_target/chase_the_target.tscn",
 	"res://examples/rover_3d/rover_3d.tscn",
 	"res://examples/ball_chase/ball_chase.tscn",
@@ -31,6 +32,8 @@ func _initialize() -> void:
 			continue
 		var root := packed.instantiate()
 		h.assert_eq(_count_overlays(root), 1, "%s has exactly one PolicyDebugOverlay" % path)
+		var node := root.find_child("PolicyDebugOverlay", true, false)
+		h.assert_true(node is CanvasLayer, "%s PolicyDebugOverlay is a CanvasLayer" % path)
 		root.free()
 	h.finish(self)
 
