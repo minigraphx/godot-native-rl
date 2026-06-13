@@ -48,23 +48,40 @@ def _obs_key_and_box(observation_space):
     return None, observation_space
 
 
-def build_deterministic_actor(policy, obs_key):
-    """Wrap an SB3 policy as `obs_tensor -> raw action_net output` (pre-argmax)."""
+def _is_image_box(box) -> bool:
+    """True for an SB3-image Box (HWC uint8) — the godot_rl mapping for "*2d" obs keys."""
+    import numpy as np
+
+    return len(box.shape) == 3 and box.dtype == np.uint8
+
+
+def build_deterministic_actor(policy, obs_key, image_input=False):
+    """Wrap an SB3 policy as `obs_tensor -> raw action_net output` (pre-argmax).
+
+    image_input=True bypasses `extract_features` (whose preprocessing divides uint8 image
+    obs by 255) and feeds the features extractor directly: the traced input contract is
+    then CHW floats already in [0,1] — exactly what the deploy side's
+    `NcnnRunner.run_inference_image(img, normalize_to_zero_one=true)` produces.
+    """
     import torch
 
     class DeterministicActor(torch.nn.Module):
-        def __init__(self, policy, obs_key):
+        def __init__(self, policy, obs_key, image_input):
             super().__init__()
             self.policy = policy
             self.obs_key = obs_key
+            self.image_input = image_input
 
         def forward(self, obs):
             x = {self.obs_key: obs} if self.obs_key is not None else obs
-            features = self.policy.extract_features(x)
+            if self.image_input:
+                features = self.policy.features_extractor(x)
+            else:
+                features = self.policy.extract_features(x)
             latent_pi, _ = self.policy.mlp_extractor(features)
             return self.policy.action_net(latent_pi)
 
-    return DeterministicActor(policy, obs_key).eval()
+    return DeterministicActor(policy, obs_key, image_input).eval()
 
 
 def export_policy_as_torchscript(model, pt_path: pathlib.Path):
@@ -78,10 +95,23 @@ def export_policy_as_torchscript(model, pt_path: pathlib.Path):
     policy = model.policy.to("cpu")
     policy.eval()
     obs_key, box = _obs_key_and_box(model.observation_space)
-    shape = (1, *box.shape)
+    image_input = _is_image_box(box)
+    if image_input:
+        # The policy's CNN consumes CHW (VecTransposeImage at train time; ncnn at deploy).
+        # A checkpoint saved after VecTransposeImage stores the space CHW already; a raw
+        # godot_rl space is HWC. Trace with the CHW shape, [0,1] floats.
+        from stable_baselines3.common.preprocessing import is_image_space_channels_first
+
+        if is_image_space_channels_first(box):
+            shape = (1, *box.shape)
+        else:
+            h, w, c = box.shape
+            shape = (1, c, h, w)
+    else:
+        shape = (1, *box.shape)
     dummy = torch.zeros(*shape, dtype=torch.float32)
 
-    actor = build_deterministic_actor(policy, obs_key)
+    actor = build_deterministic_actor(policy, obs_key, image_input)
     with torch.no_grad():
         scripted = torch.jit.trace(actor, dummy)
     pt_path.parent.mkdir(parents=True, exist_ok=True)

@@ -54,6 +54,19 @@ class TestObsDimFromInputshape(unittest.TestCase):
         with self.assertRaises(ValueError):
             vts.obs_dim_from_inputshape("not-a-shape")
 
+    def test_dims_flat(self):
+        self.assertEqual(vts.obs_dims_from_inputshape("[1,5]"), [1, 5])
+
+    def test_dims_conv_stem(self):
+        self.assertEqual(vts.obs_dims_from_inputshape("[1,3,36,36]"), [1, 3, 36, 36])
+
+    def test_dims_first_group_only(self):
+        self.assertEqual(vts.obs_dims_from_inputshape("[1,3,36,36],[1]"), [1, 3, 36, 36])
+
+    def test_dims_nonpositive_raises(self):
+        with self.assertRaises(ValueError):
+            vts.obs_dims_from_inputshape("[1,0]")
+
 
 def _fake_runner(*, returncode=0, make_outputs=True, make_intermediates=True):
     """subprocess.run stand-in that writes pnnx-style files for the given stem."""
@@ -412,6 +425,9 @@ class TestTorchscriptEndToEnd(unittest.TestCase):
         import torch.nn as nn
 
         with tempfile.TemporaryDirectory() as d:
+            # Seeded: a random init occasionally argmaxes one action on all 50 verify
+            # obs, tripping the degenerate-policy parity rule (flaky CI).
+            torch.manual_seed(0)
             model = nn.Sequential(nn.Linear(5, 8), nn.ReLU(), nn.Linear(8, 3))
             model.eval()
             scripted = torch.jit.trace(model, torch.randn(1, 5))
@@ -432,6 +448,9 @@ class TestTorchscriptEndToEnd(unittest.TestCase):
         import torch.nn as nn
 
         with tempfile.TemporaryDirectory() as d:
+            # Seeded: a random init occasionally argmaxes one action on all 50 verify
+            # obs, tripping the degenerate-policy parity rule (flaky CI).
+            torch.manual_seed(0)
             model = nn.Sequential(nn.Linear(5, 8), nn.ReLU(), nn.Linear(8, 3))
             model.eval()
             scripted = torch.jit.trace(model, torch.randn(1, 5))
@@ -449,6 +468,9 @@ class TestTorchscriptEndToEnd(unittest.TestCase):
         import torch.nn as nn
 
         with tempfile.TemporaryDirectory() as d:
+            # Seeded: a random init occasionally argmaxes one action on all 50 verify
+            # obs, tripping the degenerate-policy parity rule (flaky CI).
+            torch.manual_seed(0)
             model = nn.Sequential(nn.Linear(5, 8), nn.ReLU(), nn.Linear(8, 3))
             model.eval()
             scripted = torch.jit.trace(model, torch.randn(1, 5))

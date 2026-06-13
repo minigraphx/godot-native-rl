@@ -97,3 +97,17 @@ at deploy (~4 m, zero hurdles vs ~31 m / 4 hurdles): motor-velocity targets held
 overshoot the joint swings of a dynamic gait. Statically-stable gaits (M1 walk) happen to
 tolerate it, which hides the bug. Pin `action_repeat` on the Sync node of every deploy/eval
 scene to the value the policy was trained with (the M2 scenes do).
+
+## Discrete CNN policy trajectories are not portable across CPU architectures
+
+ncnn runs convolutions in fp16 on ARM (Apple Silicon) but fp32 on x86. For a CNN policy this drifts
+the output logits by a meaningful amount (~3 on an |8| scale for the visual-chase net). A
+*continuous*-control policy absorbs that (motor means shift slightly, the gait holds — see the
+quadruped, which passes a behavioral check cross-platform with margin). A *discrete*-argmax policy
+does not: the drift flips the argmax on a fraction of frames, and over a long rollout the categorical
+trajectory diverges completely — visual-chase catches 9–11/3600 frames locally on ARM but 0 on x86 CI
+with the identical net and seed. So do NOT gate CI on a discrete CNN policy's full-trajectory outcome.
+Gate on per-frame correctness instead: a golden test over fixed frames asserting argmax, with only
+probes whose top-2 logit gap exceeds the cross-platform drift (>= 3) baked. Cover the live wiring with
+an integration smoke (model loads, runs through the image route, emits varied actions). The
+trajectory/catch-count is a real result — report it in docs as a locally-measured number, not a gate.

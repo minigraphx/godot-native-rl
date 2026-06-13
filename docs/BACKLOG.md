@@ -515,9 +515,18 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     `synthetic_cnn_golden.json`, and `test/unit/test_image_inference_golden.gd` — the **first
     end-to-end test of `run_inference_image`** (ncnn vs onnxruntime, max abs diff 0.0003, atol 1e-2).
     Full suite green from a clean cache. *(deferred from item 8)*
-37. ⬜ **Trained CNN visual example** — a visual example scene + CNN PPO run + shipped trained ncnn model
+37. ✅ **Trained CNN visual example** — a visual example scene + CNN PPO run + shipped trained ncnn model
     + behavioral regression, the image analogue of the chase/rover examples. Heavy (CNN training ≫ the
     rover MLP run). *(deferred from item 8)*
+    **Done 2026-06-12** (GitHub #35) — spec `docs/superpowers/specs/2026-06-12-visual-cnn-example-design.md`.
+    `examples/visual_chase/`: the chase task observed through PIXELS ONLY — a code-rasterized 36×36×3
+    frame on the `camera_2d` wire key (godot_rl maps "*2d" keys to uint8 Box → SB3's NatureCNN), so it
+    trains fully headless, no rendering. SB3 CNN PPO via `./scripts/train_visual_chase.sh` (1.5M steps,
+    `RESUME=1` continuation); deploys through the item-36 image route (`get_inference_image()` →
+    `run_inference_image`, first trained consumer). TorchScript→ncnn export (godot_rl's ONNX exporter
+    breaks on MultiInputPolicy under torch 2.x dynamo): `export_torchscript.py` gained an image-space
+    branch (CHW [0,1]-float contract), `verify_torchscript_parity.py` multi-dim conv inputshapes.
+    Trained net committed + golden-inference + behavioral catch regression.
 38. ⬜ **CameraSensor real-render + grayscale deploy** — (a) an in-editor (non-`--headless`) check
     that `viewport.get_texture().get_image()` produces the expected obs, since headless can't render
     viewports; (b) grayscale (1-channel) image **deploy**: `run_inference_image` currently forces
