@@ -24,7 +24,7 @@ const M = preload("res://examples/coop_collect/coop_collect_math.gd")
 # Early-finish "bank and leave" mode (#30 M3). Off by default -> M2 behavior is byte-identical.
 @export var early_finish := false
 @export var bank_width := 120.0         ## right-edge bank zone width
-@export var bank_bonus := 0.2           ## one-time shared bonus when an agent banks (gated on a team contribution)
+@export var bank_bonus := 0.3           ## one-time shared bonus when an agent banks (gated on a team contribution)
 
 var _bodies: Array[Node2D] = []
 var _vels: Array[Vector2] = [Vector2.ZERO, Vector2.ZERO]
@@ -83,7 +83,14 @@ func _physics_process(delta: float) -> void:
 		_bodies[i].position = clamp_to_bounds(_bodies[i].position + _vels[i] * delta)
 	# Resolve collection against the ACTIVE agents' positions, compute the shared team reward.
 	var newly := M.collect_step(_items, _collected, active_agent_positions(), collect_radius)
-	_team_reward = M.team_step_reward(newly, item_value, step_penalty)
+	# In early-finish mode the per-step time penalty scales with the number of ACTIVE agents, so a
+	# done agent that banks out stops bleeding penalty for the team — which makes "collect, then bank"
+	# the optimal cooperative policy and is what exercises posthumous credit (its earlier collecting
+	# helped the team that keeps earning after it leaves). M2 mode: flat penalty, unchanged.
+	var penalty := step_penalty
+	if early_finish:
+		penalty = step_penalty * float(active_agent_positions().size())
+	_team_reward = M.team_step_reward(newly, item_value, penalty)
 	# Early-finish: an active agent in the bank zone (after a team contribution) banks out, parks,
 	# and adds a one-time bank bonus to the shared team reward. Its earlier collecting actions still
 	# get credit for the team reward earned AFTER it leaves (posthumous credit — the trainer masks it).

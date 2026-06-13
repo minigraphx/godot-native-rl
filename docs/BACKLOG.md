@@ -404,7 +404,7 @@ the same change. New items → GitHub issue only.
     (`hide_and_seek_selfplay_{seeker,hider}.tscn`); unit + integration smoke coverage. Follow-ups
     filed: simultaneous two-sided training, ELO-proximity matchmaking. *(from item 20; roadmap
     Track B; novel-addons "behavior snapshots")*
-54. 🔄 **Cooperative MA-POCA** — multi-agent centralized-critic training with a shared team reward
+54. ✅ **Cooperative MA-POCA** — multi-agent centralized-critic training with a shared team reward
     (Unity-parity stretch). *(from item 20; roadmap Track B)*
     **M1 done 2026-06-12 (#30)** — cooperative environment foundation: `examples/coop_collect/`
     (shared-team-reward "collect" task; pure `coop_collect_math.gd` + `coop_collect_game.gd` +
@@ -416,9 +416,13 @@ the same change. New items → GitHub issue only.
     (`scripts/coop_mapoca.py`, 14 unit tests); world-major team-grouping verified at runtime via the
     shared-reward invariant. The 1.5M-step actor collects **4/4 items cooperatively** under ncnn
     (`ep_rew_mean` −2.95 → +0.30); committed net + behavioral + golden regressions + guarded CI smoke.
-    **M3 (posthumous credit) still needs a run** — masking helpers (`alive_mask`/`masked_mean`)
-    written + tested; needs an early-finish env variant. Spec:
-    `docs/superpowers/specs/2026-06-12-coop-mapoca-design.md`.
+    **M3 done 2026-06-13 (#30)** — posthumous credit: `early_finish` 'bank and leave' env
+    variant (an agent banks out after contributing; the per-active-agent step penalty makes
+    collect-then-bank optimal) + `--early-finish` masking (banked agents' inert steps masked out of
+    the actor loss via `masked_mean`; pre-bank steps keep advantage from the team's later return —
+    the posthumous credit). Trained 17-dim actor collects 3/4 items and an agent banks; behavioral
+    + golden regressions. Spec: `docs/superpowers/specs/2026-06-13-coop-mapoca-m3-design.md`. Item 54
+    (all of #30 M1-M3) complete.
 
 ## Distribution & DX
 

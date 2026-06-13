@@ -32,6 +32,12 @@ the action, shaping the encoder toward controllable features) + forward model (p
 features; its error is the bonus); the rollout passes `(obs, action, next_obs)` into the signal since
 ICM is transition-based, not state-only. Torch-guarded tests + guarded CleanRL+ICM CI smoke;
 training-only, deploy unchanged. Completes the intrinsic-reward parity item (both RND and ICM).)
+(2026-06-13 refresh: MA-POCA M3 posthumous credit shipped (item 54 M3 / #30) — an `early_finish`
+'bank and leave' env variant (an agent banks out after contributing; a per-active-agent step penalty
+makes collect-then-bank optimal) + `--early-finish` masking that drops banked agents' inert steps
+from the actor loss while their pre-bank steps keep advantage from the team's later return — the
+defining MA-POCA property. Trained 17-dim actor collects 3/4 items AND an agent banks. This completes
+#30 (M1 env + M2 centralized critic + M3 posthumous credit) — full MA-POCA MARL parity.)
 (2026-06-13 refresh: MA-POCA cooperative training shipped (item 54 M2 / #30) — single-file
 `scripts/train_coop_mapoca.py`: shared decentralized actor + a centralized attention critic over the
 team's obs + a per-agent leave-one-out counterfactual baseline, over coop_collect via CleanRLGodotEnv.
