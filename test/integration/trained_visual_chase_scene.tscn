@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://examples/chase_the_target/chase_game.gd" id="1"]
 [ext_resource type="Script" path="res://examples/visual_chase/visual_chase_agent.gd" id="2"]
-[ext_resource type="Script" path="res://test/integration/trained_chase_checker.gd" id="3"]
+[ext_resource type="Script" path="res://test/integration/visual_chase_smoke_checker.gd" id="3"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="4"]
 
 [node name="ChaseGame" type="Node2D"]
@@ -29,6 +29,5 @@ control_mode = 2
 script = ExtResource("3")
 game_path = NodePath("..")
 agent_path = NodePath("../Agent")
-frames_to_run = 3600
-min_catches = 5
-game_seed = 7
+frames_to_run = 600
+min_distinct_actions = 3
