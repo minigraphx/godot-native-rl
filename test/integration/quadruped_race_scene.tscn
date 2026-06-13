@@ -1,0 +1,51 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_agent.gd" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="3"]
+[ext_resource type="Script" path="res://examples/quadruped_walk/sequential_race.gd" id="4"]
+[ext_resource type="Script" path="res://test/integration/quadruped_race_checker.gd" id="5"]
+
+[sub_resource type="BoxShape3D" id="GroundShape"]
+size = Vector3(120, 1, 120)
+
+[node name="QuadrupedRace" type="Node3D"]
+
+[node name="Ground" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 15)
+
+[node name="GroundCol" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("GroundShape")
+
+[node name="Game" type="Node3D" parent="."]
+script = ExtResource("1")
+finish_path = NodePath("Finish")
+
+[node name="Finish" type="Marker3D" parent="Game"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 40)
+
+[node name="Agent" type="Node3D" parent="Game"]
+script = ExtResource("2")
+game_path = NodePath("..")
+control_mode = 3
+model_param_path = "res://examples/quadruped_walk/models/stages/quadruped_walk_step500000.ncnn.param"
+model_bin_path = "res://examples/quadruped_walk/models/stages/quadruped_walk_step500000.ncnn.bin"
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("3")
+control_mode = 2
+
+[node name="SequentialRace" type="Node" parent="."]
+script = ExtResource("4")
+game_path = NodePath("../Game")
+agent_path = NodePath("../Game/Agent")
+frames_per_gen = 4000
+gen_params = ["res://examples/quadruped_walk/models/stages/quadruped_walk_step500000.ncnn.param", "res://examples/quadruped_walk/models/stages/quadruped_walk_step2500000.ncnn.param", "res://examples/quadruped_walk/models/stages/quadruped_walk_step6000000.ncnn.param"]
+gen_bins = ["res://examples/quadruped_walk/models/stages/quadruped_walk_step500000.ncnn.bin", "res://examples/quadruped_walk/models/stages/quadruped_walk_step2500000.ncnn.bin", "res://examples/quadruped_walk/models/stages/quadruped_walk_step6000000.ncnn.bin"]
+gen_labels = ["gen-500k", "gen-2.5M", "gen-6M"]
+
+[node name="Checker" type="Node" parent="."]
+script = ExtResource("5")
+race_path = NodePath("../SequentialRace")
+max_frames = 14000
+min_arc_gap = 8.0

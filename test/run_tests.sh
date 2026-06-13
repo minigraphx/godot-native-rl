@@ -94,6 +94,9 @@ echo "== Trained quadruped behavioral check (headless) =="
 echo "== Trained hexapod (many-legged morphology) behavioral check (headless, #60 M3) =="
 "$GODOT" --headless --path . res://test/integration/hexapod_trained_scene.tscn
 
+echo "== Locomotion race learning-arc check (500k/2.5M/6M generations, headless, #60 M4) =="
+"$GODOT" --headless --path . res://test/integration/quadruped_race_scene.tscn
+
 echo "== Trained quadruped HURDLES behavioral check (headless, #60 M2) =="
 "$GODOT" --headless --path . res://test/integration/quadruped_hurdles_trained_scene.tscn
 
