@@ -19,6 +19,11 @@ const MOTOR_MAX_IMPULSE := 40.0
 const HIP_LIMIT := deg_to_rad(60.0)
 const KNEE_LIMIT := deg_to_rad(70.0)
 
+# Cosmetic colors so the creature reads against the ground (was default-gray on gray).
+const TORSO_COLOR := Color(0.93, 0.45, 0.18)   # warm orange torso — the body you track
+const UPPER_COLOR := Color(0.20, 0.62, 0.70)   # teal thighs
+const LOWER_COLOR := Color(0.13, 0.40, 0.47)   # darker teal shins
+
 # Corner offsets (x = right, z = forward). Order matches the joints array documented above.
 const _CORNERS := [
 	Vector3( 0.5, 0.0,  0.35),  # FL
@@ -27,7 +32,7 @@ const _CORNERS := [
 	Vector3(-0.5, 0.0, -0.35),  # BR
 ]
 
-static func _box_body(size: Vector3, mass: float, body_name: String) -> RigidBody3D:
+static func _box_body(size: Vector3, mass: float, body_name: String, color: Color = Color.WHITE) -> RigidBody3D:
 	var body := RigidBody3D.new()
 	body.name = body_name
 	body.mass = mass
@@ -40,6 +45,9 @@ static func _box_body(size: Vector3, mass: float, body_name: String) -> RigidBod
 	var bm := BoxMesh.new()
 	bm.size = size
 	mesh.mesh = bm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mesh.material_override = mat
 	body.add_child(mesh)
 	return body
 
@@ -63,7 +71,7 @@ static func _hinge(parent: Node3D, a: PhysicsBody3D, b: PhysicsBody3D, at: Vecto
 	return j
 
 static func build(parent: Node3D) -> Dictionary:
-	var torso := _box_body(TORSO_SIZE, TORSO_MASS, "Torso")
+	var torso := _box_body(TORSO_SIZE, TORSO_MASS, "Torso", TORSO_COLOR)
 	torso.position = Vector3(0, 1.0, 0)
 	parent.add_child(torso)
 
@@ -75,10 +83,10 @@ static func build(parent: Node3D) -> Dictionary:
 	for i in range(4):
 		var corner: Vector3 = _CORNERS[i]
 		var hip_pos: Vector3 = torso.position + corner
-		var upper := _box_body(UPPER_SIZE, SEG_MASS, "%s_upper" % tags[i])
+		var upper := _box_body(UPPER_SIZE, SEG_MASS, "%s_upper" % tags[i], UPPER_COLOR)
 		upper.position = hip_pos + Vector3(0, -UPPER_SIZE.y * 0.5, 0)
 		parent.add_child(upper)
-		var lower := _box_body(LOWER_SIZE, SEG_MASS, "%s_lower" % tags[i])
+		var lower := _box_body(LOWER_SIZE, SEG_MASS, "%s_lower" % tags[i], LOWER_COLOR)
 		lower.position = upper.position + Vector3(0, -(UPPER_SIZE.y * 0.5 + LOWER_SIZE.y * 0.5), 0)
 		parent.add_child(lower)
 

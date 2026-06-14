@@ -1,16 +1,28 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_game.gd" id="1"]
 [ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_agent.gd" id="2"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="3"]
 [ext_resource type="Script" path="res://examples/quadruped_walk/sequential_race.gd" id="4"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/debug/policy_debug_overlay.gd" id="5"]
+[ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_camera.gd" id="6"]
 
 [sub_resource type="BoxShape3D" id="GroundShape"]
 size = Vector3(120, 1, 120)
 
 [sub_resource type="BoxMesh" id="GroundMesh"]
 size = Vector3(120, 1, 120)
+
+[sub_resource type="StandardMaterial3D" id="GroundMat"]
+albedo_color = Color(0.22, 0.42, 0.27, 1)
+
+[sub_resource type="BoxMesh" id="FinishMesh"]
+size = Vector3(16, 0.1, 0.6)
+
+[sub_resource type="StandardMaterial3D" id="FinishMat"]
+albedo_color = Color(0.95, 0.85, 0.2, 1)
+emission_enabled = true
+emission = Color(0.6, 0.5, 0.1, 1)
 
 [node name="QuadrupedRace" type="Node3D"]
 
@@ -22,6 +34,7 @@ shape = SubResource("GroundShape")
 
 [node name="GroundMesh" type="MeshInstance3D" parent="Ground"]
 mesh = SubResource("GroundMesh")
+material_override = SubResource("GroundMat")
 
 [node name="Game" type="Node3D" parent="."]
 script = ExtResource("1")
@@ -29,6 +42,11 @@ finish_path = NodePath("Finish")
 
 [node name="Finish" type="Marker3D" parent="Game"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 40)
+
+[node name="FinishLine" type="MeshInstance3D" parent="Game/Finish"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, 0)
+mesh = SubResource("FinishMesh")
+material_override = SubResource("FinishMat")
 
 [node name="Agent" type="Node3D" parent="Game"]
 script = ExtResource("2")
@@ -46,9 +64,9 @@ rotation_degrees = Vector3(-55, -35, 0)
 shadow_enabled = true
 
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 8, -10)
-rotation_degrees = Vector3(-18, 22, 0)
 current = true
+script = ExtResource("6")
+game_path = NodePath("../Game")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
