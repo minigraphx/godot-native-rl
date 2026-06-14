@@ -91,6 +91,8 @@ scene running ncnn inference. With its `controllers` list left empty it auto-dis
 overlays live observations, action probabilities, the loaded policy/model, and any `get_debug_status()`
 you expose. Press **F3** to toggle; in release builds it removes itself at startup unless you set
 `debug_build_only = false`. Worked example: `examples/chase_the_target/chase_the_target_debug.tscn`.
+It also covers **batched crowds**: `NcnnCrowdController` emits a per-unit `inference_step` through each
+child agent, so the overlay shows one live block per crowd unit (see `chase_crowd.tscn`).
 
 That same debug scene also carries a **live policy switcher** (`chase_model_switcher.gd`): a dropdown
 that hot-swaps the deployed `.ncnn` model at runtime via the controllers' `swap_model(param, bin)` —

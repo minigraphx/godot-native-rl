@@ -9,6 +9,7 @@ const OVERLAY_SCRIPT := "res://addons/godot_native_rl/debug/policy_debug_overlay
 
 const SCENES: Array[String] = [
 	"res://examples/chase_the_target/chase_the_target.tscn",
+	"res://examples/chase_the_target/chase_crowd.tscn",
 	"res://examples/rover_3d/rover_3d.tscn",
 	"res://examples/ball_chase/ball_chase.tscn",
 	"res://examples/fly_by/fly_by.tscn",

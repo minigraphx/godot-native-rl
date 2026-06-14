@@ -12,6 +12,11 @@ extends Node2D
 
 const ChaseObs = preload("res://examples/chase_the_target/chase_obs.gd")
 
+# Emitted once per batched decision by the parent CrowdController (which owns the shared net), so the
+# PolicyDebugOverlay can auto-discover and render this unit. Same payload shape as the single-agent
+# controllers. Inert when nothing listens. (#232)
+signal inference_step(debug: Dictionary)
+
 const ACTION_KEY := "move"
 const ACTION_COUNT := 5
 
