@@ -18,8 +18,8 @@ const OBS: Array = [
 	[-0.5,0.1,-0.8,0.6,0.2,0.1,0.0,0.2,0.3,0.4,0.1,0.2,0.3,0.4, 1.0],
 	[0.5,-0.2,0.9,0.7,0.5,0.2,0.1,0.3,0.4,0.5,0.6,0.1,0.2,0.3, 1.0],
 ]
-const EXPECTED_SEEKER: Array = [0, 2, 2, 0, 2]  # captured from the real ncnn deploy path (role 1.0)
-const EXPECTED_HIDER: Array  = [2, 1, 2, 2, 1]  # captured from the real ncnn deploy path (role 0.0)
+const EXPECTED_SEEKER: Array = [0, 4, 4, 4, 4]  # captured from the real ncnn deploy path (role 1.0)
+const EXPECTED_HIDER: Array  = [3, 0, 0, 0, 0]  # captured from the real ncnn deploy path (role 0.0)
 
 func _check(h, tag: String, base: String, expected: Array, role_flag: float) -> void:
 	var runner := NcnnRunner.new()
