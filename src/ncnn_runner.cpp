@@ -38,6 +38,7 @@ void NcnnRunner::_bind_methods() {
     ClassDB::bind_method(D_METHOD("run_discrete_action", "input"), &NcnnRunner::run_discrete_action);
     ClassDB::bind_method(D_METHOD("run_inference_async", "input"), &NcnnRunner::run_inference_async);
     ClassDB::bind_method(D_METHOD("is_inference_running"), &NcnnRunner::is_inference_running);
+    ClassDB::bind_method(D_METHOD("poll"), &NcnnRunner::poll);
     ClassDB::bind_method(D_METHOD("is_model_loaded"), &NcnnRunner::is_model_loaded);
     ClassDB::bind_method(D_METHOD("set_input_blob_name", "name"), &NcnnRunner::set_input_blob_name);
     ClassDB::bind_method(D_METHOD("get_input_blob_name"), &NcnnRunner::get_input_blob_name);
@@ -433,9 +434,13 @@ bool NcnnRunner::run_inference_async(const PackedFloat32Array &p_input) {
         async_worker_.join();
     }
     inference_running_.store(true);
+    result_ready_.store(false);
+    // Drain the worker's result on the main thread every frame while in the tree (deploy path). The
+    // out-of-tree/headless path drives delivery via poll() instead — see deliver_if_ready / #222.
+    set_process(true);
     // Hoist the blob-name conversions onto this thread; they're immutable for the call. The worker
     // runs a *quiet* extractor (no push_error off-thread) — failure surfaces as an empty output,
-    // reported on the main thread in async_finish.
+    // reported on the main thread in deliver_if_ready.
     const CharString input_blob_utf8 = input_blob_name_.utf8();
     const CharString output_blob_utf8 = output_blob_name_.utf8();
     async_worker_ = std::thread([this, input_mat, input_blob_utf8, output_blob_utf8]() {
@@ -447,28 +452,48 @@ bool NcnnRunner::run_inference_async(const PackedFloat32Array &p_input) {
                 out = output_mat_to_packed_float_array(out_mat);
             }
         }
-        // Marshal the result back to the main thread; Godot's deferred-call queue is thread-safe,
-        // and a freed runner's queued call is dropped against the ObjectDB. callable_mp (not a
-        // bound method name) keeps async_finish off the public GDScript surface so a stray script
-        // call can't fake a completion.
-        callable_mp(this, &NcnnRunner::async_finish).call_deferred(out);
+        // Publish the result, then flag it ready (release): the main thread reads pending_output_
+        // only after observing result_ready_, so the atomic establishes happens-before.
+        pending_output_ = out;
+        result_ready_.store(true, std::memory_order_release);
+        // Best-effort nudge for in-tree runners on platforms that flush a raw worker's deferred call
+        // (Linux). NOT relied upon: on macOS mono under a SceneTree --script this completion does not
+        // fire (#222), so _process/poll are the reliable drain. deliver_if_ready's exchange makes the
+        // extra call_deferred a harmless no-op when the frame drain already delivered.
+        callable_mp(this, &NcnnRunner::deliver_if_ready).call_deferred();
     });
     return true;
 #endif
 }
 
-void NcnnRunner::async_finish(const PackedFloat32Array &p_output) {
-    // Main thread (via call_deferred). The worker called us as its last act, so it has finished —
-    // join is instant and resets the thread for the next request.
+void NcnnRunner::deliver_if_ready() {
+    // Main thread only. Single-delivery: the exchange returns true to exactly one caller even if
+    // _process, poll(), and the worker's deferred nudge all land in the same frame.
+    if (!result_ready_.exchange(false)) {
+        return;
+    }
+    // The worker set result_ready_ as its last act, so it has finished — join is instant and resets
+    // the thread for the next request.
     if (async_worker_.joinable()) {
         async_worker_.join();
     }
     inference_running_.store(false);
-    if (p_output.is_empty()) {
+    set_process(false);  // nothing left to drain until the next request
+    PackedFloat32Array out = pending_output_;
+    pending_output_ = PackedFloat32Array();
+    if (out.is_empty()) {
         UtilityFunctions::push_error("NcnnRunner.run_inference_async: inference produced no output "
             "(check blob names / input shape).");
     }
-    emit_signal("inference_completed", p_output);
+    emit_signal("inference_completed", out);
+}
+
+void NcnnRunner::poll() {
+    deliver_if_ready();
+}
+
+void NcnnRunner::_process(double) {
+    deliver_if_ready();
 }
 
 bool NcnnRunner::is_inference_running() const {

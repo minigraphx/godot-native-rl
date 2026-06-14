@@ -122,3 +122,18 @@ The #60 M4 race instead runs each creature SEQUENTIALLY in clean solo physics (m
 phases) and presents a leaderboard — robust, and each distance is the creature's true reach. If you
 ever need simultaneous articulated agents, raise the physics solver iterations/substeps first and
 verify each agent still matches its solo behaviour.
+
+## A raw `std::thread`'s `call_deferred` is not flushed under SceneTree `--script` on macOS mono
+
+`NcnnRunner.run_inference_async` runs the forward pass on a worker thread and marshals the result
+back to the main thread. A bare GDScript `Thread` doing `call_deferred` **is** flushed under a
+`--script` SceneTree on macOS mono 4.5.1 (verified), but the extension's raw C++ `std::thread`
+calling `callable_mp(...).call_deferred()` reliably is **not** — so `inference_completed` never fired
+and `test_async_inference` timed out 5/5 on the dev Mac mini (#222), while Linux CI completed it fine.
+Fix (#222): the runner publishes the worker result through an atomic flag and **delivers it on the
+main thread** — automatically every frame via its own `_process` when in the tree (the deploy path,
+since controllers `add_child` the runner), and via a new public **`poll()`** for out-of-tree /
+headless callers (the `--script` test calls `_runner.poll()` each frame). The old `call_deferred`
+stays as a best-effort nudge; an atomic exchange makes delivery single-shot regardless of which drain
+site fires first. Lesson: don't rely on a non-Godot worker thread's deferred call being flushed in
+every host; drain on the main thread you control.

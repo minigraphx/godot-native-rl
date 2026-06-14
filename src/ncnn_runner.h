@@ -53,6 +53,13 @@ public:
     // One request at a time — re-request after the signal (check is_inference_running()).
     bool run_inference_async(const PackedFloat32Array &p_input);
     bool is_inference_running() const;
+    // Deliver a finished async result on the calling (main) thread if one is pending: emits
+    // inference_completed and clears the in-flight flag. An in-tree runner drains automatically
+    // every frame via _process; out-of-tree/headless callers (e.g. a SceneTree --script test) call
+    // this each frame instead, since the worker's call_deferred completion is not reliably flushed
+    // there on every platform (macOS mono — #222). Idempotent: a no-op when nothing is pending.
+    void poll();
+    void _process(double p_delta) override;
 
     void set_input_blob_name(const String &p_name);
     String get_input_blob_name() const;
@@ -67,10 +74,12 @@ private:
     bool build_mat_from_shape(const PackedFloat32Array &p_data, const PackedInt32Array &p_shape, ncnn::Mat &r_mat) const;
     bool run_inference_internal(const ncnn::Mat &p_input, ncnn::Mat &r_output) const;
     static PackedFloat32Array output_mat_to_packed_float_array(const ncnn::Mat &p_output);
-    // Runs on the main thread via call_deferred from the async worker: clears the in-flight
-    // flag, joins the finished worker, and emits inference_completed. Not bound to GDScript
-    // (invoked through callable_mp), so a script can't fake a completion.
-    void async_finish(const PackedFloat32Array &p_output);
+    // Main-thread delivery of a finished async result: if result_ready_ is set, join the worker,
+    // clear the in-flight flag, and emit inference_completed exactly once (the atomic exchange makes
+    // concurrent drain sites — _process, poll(), and the worker's best-effort call_deferred — race-
+    // free and single-delivery). Driven by _process (in-tree) and poll() (out-of-tree). Not bound to
+    // GDScript by name, so a script can't fake a completion.
+    void deliver_if_ready();
     // True if it's safe to replace net_ now: refuses while an async inference is in flight
     // (logs via p_where) and joins a finished worker. Call before swapping net_ in load_*.
     bool ready_to_swap_net(const char *p_where);
@@ -82,6 +91,11 @@ private:
     PackedInt32Array input_shape_;
     std::thread async_worker_;
     std::atomic<bool> inference_running_{false};
+    // Published by the worker (release) and consumed once on the main thread (deliver_if_ready's
+    // exchange-acquire). pending_output_ is written by the worker before the flag is set and read by
+    // the main thread only after it observes the flag, so the atomic establishes the happens-before.
+    std::atomic<bool> result_ready_{false};
+    PackedFloat32Array pending_output_;
 };
 
 } // namespace godot

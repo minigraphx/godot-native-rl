@@ -4,9 +4,12 @@ extends SceneTree
 # in-flight flag tracks state, a second concurrent request is rejected, the async output matches
 # the synchronous run_inference exactly (worker parity), and that a not-loaded runner refuses.
 #
-# Async needs the main loop to run so the worker's call_deferred flushes — so unlike the synchronous
-# harness tests this drives _process() and only quits once the signal fires (with a frame-budget
-# timeout so a regression fails loud instead of hanging CI).
+# Async delivers its result on the main thread — so unlike the synchronous harness tests this drives
+# _process() and only quits once inference_completed fires (with a frame-budget timeout so a
+# regression fails loud instead of hanging CI). The runner is out-of-tree here, so each frame calls
+# _runner.poll() to drain the finished worker (an in-tree deploy runner auto-drains via its own
+# _process; the raw worker's call_deferred completion is not reliably flushed under --script on
+# macOS mono — #222).
 
 const Harness = preload("res://test/harness.gd")
 
@@ -64,6 +67,11 @@ func _initialize() -> void:
 func _process(_delta: float) -> bool:
 	if _quitting:  # quit is queued, not immediate — stop doing anything until the tree tears down.
 		return true
+	# The runner is not in the SceneTree here, so its _process can't auto-drain the worker result;
+	# drive delivery explicitly each frame (the worker's call_deferred completion is not reliably
+	# flushed under --script on macOS mono — #222). No-op once delivered / when nothing is pending.
+	if _runner != null:
+		_runner.poll()
 	_frames += 1
 	if not _done and not _captured.is_empty():
 		_done = true
