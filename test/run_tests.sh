@@ -58,6 +58,9 @@ echo "== Inference smoke test (headless) =="
 echo "== Trained chase check (headless) =="
 "$GODOT" --headless --path . res://test/integration/trained_chase_scene.tscn
 
+echo "== Launcher runtime check: change_scene_to_file initializes Sync (#239, headless) =="
+"$GODOT" --headless --path . res://test/integration/launcher_runtime_scene.tscn
+
 echo "== Visual chase (CNN, image route) integration smoke (headless) =="
 "$GODOT" --headless --path . res://test/integration/trained_visual_chase_scene.tscn
 
