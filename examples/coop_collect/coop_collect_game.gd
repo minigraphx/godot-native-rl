@@ -165,3 +165,29 @@ func is_terminal() -> bool:
 
 func request_reset() -> void:
 	_pending_reset = true
+
+# --- Cosmetic visualizer (deploy/play scenes only) ---
+# Drawing never touches observations, physics, rewards, or training — a headless trainer simply
+# renders nothing. Mirrors the chase/ball_chase visualizer pattern so coop_collect has a watchable
+# play scene (#228): two colored agents collecting gold items, dimmed once collected.
+const _COL_A := Color(0.25, 0.85, 0.95)    # agent A — cyan
+const _COL_B := Color(0.95, 0.45, 0.85)    # agent B — magenta
+const _COL_ITEM := Color(0.98, 0.80, 0.25) # uncollected item — gold
+const _COL_DONE := Color(0.30, 0.35, 0.40) # collected item — dim
+
+func _process(_delta: float) -> void:
+	queue_redraw()
+
+func _draw() -> void:
+	draw_rect(Rect2(Vector2.ZERO, arena_size), Color(0.08, 0.12, 0.17), true)
+	draw_rect(Rect2(Vector2.ZERO, arena_size), Color(0.28, 0.42, 0.55), false, 2.0)
+	if early_finish:
+		var bx := arena_size.x - bank_width
+		draw_rect(Rect2(Vector2(bx, 0.0), Vector2(bank_width, arena_size.y)), Color(0.20, 0.45, 0.30, 0.35), true)
+	var its := items()
+	var done := collected()
+	for i in range(its.size()):
+		var is_done: bool = i < done.size() and done[i]
+		draw_circle(its[i], 6.0 if is_done else 14.0, _COL_DONE if is_done else _COL_ITEM)
+	draw_circle(agent_pos(0), 16.0, _COL_A)
+	draw_circle(agent_pos(1), 16.0, _COL_B)
