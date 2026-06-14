@@ -19,6 +19,7 @@ const CrowdMath = preload("res://addons/godot_native_rl/controllers/crowd_math.g
 @export var num_threads: int = -1  # -1 = hardware_concurrency; 1 = serial; N = cap workers at N
 @export var deterministic_inference: bool = true
 @export var inference_seed: int = -1
+@export var policy_name: String = "shared_policy"  # shown in the Policy Debugger header (all units share it)
 
 var _runner = null
 var _agents: Array = []
@@ -84,11 +85,39 @@ func decide() -> void:
 		if not CrowdMath.output_usable(output):
 			continue
 		var agent = _agents[i]
-		var action: Dictionary = ActionDecode.decode_actions(output, agent.get_action_space(), deterministic_inference, _rng, {})
+		var action_space: Dictionary = agent.get_action_space()
+		var action: Dictionary = ActionDecode.decode_actions(output, action_space, deterministic_inference, _rng, {})
 		if action.is_empty():
 			push_error("NcnnCrowdController: action decode failed for agent %d; skipping." % i)
 			continue
+		_emit_debug(agent, inputs[i], output, action, action_space)
 		agent.set_action(action)
+
+# Emit the per-unit Policy Debugger payload through the agent node (the unit owns the signal; the
+# shared controller drives inference for all of them). Mirrors NcnnControllerCore._emit_debug so the
+# existing PolicyDebugOverlay renders crowd units unchanged: it auto-discovers each unit by the
+# inference_step signal and keys payloads by the unit's instance id. The identity (policy/model/det)
+# lives on the controller, not the unit, so it travels inside the payload's "identity" key — the
+# overlay prefers that over probing the emitter node. Inert when a unit doesn't declare the signal
+# (only the small Dictionary is built, at decision cadence). (#232)
+func _emit_debug(agent, obs_vec: PackedFloat32Array, logits: PackedFloat32Array, action: Dictionary, action_space: Dictionary) -> void:
+	if not agent.has_signal("inference_step"):
+		return
+	agent.emit_signal("inference_step", {
+		"agent_name": String(agent.name),
+		"obs": obs_vec,
+		"obs_image": {},
+		"logits": logits,
+		"action_space": action_space,
+		"action": action,
+		"deterministic": deterministic_inference,
+		"identity": {
+			"policy_name": policy_name,
+			"model": model_param_path.get_file() if not model_param_path.is_empty() else "?",
+			"deterministic": deterministic_inference,
+			"seed": inference_seed,
+		},
+	})
 
 func _physics_process(_delta: float) -> void:
 	decide()

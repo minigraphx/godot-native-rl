@@ -358,6 +358,10 @@ daily:
     controllers + pure PolicyDebug formatter; live obs/action-probs/identity/get_debug_status overlay,
     auto-discovery + F3 toggle + debug-build gate; headless helper/overlay/emit tests + chase debug
     scene),
+    GitHub #232 (Policy Debugger on crowd scenes — `NcnnCrowdController` emits a per-unit
+    `inference_step` through each child agent (identity travels in the payload since units share one
+    controller; overlay prefers payload identity); `chase_crowd.tscn` shows one live block per crowd
+    unit under F3; per-unit emit test + overlay structure regression. Note: GitHub issue #232.),
     GitHub #111 (PettingZoo `ParallelEnv` interop adapter — `GodotParallelEnv` in
     `scripts/godot_pettingzoo_env.py` provides `GDRLPettingZooEnv` functionality without depending on
     the upstream class; `train_pettingzoo.sh` drives multi-policy PPO one learner per `agent_policy_names`

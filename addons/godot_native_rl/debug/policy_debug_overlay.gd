@@ -117,7 +117,13 @@ func build_text() -> String:
 			var s = c.get_debug_status()
 			if s is Dictionary:
 				status = s
-		lines.append_array(PolicyDebug.render_lines(_latest[id], _identities[id], status, bar_width))
+		# A payload may carry its own identity (crowd units share one controller, so per-unit nodes
+		# don't expose policy/model props — the controller stuffs identity into the payload). Prefer
+		# it; fall back to the identity probed off the emitter node at connect time. (#232)
+		var identity: Dictionary = _identities[id]
+		if _latest[id].get("identity") is Dictionary:
+			identity = _latest[id]["identity"]
+		lines.append_array(PolicyDebug.render_lines(_latest[id], identity, status, bar_width))
 		lines.append("")
 	return "\n".join(lines)
 
