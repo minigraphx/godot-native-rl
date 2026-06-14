@@ -100,7 +100,15 @@ var _demos_saved := false
 func _ready() -> void:
 	# The Sync node must keep ticking while the SceneTree is paused.
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	await get_tree().root.ready
+	# Wait until the whole scene tree has finished _ready before scanning for agents. At boot the
+	# root Window emits `ready` once; but a scene loaded later via change_scene_to_file (e.g. the
+	# demo launcher) MISSED that one-shot signal — root is already ready — so awaiting it again
+	# would hang forever and inference would never initialize (a frozen scene). In that case wait a
+	# single process frame instead, which is enough for the freshly-instanced scene's nodes.
+	if get_tree().root.is_node_ready():
+		await get_tree().process_frame
+	else:
+		await get_tree().root.ready
 	get_tree().set_pause(true)
 	_initialize()
 	await get_tree().create_timer(1.0).timeout
