@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_game.gd" id="1"]
 [ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_agent.gd" id="2"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_hud.gd" id="4"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/debug/policy_debug_overlay.gd" id="5"]
 [ext_resource type="Script" path="res://examples/quadruped_walk/quadruped_camera.gd" id="6"]
+[ext_resource type="Script" path="res://examples/quadruped_walk/ground_markers.gd" id="7"]
 
 [sub_resource type="BoxShape3D" id="GroundShape"]
 size = Vector3(80, 1, 80)
@@ -27,6 +28,11 @@ emission = Color(0.6, 0.5, 0.1, 1)
 [node name="Game" type="Node3D"]
 script = ExtResource("1")
 finish_path = NodePath("Finish")
+
+[node name="GroundMarkers" type="Node3D" parent="."]
+script = ExtResource("7")
+count = 10
+spacing = 5.0
 
 [node name="Ground" type="StaticBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
