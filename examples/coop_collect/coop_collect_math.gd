@@ -52,6 +52,26 @@ static func collect_step(item_positions: Array, collected: Array, agent_position
 static func team_step_reward(newly_collected: int, item_value: float, step_penalty: float) -> float:
 	return newly_collected * item_value - step_penalty
 
+# Anti-redundancy / coverage penalty (#253): while items remain, penalize the agents for bunching
+# up, so dividing the map is the optimal cooperative policy (a parameter-shared actor on a pure
+# shared reward otherwise converges both agents onto the same path — they "go for each other").
+# Mean over agent pairs of a closeness ramp: `weight` when a pair is touching, linearly to 0 at
+# `radius` apart, 0 beyond. Returns 0 once everything is collected (no reason to stay spread after)
+# or when weight/radius is non-positive — so weight=0 leaves the team reward byte-identical.
+static func coverage_penalty(agent_positions: Array, items_remaining: int, radius: float, weight: float) -> float:
+	if items_remaining <= 0 or weight <= 0.0 or radius <= 0.0 or agent_positions.size() < 2:
+		return 0.0
+	var sum_closeness := 0.0
+	var pairs := 0
+	for i in range(agent_positions.size()):
+		for j in range(i + 1, agent_positions.size()):
+			var d: float = (agent_positions[i] as Vector2).distance_to(agent_positions[j] as Vector2)
+			sum_closeness += clampf(1.0 - d / radius, 0.0, 1.0)
+			pairs += 1
+	if pairs == 0:
+		return 0.0
+	return weight * (sum_closeness / float(pairs))
+
 # True when every item is collected (episode success terminal).
 static func all_collected(collected: Array) -> bool:
 	for c in collected:

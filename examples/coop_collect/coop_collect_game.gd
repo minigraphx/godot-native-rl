@@ -15,6 +15,11 @@ const M = preload("res://examples/coop_collect/coop_collect_math.gd")
 @export var collect_radius := 40.0
 @export var item_value := 1.0
 @export var step_penalty := 0.01        ## flat per-frame penalty -> rewards finishing fast (coop pressure)
+## Anti-redundancy coverage signal (#253): while items remain, subtract up to clump_weight from the
+## shared team reward when the agents bunch within clump_radius, so dividing the map is optimal.
+## Default 0.0 = OFF (team reward byte-identical) — the training scenes set it; deploy ignores reward.
+@export var clump_weight := 0.0
+@export var clump_radius := 250.0
 @export var max_steps := 400            ## episode timeout (frames)
 @export var item_norm := 1200.0         ## normalizer for relative-position obs
 @export var item_count := 4
@@ -99,6 +104,9 @@ func _physics_process(delta: float) -> void:
 	if early_finish:
 		penalty = step_penalty * float(active_agent_positions().size())
 	_team_reward = M.team_step_reward(newly, item_value, penalty)
+	# Coverage signal: discourage the agents bunching while items remain (clump_weight 0 -> no-op).
+	var items_remaining := item_count - M.count_collected(_collected)
+	_team_reward -= M.coverage_penalty(active_agent_positions(), items_remaining, clump_radius, clump_weight)
 	# Early-finish: an active agent in the bank zone (after a team contribution) banks out, parks,
 	# and adds a one-time bank bonus to the shared team reward. Its earlier collecting actions still
 	# get credit for the team reward earned AFTER it leaves (posthumous credit — the trainer masks it).

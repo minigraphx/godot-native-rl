@@ -56,6 +56,13 @@ func _initialize() -> void:
 	h.assert_true(absf(M.team_step_reward(2, 1.0, 0.01) - 1.99) < 1e-5, "team_step_reward")
 	h.assert_true(absf(M.team_step_reward(0, 1.0, 0.01) - (-0.01)) < 1e-5, "team_step_reward idle penalty")
 
+	# coverage_penalty (#253): full weight when touching, 0 at/over radius, 0 once collected/off.
+	h.assert_true(absf(M.coverage_penalty([Vector2(0, 0), Vector2(0, 0)], 2, 200.0, 0.02) - 0.02) < 1e-6, "coverage full when touching")
+	h.assert_true(absf(M.coverage_penalty([Vector2(0, 0), Vector2(100, 0)], 2, 200.0, 0.02) - 0.01) < 1e-6, "coverage half at half radius")
+	h.assert_true(absf(M.coverage_penalty([Vector2(0, 0), Vector2(200, 0)], 2, 200.0, 0.02)) < 1e-6, "coverage 0 at radius")
+	h.assert_true(absf(M.coverage_penalty([Vector2(0, 0), Vector2(0, 0)], 0, 200.0, 0.02)) < 1e-6, "coverage 0 when all collected")
+	h.assert_true(absf(M.coverage_penalty([Vector2(0, 0), Vector2(0, 0)], 2, 200.0, 0.0)) < 1e-6, "coverage 0 when weight off")
+
 	# all_collected.
 	h.assert_true(M.all_collected([true, true]), "all_collected true")
 	h.assert_true(not M.all_collected([true, false]), "all_collected false")
