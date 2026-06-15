@@ -17,11 +17,11 @@ const OBS: Array = [
 	[0.0, 0.0, 0.3, -0.2, 0.4, 0.1, 1.0, -0.3, 0.2, 0.0, 0.1, 0.5, 1.0, -0.4, -0.1, 0.0],
 ]
 
-# Recorded baseline (5 move logits per obs) from the shipped 2M-step MA-POCA actor (#242 retrain).
+# Recorded baseline (5 move logits per obs) from the shipped MA-POCA actor (#253 coverage retrain).
 const GOLDEN: Array = [
-	[-2.359375, -4.679688, 7.125000, -3.273438, -2.925781],
-	[0.037720, -0.836426, 7.617188, 1.229492, -7.429688],
-	[-1.341797, -3.503906, 8.125000, -1.528320, -5.382812],
+	[1.501953, 1.654297, 3.082031, 1.932617, -6.480469],
+	[1.027344, 0.189087, 5.882812, 0.962402, -7.156250],
+	[1.566406, 1.364258, 5.074219, 1.917969, -8.343750],
 ]
 
 func _initialize() -> void:
