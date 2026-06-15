@@ -76,6 +76,11 @@ func distance() -> float:
 		return 0.0
 	return torso_pos().distance_to(_finish_pos())
 
+# True once the creature's torso has reached the finish line's Z (the course is run along +Z). Used
+# by the agent as a success terminal so training rewards actually COMPLETING the course (#252).
+func reached_finish() -> bool:
+	return _finish != null and torso_pos().z >= _finish_pos().z
+
 func max_distance() -> float:
 	return 60.0
 

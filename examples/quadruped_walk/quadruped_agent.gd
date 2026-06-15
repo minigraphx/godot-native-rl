@@ -18,6 +18,7 @@ const RewardBuilderScript = preload("res://addons/godot_native_rl/reward/reward_
 #       and restore enough upright/alive + a stronger fall penalty that the creature stays up
 #       AND moves — for a robust, consistently-forward gait.
 @export var forward_weight := 0.15   ## reward +Z (toward finish) velocity — main driver
+@export var finish_bonus := 0.0      ## >0: reaching the finish ends the episode with this bonus (a goal to COMPLETE the course, #252)
 @export var lateral_weight := 0.06   ## penalize |X| velocity — go straight, don't drift sideways
 @export var upright_weight := 0.04
 @export var alive_bonus := 0.02
@@ -122,7 +123,15 @@ func _physics_process(delta: float) -> void:
 	# step()). WITHOUT this, the constant early-training falls reset n_steps every few frames, so
 	# the 1000-step timeout never fires and `done` never reaches the trainer → no episode ever
 	# completes → no learning signal (SB3 logs no ep_rew_mean).
-	if _is_fallen():
+	# Success: reached the finish line. Reward + end the episode so the policy learns to COMPLETE the
+	# course, not just walk fast until the timeout (the gait stalled ~21m = the old 1000-step timeout;
+	# with finish_bonus>0 and longer episodes it has a goal to run the full distance). Gated on
+	# finish_bonus>0 so default behavior — and every other scene using this agent — is unchanged. (#252)
+	if finish_bonus > 0.0 and _game.reached_finish():
+		reward += finish_bonus
+		done = true
+		needs_reset = true
+	elif _is_fallen():
 		reward -= fall_penalty
 		done = true
 		needs_reset = true
