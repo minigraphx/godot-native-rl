@@ -56,6 +56,8 @@ material_override = SubResource("FinishMat")
 script = ExtResource("2")
 game_path = NodePath("..")
 control_mode = 3
+reset_after = 6000
+finish_bonus = 5.0
 model_param_path = "res://examples/quadruped_walk/models/quadruped_walk.ncnn.param"
 model_bin_path = "res://examples/quadruped_walk/models/quadruped_walk.ncnn.bin"
 
