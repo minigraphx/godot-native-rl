@@ -72,26 +72,46 @@ In `examples/launcher.gd` (`_ready()` UI build):
 - No behavioural change to the demo list, `_run()`, or `demo_scenes()` (the headless launcher
   smoke must still pass unchanged).
 
-### 3. Per-scene resize audit (#272)
+### 3. Centered 2D framing via a reusable `FitCamera2D` (#272)
 
-For each **2D** demo play scene, verify and fix as needed:
+**Audit finding (2026-06-16):** none of the 2D play scenes has a `Camera2D`; they draw their world
+from origin (0,0), so content sits top-left. The world extent each uses is a **fixed simulation
+`arena_size`** that feeds `compute_obs` normalization and position clamping — it must **not**
+change (it would alter observations and break the trained nets). So the original "read
+`get_viewport_rect()`" framing was wrong; the correct fix is to give each 2D scene a **camera**
+that centers and zoom-fits its world rect, leaving the simulation untouched.
 
-- Renders fully and stays sensibly placed at the base 1280×720 size.
-- When the window is enlarged, content does not clip and does not drift into a corner.
-- Any scene that **hardcodes** viewport/window dimensions (e.g. a constant `600`/`720` for play-area
-  bounds or centering) must instead read `get_viewport_rect().size` (or anchor via Control
-  containers) so it tracks the actual window.
+Add a reusable node `addons/godot_native_rl/camera/fit_camera_2d.gd` (the 2D analogue of the 3D
+`OrbitCamera` from #265): a `Camera2D` that centers on a configurable `world_rect` and zooms so the
+rect is contained in the viewport with a small margin, re-fitting on `get_viewport().size_changed`.
+It follows the repo pattern — a pure, unit-testable static helper (`fit_zoom`) plus a thin node
+lifecycle.
 
-2D scenes to audit (from the launcher list):
-`chase_the_target.tscn`, `chase_the_target_debug.tscn`, `ball_chase.tscn`,
-`hide_and_seek_multipolicy.tscn`, `coop_collect.tscn`, `gridworld.tscn`, `visual_chase.tscn`.
+World rects (from the audited `arena_size` / grid extents — **read, never written**):
+
+| Scene | Root node | `world_rect` |
+|---|---|---|
+| `chase_the_target.tscn` | `ChaseGame` (Node2D) | `Rect2(0,0,1000,600)` |
+| `ball_chase.tscn` | `BallChaseGame` | `Rect2(0,0,1000,600)` |
+| `hide_and_seek_multipolicy.tscn` | `HideSeekMultiPolicy` | `Rect2(0,0,1000,600)` |
+| `coop_collect.tscn` | `CoopCollectGame` | `Rect2(0,0,1000,600)` |
+| `visual_chase.tscn` | `ChaseGame` (reuses `chase_game.gd`) | `Rect2(0,0,1000,600)` |
+| `gridworld.tscn` | `GridWorldGame` | `Rect2(0,0,320,320)` (8×8 × 40px) |
+
+`chase_the_target_debug.tscn` **instances** `chase_the_target.tscn`, so it inherits that scene's
+`FitCamera2D` — **no separate camera** is added to the debug scene.
+
+**Node-index gotcha:** add the `FitCamera2D` as the **last child** of each scene root. Several
+scenes (and `chase_the_target_debug.tscn`) carry `index=`-based node overrides (e.g.
+`PolicyDebugOverlay parent="ChaseTheTarget" index="4"`); inserting the camera anywhere but the end
+would shift those indices and silently retarget the override.
 
 For the **3D** demos (`rover_3d.tscn`, `fly_by.tscn`, `quadruped_walk_track.tscn`,
-`quadruped_hurdles_track.tscn`, `hexapod_walk_track.tscn`, `quadruped_race.tscn`): spot-check that
-framing is still correct under the new aspect — no code change expected.
+`quadruped_hurdles_track.tscn`, `hexapod_walk_track.tscn`, `quadruped_race.tscn`): no change — they
+have their own cameras (incl. the OrbitCamera). Spot-check framing under the new aspect only.
 
-The audit must not change any scene's **simulation** (obs/action/reward/physics) — only its
-presentation. Trained-net behavioral regressions must stay green.
+This change is presentation-only; no simulation/obs/action/reward/physics changes. Trained-net
+behavioral + golden regressions must stay green.
 
 ## Critical implementation constraint: project.godot local edits
 
@@ -120,9 +140,16 @@ and must not be staged.)
   `ProjectSettings.get_setting("display/window/stretch/mode") == "canvas_items"`,
   `…/stretch/aspect == "expand"`, `…/window/size/resizable == true`, and the base
   viewport width/height. Guards against accidental removal.
-- **Launcher structure** — extend the existing launcher coverage: instance `launcher.gd` headless,
-  walk the built UI, assert the title and buttons carry the expected font-size overrides and that
-  `demo_scenes()` is unchanged.
+- **Launcher structure** — new `test/unit/test_launcher_layout.gd`: instance `launcher.gd` in the
+  headless tree (so `_ready()` builds the UI), recursively collect the title `Label` + `Button`s,
+  assert each carries a `font_size` override above a threshold (title ≥ 24, buttons ≥ 16). The
+  existing `test_launcher.gd` smoke (`demo_scenes()`) stays unchanged.
+- **`FitCamera2D` pure helper** — new `test/unit/test_fit_camera_2d.gd`: `fit_zoom(world, viewport,
+  margin)` returns the contain-fit zoom (min axis ratio / margin) and `Vector2.ONE` on degenerate
+  input.
+- **`FitCamera2D` scene wiring** — new `test/unit/test_fit_camera_2d_in_scenes.gd`: each 2D play
+  scene (incl. `chase_the_target_debug.tscn`, which inherits chase's) carries exactly one node
+  running `fit_camera_2d.gd`. Mirrors `test_orbit_camera_in_scenes.gd`.
 - **Visual verification** — capture **≥3 windowed screenshots** (NOT headless) at different window
   sizes (e.g. 1280×720, 1920×1080, a tall/narrow window) of the launcher and a representative 2D
   demo, confirming legibility, centering, and no clipping. Resize behaviour is not unit-testable
@@ -134,9 +161,12 @@ and must not be staged.)
 
 - `project.godot` — add `[display]` (via stash isolation).
 - `examples/launcher.gd` — font sizes + centered column.
-- 2D scene scripts that hardcode viewport dims (discovered during the audit) — switch to
-  `get_viewport_rect()`.
-- `test/unit/test_display_settings.gd` — new.
+- `addons/godot_native_rl/camera/fit_camera_2d.gd` — new reusable centered/zoom-fit Camera2D node.
+- The six 2D play scenes that get a camera (`chase_the_target.tscn`, `ball_chase.tscn`,
+  `hide_and_seek_multipolicy.tscn`, `coop_collect.tscn`, `gridworld.tscn`, `visual_chase.tscn`) —
+  add a `FitCamera2D` as the last child with the per-scene `world_rect`.
+- `test/unit/test_display_settings.gd`, `test/unit/test_launcher_layout.gd`,
+  `test/unit/test_fit_camera_2d.gd`, `test/unit/test_fit_camera_2d_in_scenes.gd` — new.
 - Docs: README screenshots note if framing changes; `CLAUDE.md` only if a command/convention
   changes (likely none).
 
