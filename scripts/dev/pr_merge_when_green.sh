@@ -8,7 +8,7 @@
 # per poll instead of dozens of GraphQL calls.
 #
 # Usage:
-#   scripts/dev/pr_merge_when_green.sh <PR_NUMBER> [--dry-run] [--keep-branch] [--method merge|squash|rebase]
+#   scripts/dev/pr_merge_when_green.sh <PR_NUMBER> [--dry-run] [--keep-branch] [--no-ci-wait] [--method merge|squash|rebase]
 #
 # Env overrides:
 #   INITIAL_WAIT   seconds to wait before the first check (default 60; CI here takes ~18 min)
@@ -21,19 +21,21 @@ set -euo pipefail
 
 PR="${1:-}"
 if [ -z "$PR" ]; then
-	echo "usage: $0 <PR_NUMBER> [--dry-run] [--keep-branch] [--method merge|squash|rebase]" >&2
+	echo "usage: $0 <PR_NUMBER> [--dry-run] [--keep-branch] [--no-ci-wait] [--method merge|squash|rebase]" >&2
 	exit 2
 fi
 shift || true
 
 DRY_RUN=0
 KEEP_BRANCH=0
+NO_CI_WAIT=0
 METHOD="${MERGE_METHOD:-merge}"
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--dry-run) DRY_RUN=1 ;;
 		--keep-branch) KEEP_BRANCH=1 ;;
 		--method) shift; METHOD="${1:?--method needs a value}" ;;
+		--no-ci-wait|--docs) NO_CI_WAIT=1 ;;
 		*) echo "unknown arg: $1" >&2; exit 2 ;;
 	esac
 	shift
@@ -91,8 +93,12 @@ print_checks() {
 	gh api "repos/$REPO/commits/$sha/check-runs" --jq '.check_runs[] | "  \(.name): \(.status)/\(.conclusion)"' 2>/dev/null || true
 }
 
-echo "waiting ${INITIAL_WAIT}s before first check…"
-sleep "$INITIAL_WAIT"
+if [ "$NO_CI_WAIT" = "1" ]; then
+	echo "--no-ci-wait: skipping CI checks (docs-only PR); merging once GitHub reports it mergeable."
+else
+	echo "waiting ${INITIAL_WAIT}s before first check…"
+	sleep "$INITIAL_WAIT"
+fi
 
 deadline=$(( $(date +%s) + TIMEOUT ))
 HEAD_REF=""
@@ -107,23 +113,32 @@ while :; do
 		exit 0
 	fi
 
-	verdict="$(ci_verdict "$sha")"
-	echo "[$(date +%H:%M:%S)] ci=$verdict mergeable=$mergeable state=$mstate"
-
-	case "$verdict" in
-		failed)
-			echo "CI has a failing check — NOT merging:"
-			print_checks "$sha"
-			exit 1
-			;;
-		green)
-			print_checks "$sha"
+	if [ "$NO_CI_WAIT" = "1" ]; then
+		echo "[$(date +%H:%M:%S)] no-ci-wait mergeable=$mergeable state=$mstate"
+		# true -> ready to merge; false -> conflicts (caught by the guard after the loop);
+		# null/empty -> GitHub still computing mergeability, keep polling (cheap, no check-runs call).
+		if [ "$mergeable" = "true" ] || [ "$mergeable" = "false" ]; then
 			break
-			;;
-		pending)
-			: # keep waiting
-			;;
-	esac
+		fi
+	else
+		verdict="$(ci_verdict "$sha")"
+		echo "[$(date +%H:%M:%S)] ci=$verdict mergeable=$mergeable state=$mstate"
+
+		case "$verdict" in
+			failed)
+				echo "CI has a failing check — NOT merging:"
+				print_checks "$sha"
+				exit 1
+				;;
+			green)
+				print_checks "$sha"
+				break
+				;;
+			pending)
+				: # keep waiting
+				;;
+		esac
+	fi
 
 	if [ "$(date +%s)" -ge "$deadline" ]; then
 		echo "timeout: CI did not finish within ${TIMEOUT}s" >&2
