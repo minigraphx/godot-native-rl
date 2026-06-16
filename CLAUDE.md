@@ -49,7 +49,7 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   godot-cpp cache instead of recompiling the bindings (#85) — C++-change builds are ~2–3 min, not
   ~15. Bump `CACHE_VERSION` in the
   workflow to force a cold rebuild (also busts this `bin/` cache); bump the Godot patch versions in the
-  `test` matrix to track new releases.
+  `test` matrix to track new releases. A docs-only push/PR (only `**.md` / `docs/**`) skips the build+test jobs (`paths-ignore`, #261); merge such PRs with `scripts/dev/pr_merge_when_green.sh <PR> --no-ci-wait` since no checks run.
 - **Train (chase, curriculum):** `SCENE=res://examples/chase_the_target/chase_the_target_train_curriculum.tscn
   ./scripts/train_chase.sh` — 3-stage difficulty curriculum (#28): `CurriculumController` promotes
   stages **game-side** when rolling mean episode reward clears the threshold (works with every

@@ -184,3 +184,7 @@ uncounted) shows which bucket is empty; REST usually still has full budget.
   one call per poll. Run **one** watcher at a time.
 - Use the helper: **`scripts/dev/pr_merge_when_green.sh <PR#>`** — REST-only "merge on green"
   (rate_limit-guarded, ~2 REST calls/poll). `--dry-run` to check without merging.
+- **Docs-only PRs skip CI.** `.github/workflows/ci.yml` has `paths-ignore: ['**.md', 'docs/**']`,
+  so a change touching only docs creates no check-runs. `pr_merge_when_green.sh` would otherwise wait
+  for checks that never appear (40-min timeout) — pass `--no-ci-wait` (alias `--docs`) to merge such
+  a PR as soon as it is mergeable. Any code/build/workflow change still runs the full matrix.

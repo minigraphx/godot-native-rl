@@ -15,6 +15,8 @@
 #   POLL_INTERVAL  seconds between checks (default 120)
 #   TIMEOUT        max seconds to wait for CI overall (default 2400 = 40 min)
 #   MERGE_METHOD   merge|squash|rebase (default merge; --method overrides)
+#   --no-ci-wait (alias --docs): merge as soon as PR is mergeable, skipping check-runs wait
+#     (for docs-only PRs that create no checks); INITIAL_WAIT is ignored when set; other env overrides still apply
 #
 # Exit codes: 0 merged (or dry-run reported green), 1 failure/timeout, 2 usage error.
 set -euo pipefail
