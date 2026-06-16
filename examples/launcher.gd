@@ -35,20 +35,29 @@ func demo_scenes() -> Array:
 func _ready() -> void:
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED  # let the row fill width
 	add_child(scroll)
+
+	var row := HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.alignment = BoxContainer.ALIGNMENT_CENTER  # centers the fixed-width column
+	scroll.add_child(row)
+
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
-	vbox.custom_minimum_size = Vector2(560, 0)
-	scroll.add_child(vbox)
+	vbox.add_theme_constant_override("separation", 10)
+	vbox.custom_minimum_size = Vector2(640, 0)
+	row.add_child(vbox)
 
 	var title := Label.new()
 	title.text = "Godot Native RL — Demos   (☰ Menu or Esc returns here)"
+	title.add_theme_font_size_override("font_size", 28)
 	vbox.add_child(title)
 
 	for d in DEMOS:
 		var path: String = d[0]
 		var btn := Button.new()
 		btn.text = "%s\n    %s" % [d[1], d[2]]
+		btn.add_theme_font_size_override("font_size", 18)
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		btn.disabled = not ResourceLoader.exists(path)  # gray out any missing scene rather than crash
