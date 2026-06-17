@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://examples/chase_the_target/chase_game.gd" id="1"]
 [ext_resource type="Script" path="res://examples/chase_the_target/chase_agent.gd" id="2"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="3"]
 [ext_resource type="Script" path="res://addons/godot_native_rl/debug/policy_debug_overlay.gd" id="4"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/camera/fit_camera_2d.gd" id="fitcam2d"]
 
 [node name="ChaseGame" type="Node2D"]
 script = ExtResource("1")
@@ -27,3 +28,7 @@ control_mode = 2
 
 [node name="PolicyDebugOverlay" type="CanvasLayer" parent="."]
 script = ExtResource("4")
+
+[node name="FitCamera2D" type="Camera2D" parent="."]
+script = ExtResource("fitcam2d")
+world_rect = Rect2(0, 0, 1000, 600)
