@@ -117,6 +117,14 @@ right-drag to rotate, scroll to zoom — inspect the gait/jumps from any angle. 
 fixed follow view and is cosmetic + inert headless (no input → no change), so training/CI are
 unaffected.
 
+## Resizable windows (launcher + demos)
+The launcher and every demo run in a **resizable window** and scale to fit (project-wide
+`canvas_items` stretch, base 1280×720) — drag any corner and the content stays crisp, no clipping
+(#271/#272). The 2D demos carry a drop-in `FitCamera2D`
+(`addons/godot_native_rl/camera/fit_camera_2d.gd`): it centers each demo's world and zoom-fits it to
+the window, re-fitting on resize. Like the orbit camera it's cosmetic + inert headless and never
+touches the simulation's `arena_size`, so observations and the trained nets are unaffected.
+
 ## The moat
 ncnn statically linked enables web/WASM and console deployment (ONNX/.NET can't), game-side INT8
 quantization, async inference, LOD policy switching (`NcnnLODRunner`), and Godot-native ideas (Signal→Reward, `NavMeshSensor`, `AnimationPolicyAdapter`) — none
