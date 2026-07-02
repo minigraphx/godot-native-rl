@@ -85,6 +85,7 @@ bool NcnnRunner::load_model(const String &p_param_path, const String &p_bin_path
         return false;
     }
 
+    bin_buffer_ = PackedByteArray(); // file-based load copies weights; drop any retained buffer
     model_loaded_ = true;
     return true;
 }
@@ -100,6 +101,7 @@ bool NcnnRunner::load_model_from_buffers(const PackedByteArray &p_param, const P
 
     net_ = std::make_unique<ncnn::Net>();
     model_loaded_ = false;
+    bin_buffer_ = PackedByteArray(); // the old net (and thus its aliased buffer) is gone
 
     // ncnn's load_param_mem() needs a NUL-terminated C string of the text .param.
     std::vector<char> param_text(p_param.size() + 1);
@@ -116,12 +118,20 @@ bool NcnnRunner::load_model_from_buffers(const PackedByteArray &p_param, const P
     // The .bin weights load from an advancing memory cursor via DataReaderFromMemory.
     // DataReaderFromMemory carries no length bound, so the .bin/.param are trusted
     // app-bundled assets (same trust model as the path-based load_model).
-    const unsigned char *bin_cursor = reinterpret_cast<const unsigned char *>(p_bin.ptr());
+    //
+    // LIFETIME: ncnn's ModelBin prefers DataReaderFromMemory::reference(), so the loaded
+    // Net's weight Mats ALIAS the bin memory rather than copy it. Retain the caller's
+    // buffer in bin_buffer_ (COW reference, no copy) for the lifetime of net_ — without
+    // it a temporary PackedByteArray argument dangles and the weights silently corrupt
+    // once the freed block is reused (nondeterministic outputs).
+    bin_buffer_ = p_bin;
+    const unsigned char *bin_cursor = reinterpret_cast<const unsigned char *>(bin_buffer_.ptr());
     ncnn::DataReaderFromMemory bin_reader(bin_cursor);
     const int bin_result = net_->load_model(bin_reader);
     if (bin_result != 0) {
         UtilityFunctions::push_error("NcnnRunner.load_model_from_buffers: failed to load bin buffer.");
         net_.reset();
+        bin_buffer_ = PackedByteArray();
         return false;
     }
 

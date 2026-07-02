@@ -85,6 +85,12 @@ private:
     bool ready_to_swap_net(const char *p_where);
 
     std::unique_ptr<ncnn::Net> net_;
+    // Keeps the caller's .bin buffer alive for the lifetime of net_: ncnn's ModelBin prefers
+    // DataReaderFromMemory::reference(), so the loaded Net's weight Mats ALIAS this memory
+    // instead of copying it. Without this retain, load_model_from_buffers with a temporary
+    // PackedByteArray (e.g. FileAccess.get_file_as_bytes in a local) is a use-after-free —
+    // weights silently corrupt when the heap block is reused. Cleared on path-based loads.
+    PackedByteArray bin_buffer_;
     bool model_loaded_ = false;
     String input_blob_name_ = "input";
     String output_blob_name_ = "output";
