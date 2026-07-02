@@ -1,0 +1,34 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://examples/chase_the_target/chase_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/chase_the_target/chase_agent.gd" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/training/es_trainer.gd" id="3"]
+[ext_resource type="Script" path="res://test/integration/es_trainer_smoke_checker.gd" id="4"]
+
+[node name="ChaseGame" type="Node2D"]
+script = ExtResource("1")
+agent_body_path = NodePath("AgentBody")
+target_path = NodePath("Target")
+
+[node name="AgentBody" type="Node2D" parent="."]
+
+[node name="Target" type="Node2D" parent="."]
+
+[node name="ChaseAgent" type="Node2D" parent="."]
+script = ExtResource("2")
+game_path = NodePath("..")
+control_mode = 2
+reset_after = 40
+
+[node name="ESTrainer" type="Node" parent="."]
+script = ExtResource("3")
+hidden_dims = [8]
+half_population = 2
+generations = 2
+action_repeat = 4
+speed_up = 20.0
+out_dir = "user://es_smoke"
+checkpoint_stem = "chase_es_smoke"
+
+[node name="Checker" type="Node" parent="."]
+script = ExtResource("4")
