@@ -156,6 +156,17 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   SCENE=res://examples/quadruped_walk/quadruped_hurdles_train_parallel.tscn ./scripts/train_quadruped.sh`
   — same trainer, hurdles world (35-dim obs incl. 6 hurdle rays), 3-stage curriculum promotes
   game-side; `OUT=` redirects the save/export stem, `CKPT_DIR=` the snapshot dir.
+- **Train IN-ENGINE (ES — no Python, no socket, no backprop):** `godot --headless --path .
+  res://examples/chase_the_target/chase_es_train.tscn` — the native ES trainer (#131): `ESTrainer`
+  node (drop-in for `NcnnSync`; same agent contract, `action_repeat`/`speed_up`) evolves a flat θ
+  via OpenAI-ES (`training/es_math.gd`, pure), turns each candidate into a live ncnn net in memory
+  (`training/ncnn_weights.gd` θ⇄buffers codec — bijective, so `warm_start_*_path` fine-tunes a
+  shipped net on-device), fitness = episodic return from the existing reward system. Checkpoints
+  ARE deploy artifacts (`.ncnn.{param,bin}` in `out_dir`); multi-agent scenes evaluate candidates
+  in parallel waves. Small nets + dense rewards only (ES is sample-inefficient). **Gotcha found
+  here:** a net from `load_model_from_buffers` ALIASES the caller's bin buffer (ncnn
+  `DataReaderFromMemory` zero-copy) — the runner now retains it; never assume a from-memory load
+  copied the weights.
 - **Train (chase, CleanRL backend):** `./scripts/train_cleanrl.sh` — single-file CleanRL-style PPO over
   godot_rl's `CleanRLGodotEnv` (same chase scene + port 11008; `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`
   overrides). Exports ONNX (`models/chase_cleanrl_policy.onnx`) consumable unchanged by `export_to_ncnn.py`.
@@ -392,6 +403,7 @@ console deployment (no .NET cert issues), INT8 quantization game-side, **async i
 (`NcnnRunner.run_inference_async` + `inference_completed` signal, off-thread forward pass — #19),
 thread-parallel batched crowd inference (`run_inference_batch` + `NcnnCrowdController`, one shared `Net`),
 LOD policy switching (`NcnnLODRunner` — cheap reflex net every frame, accurate net every N / on state
-change, #21), and Godot-native ideas (Signal→Reward, `NavMeshSensor2D/3D` (navigable path obs, #20), `AnimationPolicyAdapter`
+change, #21), **native in-engine ES training** (`ESTrainer` — no Python/socket/backprop, runs on every
+deploy target incl. web, the checkpoint IS the deploy artifact, #131), and Godot-native ideas (Signal→Reward, `NavMeshSensor2D/3D` (navigable path obs, #20), `AnimationPolicyAdapter`
 — policy actions → `AnimationTree` blend params, #22) — none replicable by
 a Python-server framework or a managed-runtime one. Lead with these in all docs.
