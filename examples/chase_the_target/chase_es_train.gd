@@ -11,6 +11,9 @@ func _ready() -> void:
 	var trainer := get_node_or_null("ESTrainer")
 	if trainer != null:
 		trainer.candidate_starting.connect(_on_candidate_starting)
+		# A CLI training run should exit when done (the checkpoints are already on disk);
+		# without this a headless `godot --headless ... chase_es_train.tscn` hangs forever.
+		trainer.training_finished.connect(func(_best: float) -> void: get_tree().quit(0))
 
 
 func _on_candidate_starting(_slot: int, _candidate_index: int, generation: int) -> void:
