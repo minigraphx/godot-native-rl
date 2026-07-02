@@ -25,6 +25,11 @@ const ActionDecode = preload("res://addons/godot_native_rl/controllers/action_de
 
 signal generation_finished(generation: int, mean_fitness: float, best_fitness: float)
 signal training_finished(best_mean_fitness: float)
+## Emitted right before a candidate's episode reset is requested. Connect this to re-seed the
+## game's RNG per generation (common random numbers): giving every candidate in a generation the
+## SAME spawn sequence removes environment luck from the fitness comparison — without it, spawn
+## noise can drown the between-candidate signal entirely (flat fitness, no learning).
+signal candidate_starting(slot: int, candidate_index: int, generation: int)
 
 @export var agent_group := "AGENT"
 @export var hidden_dims: Array[int] = [16]
@@ -153,6 +158,7 @@ func _assign_next(slot: int) -> void:
 	_slot_fitness[slot] = 0.0
 	_slot_fresh[slot] = true
 	_next_candidate += 1
+	candidate_starting.emit(slot, _next_candidate - 1, _generation)
 	var agent: Node = _agents[slot]
 	agent.needs_reset = true  # the agent applies it on ITS next tick (fresh episode + zeroed reward)
 	agent.set_done_false()
