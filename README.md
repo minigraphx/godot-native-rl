@@ -71,7 +71,10 @@ it by episodic return from the existing reward system. No Python, no socket, no 
 on every deploy target the static ncnn build reaches, **including web**. The training artifact IS
 the deploy artifact (checkpoints are ncnn `.param`/`.bin`), and the codec is bijective, so you can
 warm-start from a shipped net and fine-tune on-device. Drop it into a scene in place of `NcnnSync`:
-`godot --headless --path . res://examples/chase_the_target/chase_es_train.tscn`. ES is
+`godot --headless --path . res://examples/chase_the_target/chase_es_train.tscn` (single world), or
+`chase_es_train_parallel.tscn` for 8 tiled worlds via `ParallelArena2D` — that run learns chase
+from scratch in ~25 min (mean fitness −0.9 → 13.5 over 400 generations), and the resulting net
+ships in `examples/chase_the_target/models/chase_es.ncnn.*` with a CI behavioral regression. ES is
 sample-inefficient — small nets and dense rewards, not a PPO/SAC replacement (issue #131).
 
 ## What you get

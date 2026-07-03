@@ -166,7 +166,11 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   in parallel waves; fitness comparability is built in (common-random-numbers `seed_games` via the
   agent's `game_path`, k-episode averaging `episodes_per_candidate`, trainer-owned horizon
   `episode_decisions` — agents' `reset_after` is overridden so a self-reset can't zero the tail
-  reward before the trainer reads it). Small nets + dense rewards only (ES is sample-inefficient).
+  reward before the trainer reads it). Proven live: `chase_es_train_parallel.tscn` (8 tiled worlds
+  via `ParallelArena2D`) took mean fitness −0.9 → **13.5** in 400 generations (~25 min); the best
+  net ships as `examples/chase_the_target/models/chase_es.ncnn.*` with a behavioral regression
+  (`trained_es_chase_scene.tscn`, 19 catches/1800 frames through the standard inference
+  controller). Small nets + dense rewards only (ES is sample-inefficient).
   **Gotcha found here:** ncnn's from-memory load ALIASES the source buffer (`DataReaderFromMemory`
   zero-copy) — the runner reads from a private owned copy that outlives the net; never assume a
   from-memory load copied the weights. (And never SUBCLASS ncnn classes in the extension — iOS

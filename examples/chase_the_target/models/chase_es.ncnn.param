@@ -1,0 +1,6 @@
+7767517
+4 4
+Input in0 0 1 in0 0=5
+InnerProduct fc0 1 1 in0 fc0 0=16 1=1 2=80
+ReLU act1 1 1 fc0 act1 0=0.0
+InnerProduct fc2 1 1 act1 out0 0=5 1=1 2=80
