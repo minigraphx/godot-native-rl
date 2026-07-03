@@ -42,6 +42,29 @@ static func antithetic_candidates(theta: PackedFloat32Array, sigma: float, epsil
 	return candidates
 
 
+## Single candidate for index `idx` under the antithetic ordering ([θ+σε_0, θ−σε_0, θ+σε_1, ...]),
+## computed lazily — callers that consume one candidate at a time (the trainer) need never
+## materialize the whole population (O(population × θ) memory saved).
+static func candidate_at(theta: PackedFloat32Array, sigma: float, epsilons: Array, idx: int) -> PackedFloat32Array:
+	if idx < 0 or idx >= 2 * epsilons.size():
+		push_error("EsMath.candidate_at: index %d out of range for %d epsilon pairs." % [idx, epsilons.size()])
+		return PackedFloat32Array()
+	var eps: PackedFloat32Array = epsilons[idx >> 1]
+	var sign_mult := 1.0 if (idx & 1) == 0 else -1.0
+	var out := PackedFloat32Array()
+	out.resize(theta.size())
+	for j in range(theta.size()):
+		out[j] = theta[j] + sign_mult * sigma * eps[j]
+	return out
+
+
+## Deterministic per-episode seed for common-random-numbers evaluation: identical for every
+## candidate (no candidate term — that is the point), distinct across generations and episode
+## indices, always positive (RandomNumberGenerator.seed is uint64; negatives wrap).
+static func episode_seed(base_seed: int, generation: int, episode: int) -> int:
+	return absi(base_seed * 92821 + (generation + 1) * 1_000_003 + (episode + 1) * 7919) + 1
+
+
 ## Rank-shape fitnesses to evenly spaced values in [-0.5, 0.5] (best -> +0.5). Makes the update
 ## invariant to fitness scale and robust to outliers/noise — the standard OpenAI-ES transform.
 ## Ties break by stable candidate order. A single candidate ranks to 0.

@@ -61,9 +61,10 @@ policies convert to blob names `in0`/`out0` (pnnx prunes the vestigial `state_in
 evolves a flat θ, `training/ncnn_weights.gd` renders it straight to ncnn `.param`/`.bin` buffers
 (the same format `export_statedict_to_ncnn.py` writes), and `load_model_from_buffers` makes it a
 live net — train → checkpoint → deploy is a single format end-to-end. Design:
-`docs/superpowers/specs/2026-07-02-native-es-trainer-design.md`. Buffer-lifetime gotcha: nets
-loaded from memory ALIAS the caller's bin buffer (ncnn zero-copy `reference()`); `NcnnRunner`
-retains the buffer for the net's lifetime since the fix in this feature's PR.
+`docs/superpowers/specs/2026-07-02-native-es-trainer-design.md`. Buffer-lifetime gotcha: ncnn's
+own memory reader makes loaded nets ALIAS the caller's bin buffer (zero-copy `reference()`);
+`load_model_from_buffers` forces a copy via a `reference()`-less DataReader since this feature's
+PR, so the net owns its weights.
 
 ## The inference-backend boundary (swappable runtime)
 

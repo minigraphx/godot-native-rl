@@ -113,8 +113,10 @@ Implications for positioning:
   boundary"; ExecuTorch tracked as #54) means a native-ORT runner drops in with no GDScript/decode/protocol
   changes. Doing so *as an upstream godot_rl contribution* fits the "complement first" strategy but narrows
   our own differentiation. This is a deliberate positioning call, **not** a queued implementation task.
-- Neither runtime does **on-device learning** — both are forward-pass-only; training stays in Python. That's
-  not a differentiator either way.
+- On-device learning: the runtimes themselves are forward-pass-only, but since #131 this repo trains
+  **in-engine via ES** (`ESTrainer` — gradient-free, needs only the ncnn forward pass + the reward
+  system; checkpoints ARE deploy artifacts; warm-start fine-tunes a shipped net). godot_rl has no
+  counterpart — training stays in Python there. This IS now a differentiator for us.
 
 See `docs/ncnn_vs_onnx.md` §"Web / HTML5 deployment" for the same note in the deployment-decision framing.
 
@@ -228,6 +230,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `RunningNormSensor` (online Welford normalisation) | No Python `VecNormalize` at deploy; Welford mean/var, freeze + JSON sidecar |
 | In-editor Policy Debugger (`PolicyDebugOverlay`) | Live obs / action-probs / identity overlay, F3 toggle, debug-build gate, auto-discovery |
 | Web/WASM GDExtension (no COOP/COEP) | Single-threaded ncnn WASM; proven in-browser on itch.io / GitHub Pages unmodified |
+| Native in-engine ES training (`ESTrainer`, #131) | No Python/socket/backprop; OpenAI-ES over the ncnn forward pass, CRN seeding + k-episode fitness, checkpoints are deploy-ready `.ncnn` pairs, warm-start on-device fine-tuning |
 | Continuous DiagGaussian action sampling (game-side) | `action_dist_stats_path` + log_std sidecar → `mean + std·N(0,1)` without Python at inference |
 
 ---

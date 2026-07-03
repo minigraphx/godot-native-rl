@@ -286,8 +286,10 @@ list both honestly so you can plan around them.
   outputs across CPUs, SIMD paths, or architectures (nor vs the Python trainer). Fine for single-player.
   For **lockstep multiplayer or replay systems, do not rely on raw NN output for sync** — threshold or
   quantize the action, or run inference authoritatively (e.g. server-side).
-- **Inference only — training stays in Python.** ncnn (and the ONNX deploy path) run forward passes;
-  there is no on-device learning or fine-tuning. Your train → convert → deploy loop is one-directional.
+- **Gradient training stays in Python.** ncnn (and the ONNX deploy path) run forward passes only —
+  no backprop on-device. The one exception in this repo is the gradient-free **in-engine ES trainer**
+  (`ESTrainer`, #131): it trains and fine-tunes small nets with nothing but the ncnn forward pass, on
+  every deploy target. For PPO/SAC-scale training the loop is still train-in-Python → convert → deploy.
 - **Mind the frame budget.** A tiny policy MLP runs in microseconds — negligible at 60 Hz. But large
   models, image observations, or many agents can blow the ~16 ms budget; move inference to a background
   thread and/or run it every *N* frames (see "Threading" above).

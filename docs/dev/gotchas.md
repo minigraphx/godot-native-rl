@@ -138,19 +138,23 @@ stays as a best-effort nudge; an atomic exchange makes delivery single-shot rega
 site fires first. Lesson: don't rely on a non-Godot worker thread's deferred call being flushed in
 every host; drain on the main thread you control.
 
-## A net from `load_model_from_buffers` ALIASES the caller's bin buffer (use-after-free)
+## ncnn's from-memory model load ALIASES the source buffer (use-after-free)
 
 ncnn's `ModelBinFromDataReader` prefers `DataReaderFromMemory::reference()`, so a `Net` loaded
-from memory keeps weight `Mat`s **pointing into the caller's bin `PackedByteArray`** instead of
-copying. Any caller whose buffer was a local (`FileAccess.get_file_as_bytes` into a var, or a
-freshly built candidate bin) had dangling weights the moment it went out of scope — outputs
-corrupt **nondeterministically** when the freed block is reused. `NcnnCrowdController` and
-`NcnnLODRunner` were affected in production; the 2D/3D controllers survived only because their
-`_last_bin_bytes` member happened to pin the buffer. Surfaced by the ES trainer's round-trip
-golden (#131): identical back-to-back runs printed different forward passes. Fix: `NcnnRunner`
-retains the bin buffer (COW reference) for the lifetime of the net; cleared on path-based loads.
-Lesson: never assume a from-memory model load copied its input — check the reader for zero-copy
-`reference()` support, and pin the buffer to the consumer's lifetime.
+via ncnn's own memory reader keeps weight `Mat`s **pointing into the caller's bin buffer**
+instead of copying. Any caller whose buffer was a local (`FileAccess.get_file_as_bytes` into a
+var, or a freshly built candidate bin) had dangling weights the moment it went out of scope —
+outputs corrupt **nondeterministically** when the freed block is reused. `NcnnCrowdController`
+and `NcnnLODRunner` were affected in production; the 2D/3D controllers survived only because
+their `_last_bin_bytes` member happened to pin the buffer. Surfaced by the ES trainer's
+round-trip golden (#131): identical back-to-back runs printed different forward passes. Fix:
+`load_model_from_buffers` loads through a custom `DataReaderFromMemoryCopy` that implements only
+`read()` (no `reference()`), forcing `ModelBin` to allocate and copy — the `Net` owns its weights
+outright, so no buffer-lifetime invariant exists at all. (A first fix retained the buffer as a
+member; review found the member destruction order re-created the hazard during `~NcnnRunner` —
+forcing the copy is structurally safer.) Lesson: never assume a from-memory model load copied its
+input — check the reader for zero-copy `reference()` support, and if it has it, either force the
+copy or pin the buffer to the consumer's lifetime.
 
 ## Position-based rewards must use TILE-LOCAL coordinates under ParallelArena
 

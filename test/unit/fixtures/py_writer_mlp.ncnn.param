@@ -1,0 +1,7 @@
+7767517
+5 5
+Input in0 0 1 in0 0=3
+InnerProduct fc0 1 1 in0 fc0 0=4 1=1 2=12
+ReLU act1 1 1 fc0 act1 0=0.0
+InnerProduct fc2 1 1 act1 fc2 0=2 1=1 2=8
+TanH act3 1 1 fc2 out0

@@ -65,27 +65,27 @@ static func param_text(spec: Dictionary) -> String:
 	for i in range(n_linear):
 		var fan_in := int(dims[i])
 		var fan_out := int(dims[i + 1])
-		var name := "fc%d" % idx
-		lines.append("InnerProduct %s 1 1 %s %s 0=%d 1=1 2=%d" % [name, prev, name, fan_out, fan_in * fan_out])
-		prev = name
-		idx += 1
 		var act: String = spec["hidden_activation"] if i < n_linear - 1 else spec["output_activation"]
+		var is_last_linear := i == n_linear - 1
+		var name := "fc%d" % idx
+		# The final line's top blob is out0 (the NcnnRunner convention), whichever layer that is.
+		var top := "out0" if is_last_linear and act == "" else name
+		lines.append("InnerProduct %s 1 1 %s %s 0=%d 1=1 2=%d" % [name, prev, top, fan_out, fan_in * fan_out])
+		prev = top
+		idx += 1
 		if act != "":
 			var mapping: Array = _ACTIVATIONS[act]
 			name = "act%d" % idx
-			var parts := "%s %s 1 1 %s %s" % [mapping[0], name, prev, name]
+			top = "out0" if is_last_linear else name
+			var parts := "%s %s 1 1 %s %s" % [mapping[0], name, prev, top]
 			var params: Dictionary = mapping[1]
 			for pid in params:
 				parts += " %d=%s" % [pid, _fmt_param(params[pid])]
 			lines.append(parts)
-			prev = name
+			prev = top
 			idx += 1
-	# Rename the final layer's top to out0 (the NcnnRunner blob-name convention).
-	var last: String = lines[lines.size() - 1]
-	var tokens := last.split(" ")
-	# Output blob is token 5 for both layer shapes here (type name 1 1 bottom top ...).
-	tokens[5] = "out0"
-	lines[lines.size() - 1] = " ".join(tokens)
+	# Blob count == layer count here: every layer contributes exactly one new top and reuses the
+	# previous top as its bottom (same invariant the Python writer's count_blobs computes).
 	var header := "%s\n%d %d\n" % [NCNN_MAGIC, lines.size(), lines.size()]
 	return header + "\n".join(lines) + "\n"
 
@@ -102,13 +102,13 @@ static func bin_bytes(spec: Dictionary, theta: PackedFloat32Array) -> PackedByte
 	var tag := PackedByteArray([0, 0, 0, 0])  # ncnn ModelBin type-0: plain float32 follows
 	var offset := 0
 	for i in range(dims.size() - 1):
-		var n_weights := int(dims[i]) * int(dims[i + 1])
-		var n_bias := int(dims[i + 1])
-		out += tag
-		out += theta.slice(offset, offset + n_weights).to_byte_array()
-		offset += n_weights
-		out += theta.slice(offset, offset + n_bias).to_byte_array()
-		offset += n_bias
+		# Weights then bias are adjacent in θ, so one contiguous slice covers the layer; the
+		# fp32 tag prefixes the weights and the bias is raw, so tag + slice is the whole layer.
+		# append_array is in-place (`out += x` reallocates and re-copies the accumulator).
+		var n_floats := int(dims[i]) * int(dims[i + 1]) + int(dims[i + 1])
+		out.append_array(tag)
+		out.append_array(theta.slice(offset, offset + n_floats).to_byte_array())
+		offset += n_floats
 	return out
 
 

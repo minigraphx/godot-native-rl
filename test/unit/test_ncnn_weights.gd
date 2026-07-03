@@ -95,6 +95,22 @@ func _initialize() -> void:
 	var out_c := _forward(h, W.mlp_spec([1, 1], "relu", "tanh"), PackedFloat32Array([2, 0]), [0.5], "tanh output")
 	_approx(h, out_c, [tanh(1.0)], "tanh-output forward golden", 1e-4)
 
+	# --- cross-language parity: byte-identical to the PYTHON writer's committed fixture ---
+	# The fixture (test/unit/fixtures/py_writer_mlp.ncnn.*) was emitted by
+	# scripts/export_statedict_to_ncnn.py's pure format functions (dims [3,4,2], relu hidden,
+	# tanh output, theta[i] = i*0.03125 - 0.5). If either writer's format drifts, this trips —
+	# the two codecs must stay interchangeable or warm-starting from a Python-exported net breaks.
+	var fx_spec: Dictionary = W.mlp_spec([3, 4, 2], "relu", "tanh")
+	var fx_theta := PackedFloat32Array()
+	for i in range(26):
+		fx_theta.append(float(i) * 0.03125 - 0.5)
+	var fx_param := FileAccess.get_file_as_string("res://test/unit/fixtures/py_writer_mlp.ncnn.param")
+	var fx_bin := FileAccess.get_file_as_bytes("res://test/unit/fixtures/py_writer_mlp.ncnn.bin")
+	h.assert_true(not fx_param.is_empty() and not fx_bin.is_empty(), "python-writer fixture present")
+	h.assert_eq(W.param_text(fx_spec), fx_param, "param_text byte-identical to the Python writer")
+	h.assert_eq(W.bin_bytes(fx_spec, fx_theta), fx_bin, "bin_bytes byte-identical to the Python writer")
+	_approx(h, W.theta_from_bin(fx_spec, fx_bin), Array(fx_theta), "theta_from_bin decodes a Python-written bin")
+
 	# --- fail-loud guards ---
 	h.assert_eq(W.mlp_spec([5]), {}, "mlp_spec rejects fewer than 2 dims")
 	h.assert_eq(W.mlp_spec([5, 3], "swish"), {}, "mlp_spec rejects unknown activation")

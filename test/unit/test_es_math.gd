@@ -49,6 +49,20 @@ func _initialize() -> void:
 	h.assert_true(float(shaped[0]) > float(shaped[2]), "rank order preserved (10 > 5)")
 	h.assert_eq(ES.centered_ranks([7.0]), [0.0], "single candidate ranks to 0")
 
+	# --- candidate_at: lazy indexing matches the materialized antithetic ordering ---
+	var eps2 := [PackedFloat32Array([0.5, 2.0]), PackedFloat32Array([-1.0, 0.25])]
+	var all_cands: Array = ES.antithetic_candidates(theta, 0.1, eps2)
+	for idx in range(4):
+		h.assert_eq(ES.candidate_at(theta, 0.1, eps2, idx), all_cands[idx],
+			"candidate_at(%d) == antithetic_candidates[%d]" % [idx, idx])
+	h.assert_eq(ES.candidate_at(theta, 0.1, eps2, 4), PackedFloat32Array(), "candidate_at out of range fails loud")
+
+	# --- episode_seed: candidate-independent, (gen, episode)-distinct, positive ---
+	h.assert_eq(ES.episode_seed(7, 3, 1), ES.episode_seed(7, 3, 1), "episode_seed deterministic")
+	h.assert_true(ES.episode_seed(7, 3, 1) != ES.episode_seed(7, 4, 1), "episode_seed varies by generation")
+	h.assert_true(ES.episode_seed(7, 3, 1) != ES.episode_seed(7, 3, 2), "episode_seed varies by episode")
+	h.assert_true(ES.episode_seed(-5, 0, 0) > 0, "episode_seed positive for negative base")
+
 	# --- es_update: hand-computed single-pair step ---
 	# theta=[0,0], eps=[[1,0]], shaped=[+0.5 (plus cand), -0.5 (minus cand)], sigma=1, alpha=1
 	# grad = (0.5*eps + (-0.5)*(-eps)) = eps -> theta' = theta + 1/(2*1) * [1,0] = [0.5, 0]

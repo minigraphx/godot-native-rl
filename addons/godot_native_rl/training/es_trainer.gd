@@ -4,18 +4,36 @@ extends Node
 # A drop-in replacement for the NcnnSync node that trains instead of bridging: it drives the same
 # agent contract NcnnSync does (group "AGENT"; get_obs()["obs"], set_action(dict),
 # get_reward()/zero_reward(), get_done()/set_done_false(), needs_reset, get_action_space()) at the
-# same action_repeat cadence, but the actions come from CANDIDATE nets the trainer itself evolves:
-# an OpenAI-ES optimizer (es_math.gd) perturbs a flat weight vector θ, each candidate becomes a
-# live ncnn net via the θ ⇄ buffers codec (ncnn_weights.gd) + NcnnRunner.load_model_from_buffers,
-# and one episode's return (the existing reward system) is its fitness. Multi-agent scenes (e.g.
-# ParallelArena tiles) evaluate one candidate per agent slot in parallel waves.
+# same action_repeat cadence — honouring the same `speedup=`/`action_repeat=` cmdline overrides —
+# but the actions come from CANDIDATE nets the trainer itself evolves: an OpenAI-ES optimizer
+# (es_math.gd) perturbs a flat weight vector θ, each candidate becomes a live ncnn net via the
+# θ ⇄ buffers codec (ncnn_weights.gd) + NcnnRunner.load_model_from_buffers, and episodic return
+# (the existing reward system) is its fitness. Multi-agent scenes (e.g. ParallelArena tiles)
+# evaluate one candidate per agent slot in parallel waves.
+#
+# The trainer OWNS the episode horizon (episode_decisions, counted in decision steps): each
+# agent's reset_after is overridden to effectively-infinite so the controller never self-resets —
+# a self-reset zeroes the agent's reward accumulator before the trainer's boundary read, silently
+# deleting the final window's reward (catches!) from the fitness. Game-driven terminal `done`
+# (falls, pits) is still honoured every decision step.
+#
+# Fitness comparability safeguards (ES lives or dies on the between-candidate ranking):
+# - Common random numbers: with seed_games on, every candidate's episode k in generation g is
+#   seeded identically (EsMath.episode_seed) via the agent's `game_path` game's `seed_rng()` —
+#   spawn luck cancels out of the ranking. episode_starting is emitted for custom seeding.
+# - k-episode averaging (episodes_per_candidate) cuts residual per-episode noise.
+# - A neutral action (decoded all-zero logits) is applied at every episode start, so the reset
+#   window plays out identically for every candidate instead of under the previous candidate's
+#   stale action.
+# - A terminal `done` before the candidate's first decision (stale-window spillover / hostile
+#   spawn) restarts the episode instead of recording a phantom 0 fitness.
 #
 # The training artifact IS the deploy artifact: checkpoints are ncnn .param/.bin pairs, loadable
 # by every controller unchanged — there is no export step. Warm-starting from a shipped net is the
-# same codec in reverse (warm_start_*_path).
+# same codec in reverse (warm_start_*_path; the .param file is validated against this scene's
+# architecture, fail loud).
 #
-# Scope/trade-offs: episodes are the fixed horizon the controllers already implement
-# (`reset_after`); flat float obs only (fail loud otherwise); ES is sample-inefficient — this is
+# Scope/trade-offs: flat float obs only (fail loud otherwise); ES is sample-inefficient — this is
 # for small nets, dense rewards, and self-contained/on-device learning, not a PPO/SAC replacement.
 # Place the trainer AFTER the agents in the scene tree (like Sync) so agents step first each tick.
 
@@ -25,11 +43,9 @@ const ActionDecode = preload("res://addons/godot_native_rl/controllers/action_de
 
 signal generation_finished(generation: int, mean_fitness: float, best_fitness: float)
 signal training_finished(best_mean_fitness: float)
-## Emitted right before a candidate's episode reset is requested. Connect this to re-seed the
-## game's RNG per generation (common random numbers): giving every candidate in a generation the
-## SAME spawn sequence removes environment luck from the fitness comparison — without it, spawn
-## noise can drown the between-candidate signal entirely (flat fitness, no learning).
-signal candidate_starting(slot: int, candidate_index: int, generation: int)
+## Emitted right before an episode reset is requested — hook for CUSTOM per-episode game setup
+## beyond the built-in seed_games seeding (curriculum stages, layout variants, ...).
+signal episode_starting(slot: int, candidate_index: int, generation: int, episode: int)
 
 @export var agent_group := "AGENT"
 @export var hidden_dims: Array[int] = [16]
@@ -38,42 +54,69 @@ signal candidate_starting(slot: int, candidate_index: int, generation: int)
 @export var sigma := 0.1  ## perturbation stddev
 @export var alpha := 0.05  ## learning rate
 @export var generations := 100
-@export var action_repeat := 8  ## physics ticks between control decisions (NcnnSync convention)
+@export var episode_decisions := 100  ## episode horizon in DECISION steps (× action_repeat ticks)
+@export var episodes_per_candidate := 1  ## fitness = mean return over k seeded episodes
+@export var action_repeat := 8  ## physics ticks between decisions (cmdline `action_repeat=` overrides)
 @export var rng_seed := 0
-@export var speed_up := 1.0  ## same mechanism as NcnnSync: scales physics ticks + time_scale
+@export var speed_up := 1.0  ## same mechanism as NcnnSync (cmdline `speedup=` overrides)
+## Seed each agent's game (duck-typed: the node at the agent's `game_path` with a `seed_rng()`
+## method) per (generation, episode) so all candidates face identical draws — common random
+## numbers. Warns once when nothing seedable is found; connect episode_starting to seed manually.
+@export var seed_games := true
 @export var out_dir := "user://es_checkpoints"
 @export var checkpoint_stem := "es_policy"
 @export var checkpoint_every := 0  ## write <stem>_gen<N> every N generations (0 = final/best only)
-## Warm-start θ from a shipped net (both paths or neither). The net must match the spec this
-## trainer builds ([obs_dim] + hidden_dims + [action_dim], hidden_activation) — fail loud if not.
+## Warm-start θ from a shipped net (both paths or neither). The .param file must match the
+## architecture this scene builds ([obs_dim] + hidden_dims + [action_dim], activations) — the
+## trainer compares it against its own generated param text and aborts on mismatch.
 @export var warm_start_param_path := ""
 @export var warm_start_bin_path := ""
+@export var input_blob_name := "in0"
+@export var output_blob_name := "out0"
+## Quit the SceneTree when training finishes (exit 0) or aborts on an error (exit 1) — for
+## headless CLI runs. Leave off when the trainer is embedded in a larger scene (demos, tests).
+@export var exit_on_finish := false
+
+## A terminal done before the candidate's first decision restarts the episode this many times
+## before scoring what accrued (a broken always-terminal env must not loop forever).
+const MAX_PHANTOM_RESTARTS := 3
 
 var _agents: Array = []
 var _runners: Array = []
+var _slot_game: Array = []  # per slot: the seedable game node (null when none found)
 var _spec: Dictionary = {}
 var _param_bytes := PackedByteArray()
 var _theta := PackedFloat32Array()
 var _action_space: Dictionary = {}
+var _neutral_action: Dictionary = {}  # decoded all-zero logits: the candidate-independent reset action
 var _rng := RandomNumberGenerator.new()
 var _epsilons: Array = []
-var _candidates: Array = []
 var _fitness: Array = []
 var _next_candidate := 0
+var _n_candidates := 0
 var _slot_candidate: Array = []  # candidate index under evaluation per agent slot; -1 = idle
-var _slot_fitness: Array = []
+var _slot_episode: Array = []  # 0-based episode index within the candidate's k episodes
+var _slot_decisions: Array = []  # decision steps taken in the current episode
 var _slot_fresh: Array = []  # true right after a reset boundary: discard that stale reward read
+var _slot_accum: Array = []  # summed return across the candidate's completed episodes
+var _slot_restarts: Array = []  # phantom-done restarts of the current episode
 var _generation := 0
 var _tick := 0
 var _best_mean := -INF
-var _finished := false
 
 
 func _ready() -> void:
+	var args := _cmdline_args()
+	speed_up = float(args.get("speedup", str(speed_up)))
+	action_repeat = int(args.get("action_repeat", str(action_repeat)))
 	# Same speedup mechanism as NcnnSync (headless training runs faster than real time).
 	if speed_up != 1.0:
 		Engine.physics_ticks_per_second = int(speed_up * 60.0)
 		Engine.time_scale = speed_up
+		# The default cap (8 physics steps per rendered frame) silently throttles large
+		# speed_ups to ~8 × fps ticks/s; let one frame consume a couple of scaled frames'
+		# worth of ticks so the configured rate is actually reachable.
+		Engine.max_physics_steps_per_frame = maxi(Engine.max_physics_steps_per_frame, int(ceil(speed_up)) * 2)
 	_rng.seed = rng_seed
 	set_physics_process(false)
 	# Agents register their group in their own _ready; initialize after the whole scene is in.
@@ -81,13 +124,14 @@ func _ready() -> void:
 
 
 func _late_init() -> void:
-	_agents = get_tree().get_nodes_in_group(agent_group)
-	if _agents.is_empty():
-		push_error("ESTrainer: no agents found in group '%s'." % agent_group)
+	if episode_decisions < 1 or episodes_per_candidate < 1 or half_population < 1:
+		_abort("episode_decisions, episodes_per_candidate and half_population must all be >= 1.")
+		return
+	if not _discover_agents():
 		return
 	var first_obs: Dictionary = _agents[0].get_obs()
 	if not first_obs.has("obs"):
-		push_error("ESTrainer: agent get_obs() has no flat 'obs' key; image obs are unsupported.")
+		_abort("agent get_obs() has no flat 'obs' key; image obs are unsupported.")
 		return
 	var obs_dim: int = (first_obs["obs"] as Array).size()
 	_action_space = _agents[0].get_action_space()
@@ -99,69 +143,129 @@ func _late_init() -> void:
 	dims.append(action_dim)
 	_spec = NcnnWeights.mlp_spec(dims, hidden_activation)
 	if _spec.is_empty():
-		return  # mlp_spec already pushed the error
+		_abort("invalid MLP spec (see the error above).")
+		return
 	_param_bytes = NcnnWeights.param_text(_spec).to_utf8_buffer()
 	_theta = _initial_theta()
 	if _theta.is_empty():
-		return
+		return  # _initial_theta aborted with the specific reason
+	var zero_out := PackedFloat32Array()
+	zero_out.resize(action_dim)
+	_neutral_action = ActionDecode.decode_actions(zero_out, _action_space)
+	_n_candidates = 2 * half_population
+	if _n_candidates % _agents.size() != 0:
+		push_warning("ESTrainer: %d candidates across %d agent slot(s) leaves %d idle slot-episodes per generation — pick half_population so 2*half_population is a multiple of the slot count."
+			% [_n_candidates, _agents.size(), _agents.size() - (_n_candidates % _agents.size())])
 	for agent in _agents:
+		# The trainer owns the episode horizon (see the header comment): the controller must
+		# never self-reset mid-run, or the tail window's reward is zeroed before we read it.
+		agent.reset_after = 1 << 30
 		var runner := NcnnRunner.new()
-		runner.input_blob_name = "in0"
-		runner.output_blob_name = "out0"
+		runner.input_blob_name = input_blob_name
+		runner.output_blob_name = output_blob_name
 		add_child(runner)
 		_runners.append(runner)
-	_slot_candidate.resize(_agents.size())
-	_slot_fitness.resize(_agents.size())
-	_slot_fresh.resize(_agents.size())
-	print("[ESTrainer] net %s (θ=%d floats) · population %d · %d agent slot(s) · %d generations"
-		% [str(dims), _theta.size(), 2 * half_population, _agents.size(), generations])
+		_slot_game.append(_seedable_game_of(agent))
+	if seed_games and _slot_game.count(null) == _slot_game.size():
+		push_warning("ESTrainer: seed_games is on but no agent exposes a seedable game (game_path -> node with seed_rng()); candidates will face DIFFERENT random draws, which can drown the fitness ranking. Connect episode_starting to seed manually, or set seed_games = false to silence this.")
+	var n_slots := _agents.size()
+	for arr in [_slot_candidate, _slot_episode, _slot_decisions, _slot_accum, _slot_restarts]:
+		arr.resize(n_slots)
+		arr.fill(0)  # Array.resize pads with null, which would poison int/float arithmetic
+	_slot_fresh.resize(n_slots)
+	_slot_fresh.fill(false)
+	print("[ESTrainer] net %s (θ=%d floats) · population %d × %d episode(s) · %d agent slot(s) · %d generations"
+		% [str(dims), _theta.size(), _n_candidates, episodes_per_candidate, n_slots, generations])
 	_start_generation()
 	set_physics_process(true)
 
 
+## Mirror NcnnSync's partition: drive TRAINING agents (adopting INHERIT_FROM_SYNC ones), leave
+## HUMAN and NCNN_INFERENCE agents alone — a frozen self-play ghost or a player avatar in the
+## scene must not be hijacked as a candidate slot.
+func _discover_agents() -> bool:
+	_agents = []
+	for agent in get_tree().get_nodes_in_group(agent_group):
+		var mode: int = agent.get("control_mode")
+		if mode == agent.ControlModes.INHERIT_FROM_SYNC:
+			agent.control_mode = agent.ControlModes.TRAINING
+			mode = agent.ControlModes.TRAINING
+		if mode == agent.ControlModes.TRAINING:
+			_agents.append(agent)
+	if _agents.is_empty():
+		_abort("no TRAINING-mode agents found in group '%s'." % agent_group)
+		return false
+	return true
+
+
+func _seedable_game_of(agent: Node) -> Node:
+	if not ("game_path" in agent):
+		return null
+	var game: Node = agent.get_node_or_null(agent.game_path)
+	if game != null and game.has_method("seed_rng"):
+		return game
+	return null
+
+
 func _initial_theta() -> PackedFloat32Array:
 	if warm_start_param_path.is_empty() != warm_start_bin_path.is_empty():
-		push_error("ESTrainer: set both warm_start paths or neither.")
+		_abort("set both warm_start paths or neither.")
 		return PackedFloat32Array()
 	if warm_start_bin_path.is_empty():
 		return NcnnWeights.init_theta(_spec, _rng)
+	# The .bin alone can't reveal an architecture mismatch (same float count, different
+	# activations/layout decodes to garbage θ) — the .param can. Fail loud on any difference.
+	var want_param := NcnnWeights.param_text(_spec).strip_edges()
+	var have_param := FileAccess.get_file_as_string(warm_start_param_path).strip_edges()
+	if have_param != want_param:
+		_abort("warm-start net '%s' does not match this scene's architecture (param text differs)." % warm_start_param_path)
+		return PackedFloat32Array()
 	var bin := FileAccess.get_file_as_bytes(warm_start_bin_path)
 	var theta: PackedFloat32Array = NcnnWeights.theta_from_bin(_spec, bin)
 	if theta.is_empty():
-		push_error("ESTrainer: warm-start net '%s' does not match the spec this scene builds."
-			% warm_start_bin_path)
+		_abort("warm-start bin '%s' does not decode against this scene's spec." % warm_start_bin_path)
 	return theta
 
 
 func _start_generation() -> void:
 	_epsilons = EsMath.sample_epsilons(_rng, half_population, _theta.size())
-	_candidates = EsMath.antithetic_candidates(_theta, sigma, _epsilons)
 	_fitness = []
-	_fitness.resize(_candidates.size())
+	_fitness.resize(_n_candidates)
 	_fitness.fill(0.0)
 	_next_candidate = 0
 	for slot in range(_agents.size()):
-		_slot_fitness[slot] = 0.0
 		_assign_next(slot)
 
 
 func _assign_next(slot: int) -> void:
-	if _next_candidate >= _candidates.size():
+	if _next_candidate >= _n_candidates:
 		_slot_candidate[slot] = -1
 		return
+	var candidate: PackedFloat32Array = EsMath.candidate_at(_theta, sigma, _epsilons, _next_candidate)
 	var runner: NcnnRunner = _runners[slot]
-	if not runner.load_model_from_buffers(_param_bytes, NcnnWeights.bin_bytes(_spec, _candidates[_next_candidate])):
-		push_error("ESTrainer: candidate net failed to load — aborting training.")
-		set_physics_process(false)
+	if not runner.load_model_from_buffers(_param_bytes, NcnnWeights.bin_bytes(_spec, candidate)):
+		_abort("candidate net failed to load.")
 		return
 	_slot_candidate[slot] = _next_candidate
-	_slot_fitness[slot] = 0.0
-	_slot_fresh[slot] = true
 	_next_candidate += 1
-	candidate_starting.emit(slot, _next_candidate - 1, _generation)
+	_slot_episode[slot] = 0
+	_slot_accum[slot] = 0.0
+	_begin_episode(slot)
+
+
+## Request a fresh episode for the slot's current (candidate, episode) pair: seed the game
+## (common random numbers), hand the agent the candidate-independent neutral action for the
+## reset window, and flag the boundary so its reward read is discarded.
+func _begin_episode(slot: int) -> void:
 	var agent: Node = _agents[slot]
+	if seed_games and _slot_game[slot] != null:
+		_slot_game[slot].seed_rng(EsMath.episode_seed(rng_seed, _generation, _slot_episode[slot]))
+	episode_starting.emit(slot, _slot_candidate[slot], _generation, _slot_episode[slot])
+	agent.set_action(_neutral_action)
 	agent.needs_reset = true  # the agent applies it on ITS next tick (fresh episode + zeroed reward)
 	agent.set_done_false()
+	_slot_fresh[slot] = true
+	_slot_decisions[slot] = 0
 
 
 func _physics_process(_delta: float) -> void:
@@ -171,36 +275,51 @@ func _physics_process(_delta: float) -> void:
 	_tick += 1
 	var any_active := false
 	for slot in range(_agents.size()):
-		var cand: int = _slot_candidate[slot]
-		if cand < 0:
-			continue
-		any_active = true
-		var agent: Node = _agents[slot]
-		var r: float = agent.get_reward()
-		agent.zero_reward()
-		if _slot_fresh[slot]:
-			_slot_fresh[slot] = false  # reward accrued across the reset boundary isn't this candidate's
-		else:
-			_slot_fitness[slot] += r
-		if agent.get_done():
-			agent.set_done_false()
-			_fitness[cand] = _slot_fitness[slot]
-			_assign_next(slot)
-			continue
-		var obs: Array = agent.get_obs()["obs"]
-		var out: PackedFloat32Array = _runners[slot].run_inference(PackedFloat32Array(obs))
-		if out.is_empty():
-			push_error("ESTrainer: inference failed — aborting training.")
-			set_physics_process(false)
-			return
-		agent.set_action(ActionDecode.decode_actions(out, _action_space))
-	if not any_active and _next_candidate >= _candidates.size():
+		if _slot_candidate[slot] >= 0:
+			any_active = true
+			_step_slot(slot)
+			if not is_physics_processing():
+				return  # _step_slot aborted mid-generation
+	if not any_active:
 		_finish_generation()
 
 
+func _step_slot(slot: int) -> void:
+	var agent: Node = _agents[slot]
+	var r: float = agent.get_reward()
+	agent.zero_reward()
+	if _slot_fresh[slot]:
+		_slot_fresh[slot] = false  # reward accrued across the reset boundary isn't this candidate's
+	else:
+		_slot_accum[slot] += r
+	var done_env: bool = agent.get_done()
+	if done_env:
+		agent.set_done_false()
+		if _slot_decisions[slot] == 0 and _slot_restarts[slot] < MAX_PHANTOM_RESTARTS:
+			# Terminal before the candidate's first decision — stale-window spillover or a
+			# hostile spawn the candidate never played. Retry the SAME seeded episode.
+			_slot_restarts[slot] += 1
+			_begin_episode(slot)
+			return
+	if done_env or _slot_decisions[slot] >= episode_decisions:
+		_slot_restarts[slot] = 0
+		_slot_episode[slot] += 1
+		if _slot_episode[slot] < episodes_per_candidate:
+			_begin_episode(slot)
+			return
+		_fitness[_slot_candidate[slot]] = _slot_accum[slot] / float(episodes_per_candidate)
+		_assign_next(slot)
+		return
+	var obs: Array = agent.get_obs()["obs"]
+	var out: PackedFloat32Array = _runners[slot].run_inference(PackedFloat32Array(obs))
+	if out.is_empty():
+		_abort("inference failed.")
+		return
+	agent.set_action(ActionDecode.decode_actions(out, _action_space))
+	_slot_decisions[slot] += 1
+
+
 func _finish_generation() -> void:
-	var shaped: Array = EsMath.centered_ranks(_fitness)
-	_theta = EsMath.es_update(_theta, _epsilons, shaped, sigma, alpha)
 	var mean := 0.0
 	var best := -INF
 	for f in _fitness:
@@ -209,19 +328,24 @@ func _finish_generation() -> void:
 	mean /= float(_fitness.size())
 	print("[ESTrainer] generation %d/%d · mean fitness %.3f · best %.3f"
 		% [_generation + 1, generations, mean, best])
+	# Bless BEFORE the update: the measured mean belongs to the population around the CURRENT θ;
+	# the post-update θ has never been evaluated and may be worse (noisy ranks, big alpha step).
 	if mean > _best_mean:
 		_best_mean = mean
 		_save_checkpoint("%s_best" % checkpoint_stem)
+	var shaped: Array = EsMath.centered_ranks(_fitness)
+	_theta = EsMath.es_update(_theta, _epsilons, shaped, sigma, alpha)
 	if checkpoint_every > 0 and (_generation + 1) % checkpoint_every == 0:
 		_save_checkpoint("%s_gen%d" % [checkpoint_stem, _generation + 1])
 	generation_finished.emit(_generation, mean, best)
 	_generation += 1
 	if _generation >= generations:
 		_save_checkpoint("%s_final" % checkpoint_stem)
-		_finished = true
 		set_physics_process(false)
 		print("[ESTrainer] done · best mean fitness %.3f · checkpoints in %s" % [_best_mean, out_dir])
 		training_finished.emit(_best_mean)
+		if exit_on_finish:
+			get_tree().quit(0)
 		return
 	_start_generation()
 
@@ -239,19 +363,30 @@ func _save_checkpoint(stem: String) -> void:
 	if pf == null or bf == null:
 		push_error("ESTrainer: cannot write checkpoint '%s'." % param_path)
 		return
-	pf.store_string(NcnnWeights.param_text(_spec))
+	pf.store_buffer(_param_bytes)
 	bf.store_buffer(NcnnWeights.bin_bytes(_spec, _theta))
+
+
+## Fail loud and STOP: push the error, halt the loop, and (for CLI runs) exit nonzero so a
+## headless training run can never hang silently on a configuration mistake.
+func _abort(message: String) -> void:
+	push_error("ESTrainer: " + message)
+	set_physics_process(false)
+	if exit_on_finish:
+		get_tree().quit(1)
+
+
+static func _cmdline_args() -> Dictionary:
+	# Same convention as NcnnSync._get_args(): `--key=value` (or `key=value`) tokens.
+	var arguments := {}
+	for argument in OS.get_cmdline_args():
+		if argument.find("=") > -1:
+			var kv := argument.split("=")
+			arguments[kv[0].lstrip("--")] = kv[1]
+	return arguments
 
 
 # --- Introspection (tests, HUDs) ---
 
 func current_theta() -> PackedFloat32Array:
 	return _theta.duplicate()
-
-
-func current_generation() -> int:
-	return _generation
-
-
-func is_finished() -> bool:
-	return _finished

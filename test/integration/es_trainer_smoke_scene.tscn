@@ -18,17 +18,19 @@ target_path = NodePath("Target")
 script = ExtResource("2")
 game_path = NodePath("..")
 control_mode = 2
-reset_after = 40
 
 [node name="ESTrainer" type="Node" parent="."]
 script = ExtResource("3")
 hidden_dims = [8]
 half_population = 2
 generations = 2
+episode_decisions = 10
+episodes_per_candidate = 2
 action_repeat = 4
 speed_up = 20.0
 out_dir = "user://es_smoke"
 checkpoint_stem = "chase_es_smoke"
+checkpoint_every = 1
 
 [node name="Checker" type="Node" parent="."]
 script = ExtResource("4")

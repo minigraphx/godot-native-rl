@@ -163,10 +163,13 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   (`training/ncnn_weights.gd` θ⇄buffers codec — bijective, so `warm_start_*_path` fine-tunes a
   shipped net on-device), fitness = episodic return from the existing reward system. Checkpoints
   ARE deploy artifacts (`.ncnn.{param,bin}` in `out_dir`); multi-agent scenes evaluate candidates
-  in parallel waves. Small nets + dense rewards only (ES is sample-inefficient). **Gotcha found
-  here:** a net from `load_model_from_buffers` ALIASES the caller's bin buffer (ncnn
-  `DataReaderFromMemory` zero-copy) — the runner now retains it; never assume a from-memory load
-  copied the weights.
+  in parallel waves; fitness comparability is built in (common-random-numbers `seed_games` via the
+  agent's `game_path`, k-episode averaging `episodes_per_candidate`, trainer-owned horizon
+  `episode_decisions` — agents' `reset_after` is overridden so a self-reset can't zero the tail
+  reward before the trainer reads it). Small nets + dense rewards only (ES is sample-inefficient).
+  **Gotcha found here:** ncnn's from-memory load ALIASES the source buffer (`DataReaderFromMemory`
+  zero-copy) — the runner forces a copy via a `reference()`-less DataReader; never assume a
+  from-memory load copied the weights.
 - **Train (chase, CleanRL backend):** `./scripts/train_cleanrl.sh` — single-file CleanRL-style PPO over
   godot_rl's `CleanRLGodotEnv` (same chase scene + port 11008; `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`
   overrides). Exports ONNX (`models/chase_cleanrl_policy.onnx`) consumable unchanged by `export_to_ncnn.py`.
