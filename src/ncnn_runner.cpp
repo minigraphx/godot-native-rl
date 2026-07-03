@@ -67,6 +67,9 @@ bool NcnnRunner::load_model(const String &p_param_path, const String &p_bin_path
 
     net_ = std::make_unique<ncnn::Net>();
     model_loaded_ = false;
+    // The old net (the only consumer of a previous buffer-load's copy) is gone — release the
+    // copy NOW so no failure path below can leave a netless runner pinning stale weights.
+    bin_copy_.clear();
 
     const CharString param_utf8 = p_param_path.utf8();
     const CharString bin_utf8 = p_bin_path.utf8();
@@ -82,11 +85,9 @@ bool NcnnRunner::load_model(const String &p_param_path, const String &p_bin_path
     if (bin_result != 0) {
         UtilityFunctions::push_error("NcnnRunner.load_model: failed to load bin file: ", p_bin_path);
         net_.reset();
-        bin_copy_.clear();
         return false;
     }
 
-    bin_copy_.clear(); // file-based load copies weights internally; drop any buffer-load copy
     model_loaded_ = true;
     return true;
 }
@@ -102,6 +103,9 @@ bool NcnnRunner::load_model_from_buffers(const PackedByteArray &p_param, const P
 
     net_ = std::make_unique<ncnn::Net>();
     model_loaded_ = false;
+    // The old net (the only consumer of the previous copy) is gone — release the copy NOW so
+    // the param-failure path below can't leave a netless runner pinning stale weights.
+    bin_copy_.clear();
 
     // ncnn's load_param_mem() needs a NUL-terminated C string of the text .param.
     std::vector<char> param_text(p_param.size() + 1);

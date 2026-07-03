@@ -12,21 +12,25 @@ extends Node
 # evaluate one candidate per agent slot in parallel waves.
 #
 # The trainer OWNS the episode horizon (episode_decisions, counted in decision steps): each
-# agent's reset_after is overridden to effectively-infinite so the controller never self-resets —
-# a self-reset zeroes the agent's reward accumulator before the trainer's boundary read, silently
-# deleting the final window's reward (catches!) from the fitness. Game-driven terminal `done`
-# (falls, pits) is still honoured every decision step.
+# agent's reset_after is overridden to effectively-infinite (and restored when training ends) so
+# the controller never HORIZON-self-resets — a self-reset zeroes the agent's reward accumulator
+# before the trainer can read it, silently deleting the final window's reward (catches!) from the
+# fitness. Rewards are drained EVERY physics tick (not just on decision ticks) and `done` is acted
+# on the tick it appears, so agents that terminate-and-self-reset game-side (3dball-style falls)
+# can't leak their next episode's reward into the finished candidate either.
 #
 # Fitness comparability safeguards (ES lives or dies on the between-candidate ranking):
 # - Common random numbers: with seed_games on, every candidate's episode k in generation g is
 #   seeded identically (EsMath.episode_seed) via the agent's `game_path` game's `seed_rng()` —
 #   spawn luck cancels out of the ranking. episode_starting is emitted for custom seeding.
+# - Episode starts are TWO-PHASE: on episode end the slot first freezes for one decision window
+#   under a neutral action (decoded all-zero logits), letting any old-stream game event (e.g. a
+#   chase catch resolving on the pre-reset tick) consume the OLD RNG stream; only then is the
+#   game seeded and the reset requested — so the fresh stream's first draws always belong to the
+#   reset, identically for every candidate.
 # - k-episode averaging (episodes_per_candidate) cuts residual per-episode noise.
-# - A neutral action (decoded all-zero logits) is applied at every episode start, so the reset
-#   window plays out identically for every candidate instead of under the previous candidate's
-#   stale action.
-# - A terminal `done` before the candidate's first decision (stale-window spillover / hostile
-#   spawn) restarts the episode instead of recording a phantom 0 fitness.
+# - A terminal `done` before the candidate's first decision (hostile spawn) restarts the episode
+#   instead of recording a phantom 0 fitness.
 #
 # The training artifact IS the deploy artifact: checkpoints are ncnn .param/.bin pairs, loadable
 # by every controller unchanged — there is no export step. Warm-starting from a shipped net is the
@@ -40,6 +44,7 @@ extends Node
 const EsMath = preload("res://addons/godot_native_rl/training/es_math.gd")
 const NcnnWeights = preload("res://addons/godot_native_rl/training/ncnn_weights.gd")
 const ActionDecode = preload("res://addons/godot_native_rl/controllers/action_decode.gd")
+const RunSpeed = preload("res://addons/godot_native_rl/training/run_speed.gd")
 
 signal generation_finished(generation: int, mean_fitness: float, best_fitness: float)
 signal training_finished(best_mean_fitness: float)
@@ -81,9 +86,15 @@ signal episode_starting(slot: int, candidate_index: int, generation: int, episod
 ## before scoring what accrued (a broken always-terminal env must not loop forever).
 const MAX_PHANTOM_RESTARTS := 3
 
+# Per-slot episode phases: FREEZE holds the neutral action for one decision window (old-stream
+# game events resolve here), SEEDED has requested the seeded reset and awaits the first decision,
+# RUNNING is the scored episode. IDLE = no candidate assigned (population exhausted this wave).
+enum Phase { IDLE, FREEZE, SEEDED, RUNNING }
+
 var _agents: Array = []
 var _runners: Array = []
 var _slot_game: Array = []  # per slot: the seedable game node (null when none found)
+var _saved_reset_after: Array = []  # restored when training ends (embedded scenes keep running)
 var _spec: Dictionary = {}
 var _param_bytes := PackedByteArray()
 var _theta := PackedFloat32Array()
@@ -94,10 +105,10 @@ var _epsilons: Array = []
 var _fitness: Array = []
 var _next_candidate := 0
 var _n_candidates := 0
-var _slot_candidate: Array = []  # candidate index under evaluation per agent slot; -1 = idle
+var _slot_phase: Array = []
+var _slot_candidate: Array = []  # candidate index under evaluation per agent slot
 var _slot_episode: Array = []  # 0-based episode index within the candidate's k episodes
 var _slot_decisions: Array = []  # decision steps taken in the current episode
-var _slot_fresh: Array = []  # true right after a reset boundary: discard that stale reward read
 var _slot_accum: Array = []  # summed return across the candidate's completed episodes
 var _slot_restarts: Array = []  # phantom-done restarts of the current episode
 var _generation := 0
@@ -106,20 +117,13 @@ var _best_mean := -INF
 
 
 func _ready() -> void:
-	var args := _cmdline_args()
+	var args := RunSpeed.parse_cmdline_args()
 	speed_up = float(args.get("speedup", str(speed_up)))
 	action_repeat = int(args.get("action_repeat", str(action_repeat)))
-	# Same speedup mechanism as NcnnSync (headless training runs faster than real time).
-	if speed_up != 1.0:
-		Engine.physics_ticks_per_second = int(speed_up * 60.0)
-		Engine.time_scale = speed_up
-		# The default cap (8 physics steps per rendered frame) silently throttles large
-		# speed_ups to ~8 × fps ticks/s; let one frame consume a couple of scaled frames'
-		# worth of ticks so the configured rate is actually reachable.
-		Engine.max_physics_steps_per_frame = maxi(Engine.max_physics_steps_per_frame, int(ceil(speed_up)) * 2)
 	_rng.seed = rng_seed
 	set_physics_process(false)
-	# Agents register their group in their own _ready; initialize after the whole scene is in.
+	# Agents register their group in their own _ready; initialize (and validate the possibly
+	# cmdline-overridden config) after the whole scene is in.
 	_late_init.call_deferred()
 
 
@@ -127,6 +131,13 @@ func _late_init() -> void:
 	if episode_decisions < 1 or episodes_per_candidate < 1 or half_population < 1:
 		_abort("episode_decisions, episodes_per_candidate and half_population must all be >= 1.")
 		return
+	# int("garbage") is 0, so an action_repeat=typo cmdline override would otherwise reach the
+	# `_tick % action_repeat` hot path — a hang in debug builds and a SIGFPE (% 0) in release.
+	if action_repeat < 1 or speed_up <= 0.0:
+		_abort("action_repeat must be >= 1 and speed_up > 0 (got %d / %s — a bad cmdline override?)"
+			% [action_repeat, str(speed_up)])
+		return
+	RunSpeed.apply(speed_up)
 	if not _discover_agents():
 		return
 	var first_obs: Dictionary = _agents[0].get_obs()
@@ -158,8 +169,15 @@ func _late_init() -> void:
 			% [_n_candidates, _agents.size(), _agents.size() - (_n_candidates % _agents.size())])
 	for agent in _agents:
 		# The trainer owns the episode horizon (see the header comment): the controller must
-		# never self-reset mid-run, or the tail window's reward is zeroed before we read it.
-		agent.reset_after = 1 << 30
+		# never HORIZON-self-reset mid-run, or the tail window's reward is zeroed before we read
+		# it. Saved and restored when training ends. Optional in the duck contract — an agent
+		# without reset_after just keeps its own horizon (warned: its self-reset wipes reward).
+		if "reset_after" in agent:
+			_saved_reset_after.append(agent.reset_after)
+			agent.reset_after = 1 << 30
+		else:
+			_saved_reset_after.append(null)
+			push_warning("ESTrainer: agent '%s' has no reset_after — its own horizon self-reset will zero reward the trainer can't read; fitness may undercount." % agent.name)
 		var runner := NcnnRunner.new()
 		runner.input_blob_name = input_blob_name
 		runner.output_blob_name = output_blob_name
@@ -169,11 +187,9 @@ func _late_init() -> void:
 	if seed_games and _slot_game.count(null) == _slot_game.size():
 		push_warning("ESTrainer: seed_games is on but no agent exposes a seedable game (game_path -> node with seed_rng()); candidates will face DIFFERENT random draws, which can drown the fitness ranking. Connect episode_starting to seed manually, or set seed_games = false to silence this.")
 	var n_slots := _agents.size()
-	for arr in [_slot_candidate, _slot_episode, _slot_decisions, _slot_accum, _slot_restarts]:
+	for arr in [_slot_phase, _slot_candidate, _slot_episode, _slot_decisions, _slot_accum, _slot_restarts]:
 		arr.resize(n_slots)
 		arr.fill(0)  # Array.resize pads with null, which would poison int/float arithmetic
-	_slot_fresh.resize(n_slots)
-	_slot_fresh.fill(false)
 	print("[ESTrainer] net %s (θ=%d floats) · population %d × %d episode(s) · %d agent slot(s) · %d generations"
 		% [str(dims), _theta.size(), _n_candidates, episodes_per_candidate, n_slots, generations])
 	_start_generation()
@@ -239,7 +255,7 @@ func _start_generation() -> void:
 
 func _assign_next(slot: int) -> void:
 	if _next_candidate >= _n_candidates:
-		_slot_candidate[slot] = -1
+		_slot_phase[slot] = Phase.IDLE
 		return
 	var candidate: PackedFloat32Array = EsMath.candidate_at(_theta, sigma, _epsilons, _next_candidate)
 	var runner: NcnnRunner = _runners[slot]
@@ -250,73 +266,103 @@ func _assign_next(slot: int) -> void:
 	_next_candidate += 1
 	_slot_episode[slot] = 0
 	_slot_accum[slot] = 0.0
-	_begin_episode(slot)
+	_enter_freeze(slot)
 
 
-## Request a fresh episode for the slot's current (candidate, episode) pair: seed the game
-## (common random numbers), hand the agent the candidate-independent neutral action for the
-## reset window, and flag the boundary so its reward read is discarded.
-func _begin_episode(slot: int) -> void:
+## Phase 1 of an episode start: hold the candidate-independent neutral action for one decision
+## window so any old-stream game event (a chase catch resolving on the pre-reset tick, a
+## still-falling ragdoll) plays out against the OLD RNG stream — seeding now would let such an
+## event consume the fresh stream's first draws for SOME candidates and not others, exactly the
+## spawn-luck ranking noise seed_games exists to cancel.
+func _enter_freeze(slot: int) -> void:
+	_agents[slot].set_action(_neutral_action)
+	_slot_phase[slot] = Phase.FREEZE
+
+
+## Phase 2: seed the game (common random numbers), announce, and request the reset. The agent
+## applies needs_reset on ITS next tick; the first decision follows on the next decision tick.
+func _seed_and_reset(slot: int) -> void:
 	var agent: Node = _agents[slot]
 	if seed_games and _slot_game[slot] != null:
 		_slot_game[slot].seed_rng(EsMath.episode_seed(rng_seed, _generation, _slot_episode[slot]))
 	episode_starting.emit(slot, _slot_candidate[slot], _generation, _slot_episode[slot])
 	agent.set_action(_neutral_action)
-	agent.needs_reset = true  # the agent applies it on ITS next tick (fresh episode + zeroed reward)
+	agent.needs_reset = true
 	agent.set_done_false()
-	_slot_fresh[slot] = true
 	_slot_decisions[slot] = 0
+	_slot_phase[slot] = Phase.SEEDED
 
 
 func _physics_process(_delta: float) -> void:
-	if _tick % action_repeat != 0:
-		_tick += 1
-		return
+	var decision_tick := _tick % action_repeat == 0
 	_tick += 1
 	var any_active := false
 	for slot in range(_agents.size()):
-		if _slot_candidate[slot] >= 0:
-			any_active = true
-			_step_slot(slot)
-			if not is_physics_processing():
-				return  # _step_slot aborted mid-generation
+		if _slot_phase[slot] == Phase.IDLE:
+			continue
+		any_active = true
+		_step_slot(slot, decision_tick)
+		if not is_physics_processing():
+			return  # _step_slot aborted mid-generation
 	if not any_active:
 		_finish_generation()
 
 
-func _step_slot(slot: int) -> void:
+func _step_slot(slot: int, decision_tick: bool) -> void:
 	var agent: Node = _agents[slot]
+	# Drain the reward EVERY tick: only RUNNING episodes score it. Draining per tick (rather
+	# than per decision window) means a game-side terminal that self-resets the agent mid-window
+	# (3dball-style) can't leak its NEXT episode's reward into the finished candidate — we see
+	# `done` on the tick it appears and stop scoring immediately.
 	var r: float = agent.get_reward()
 	agent.zero_reward()
-	if _slot_fresh[slot]:
-		_slot_fresh[slot] = false  # reward accrued across the reset boundary isn't this candidate's
-	else:
-		_slot_accum[slot] += r
-	var done_env: bool = agent.get_done()
-	if done_env:
-		agent.set_done_false()
-		if _slot_decisions[slot] == 0 and _slot_restarts[slot] < MAX_PHANTOM_RESTARTS:
-			# Terminal before the candidate's first decision — stale-window spillover or a
-			# hostile spawn the candidate never played. Retry the SAME seeded episode.
-			_slot_restarts[slot] += 1
-			_begin_episode(slot)
-			return
-	if done_env or _slot_decisions[slot] >= episode_decisions:
-		_slot_restarts[slot] = 0
-		_slot_episode[slot] += 1
-		if _slot_episode[slot] < episodes_per_candidate:
-			_begin_episode(slot)
-			return
-		_fitness[_slot_candidate[slot]] = _slot_accum[slot] / float(episodes_per_candidate)
-		_assign_next(slot)
-		return
-	var obs: Array = agent.get_obs()["obs"]
+	match _slot_phase[slot]:
+		Phase.FREEZE:
+			if decision_tick:
+				_seed_and_reset(slot)
+		Phase.SEEDED:
+			if agent.get_done():
+				# Terminal before the candidate's first decision — hostile spawn or leftover
+				# momentum the candidate never played. Retry the SAME seeded episode (capped).
+				agent.set_done_false()
+				if _slot_restarts[slot] < MAX_PHANTOM_RESTARTS:
+					_slot_restarts[slot] += 1
+					_seed_and_reset(slot)
+					return
+			if decision_tick:
+				_decide(slot)  # first decision of the episode
+				_slot_phase[slot] = Phase.RUNNING
+		Phase.RUNNING:
+			_slot_accum[slot] += r
+			if agent.get_done():
+				agent.set_done_false()
+				_end_episode(slot)
+				return
+			if decision_tick:
+				if _slot_decisions[slot] >= episode_decisions:
+					_end_episode(slot)
+					return
+				_decide(slot)
+
+
+func _decide(slot: int) -> void:
+	var obs: Array = _agents[slot].get_obs()["obs"]
 	var out: PackedFloat32Array = _runners[slot].run_inference(PackedFloat32Array(obs))
 	if out.is_empty():
 		_abort("inference failed.")
 		return
-	agent.set_action(ActionDecode.decode_actions(out, _action_space))
+	_agents[slot].set_action(ActionDecode.decode_actions(out, _action_space))
 	_slot_decisions[slot] += 1
+
+
+func _end_episode(slot: int) -> void:
+	_slot_restarts[slot] = 0
+	_slot_episode[slot] += 1
+	if _slot_episode[slot] < episodes_per_candidate:
+		_enter_freeze(slot)
+		return
+	_fitness[_slot_candidate[slot]] = _slot_accum[slot] / float(episodes_per_candidate)
+	_assign_next(slot)
 
 
 func _finish_generation() -> void:
@@ -342,12 +388,21 @@ func _finish_generation() -> void:
 	if _generation >= generations:
 		_save_checkpoint("%s_final" % checkpoint_stem)
 		set_physics_process(false)
+		_restore_agents()
 		print("[ESTrainer] done · best mean fitness %.3f · checkpoints in %s" % [_best_mean, out_dir])
 		training_finished.emit(_best_mean)
 		if exit_on_finish:
 			get_tree().quit(0)
 		return
 	_start_generation()
+
+
+## Hand the agents back the horizon this trainer overrode — an embedded scene (demo, test) keeps
+## running after training and its agents must self-reset normally again.
+func _restore_agents() -> void:
+	for i in range(_saved_reset_after.size()):
+		if _saved_reset_after[i] != null:
+			_agents[i].reset_after = _saved_reset_after[i]
 
 
 ## Write the current θ as a deploy-ready ncnn pair: <out_dir>/<stem>.ncnn.{param,bin}.
@@ -367,23 +422,14 @@ func _save_checkpoint(stem: String) -> void:
 	bf.store_buffer(NcnnWeights.bin_bytes(_spec, _theta))
 
 
-## Fail loud and STOP: push the error, halt the loop, and (for CLI runs) exit nonzero so a
-## headless training run can never hang silently on a configuration mistake.
+## Fail loud and STOP: push the error, halt the loop, restore the agents, and (for CLI runs)
+## exit nonzero so a headless training run can never hang silently on a configuration mistake.
 func _abort(message: String) -> void:
 	push_error("ESTrainer: " + message)
 	set_physics_process(false)
+	_restore_agents()
 	if exit_on_finish:
 		get_tree().quit(1)
-
-
-static func _cmdline_args() -> Dictionary:
-	# Same convention as NcnnSync._get_args(): `--key=value` (or `key=value`) tokens.
-	var arguments := {}
-	for argument in OS.get_cmdline_args():
-		if argument.find("=") > -1:
-			var kv := argument.split("=")
-			arguments[kv[0].lstrip("--")] = kv[1]
-	return arguments
 
 
 # --- Introspection (tests, HUDs) ---

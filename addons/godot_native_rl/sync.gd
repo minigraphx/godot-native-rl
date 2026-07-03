@@ -6,6 +6,7 @@ const SocketTimeout = preload("res://addons/godot_native_rl/net/socket_timeout.g
 const PolicyNames = preload("res://addons/godot_native_rl/policy_names.gd")
 const StepProfiler = preload("res://addons/godot_native_rl/net/step_profiler.gd")
 const DemoRecorder = preload("res://addons/godot_native_rl/training/demo_recorder.gd")
+const RunSpeed = preload("res://addons/godot_native_rl/training/run_speed.gd")
 
 var agents_training: Array[Node] = []
 var _action_space: Dictionary = {}
@@ -119,8 +120,9 @@ func _initialize() -> void:
 	args = _get_args()
 	if args.get("profile", "false") == "true":
 		_profiler = StepProfiler.new()
-	Engine.physics_ticks_per_second = int(_get_speedup() * 60)
-	Engine.time_scale = _get_speedup() * 1.0
+	# Shared with ESTrainer: also raises max_physics_steps_per_frame, without which the default
+	# 8-steps-per-frame cap silently throttles SPEEDUP above ~8 (found in #287).
+	RunSpeed.apply(_get_speedup())
 	_set_heuristic("human", all_agents)
 	if control_mode == ControlModes.RECORD_EXPERT_DEMOS:
 		_initialize_demo_recording()
@@ -434,12 +436,7 @@ func _set_agent_actions(actions, agents: Array) -> void:
 		agents[i].set_action(actions[i])
 
 func _get_args() -> Dictionary:
-	var arguments := {}
-	for argument in OS.get_cmdline_args():
-		if argument.find("=") > -1:
-			var kv := argument.split("=")
-			arguments[kv[0].lstrip("--")] = kv[1]
-	return arguments
+	return RunSpeed.parse_cmdline_args()
 
 func _get_speedup() -> float:
 	return args.get("speedup", str(speed_up)).to_float()

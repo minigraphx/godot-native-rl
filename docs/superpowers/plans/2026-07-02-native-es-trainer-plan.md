@@ -26,7 +26,13 @@ Branch: claude/eloquent-cerf-fb6073
 6. Docs: CLAUDE.md key-command + moat line; README moat bullet; DEVELOPMENT.md pointer;
    BACKLOG untouched (#131 is GitHub-only). Full `./test/run_tests.sh` green, push, draft PR.
 
+## Scope updates during implementation
+
+The trained-in-engine chase net + behavioral regression, originally deferred, SHIPPED in the
+same PR (#287): the 400-generation `chase_es_train_parallel.tscn` run (mean fitness −0.9 → 13.5)
+produced `examples/chase_the_target/models/chase_es.ncnn.*`, guarded by
+`trained_es_chase_scene.tscn`.
+
 ## Out of scope (follow-ups on #131)
 
-Long trained-in-engine chase net + behavioral regression; launcher watch-it-learn demo;
-web showcase; warm-start fine-tuning example; CMA-ES.
+Launcher watch-it-learn demo; web showcase; warm-start fine-tuning example; CMA-ES.

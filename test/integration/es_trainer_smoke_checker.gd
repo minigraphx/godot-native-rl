@@ -19,6 +19,7 @@ var _fitness_finite := true
 
 
 func _ready() -> void:
+	_wipe_stale_checkpoints()
 	_trainer = get_parent().get_node("ESTrainer")
 	_trainer.generation_finished.connect(_on_generation)
 	_trainer.training_finished.connect(_on_finished)
@@ -27,6 +28,18 @@ func _ready() -> void:
 	timeout.timeout.connect(func() -> void:
 		printerr("FAIL: ES smoke timed out after %.0fs wall clock (saw %d generations)" % [TIMEOUT_SEC, _generations_seen])
 		get_tree().quit(1))
+
+
+# The checkpoint asserts below check files WRITTEN BY THE TRAINER during this run — wipe any
+# left by a previous local run first, or a checkpoint-writing regression stays green forever
+# on a developer machine (only a fresh CI container would catch it).
+func _wipe_stale_checkpoints() -> void:
+	var dir := DirAccess.open("user://es_smoke")
+	if dir == null:
+		return
+	for f in dir.get_files():
+		if f.begins_with("chase_es_smoke"):
+			dir.remove(f)
 
 
 func _snapshot_theta() -> void:
