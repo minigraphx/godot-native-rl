@@ -77,6 +77,12 @@ from scratch in ~25 min (mean fitness −0.9 → 13.5 over 400 generations), and
 ships in `examples/chase_the_target/models/chase_es.ncnn.*` with a CI behavioral regression. ES is
 sample-inefficient — small nets and dense rewards, not a PPO/SAC replacement (issue #131).
 
+**Watch it happen: the Evolution Lab demo** (launcher → "Evolution Lab (train LIVE)", #291) —
+8 worlds train on screen while a highlighted **champion world** runs the best-so-far net through
+the ordinary inference path, hot-swapped on every improvement: population evolving on the left,
+today's best brain deployed on the right, zero export in between. HUD shows the live learning
+curve; keys 1/2/3 set speed. First visible competence in ~5–8 minutes.
+
 ## What you get
 - `NcnnRunner` C++ node: `load_model`, `run_inference`, `run_inference_image`,
   `run_discrete_action`, `run_inference_multi` (recurrent/LSTM state-carry), `run_inference_batch` (crowds).

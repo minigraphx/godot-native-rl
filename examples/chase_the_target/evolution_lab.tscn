@@ -1,0 +1,43 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://examples/chase_the_target/evolution_lab.gd" id="1"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/training/parallel_arena_2d.gd" id="2"]
+[ext_resource type="PackedScene" path="res://examples/chase_the_target/chase_world.tscn" id="3"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/training/es_trainer.gd" id="4"]
+[ext_resource type="Script" path="res://examples/chase_the_target/evolution_lab_hud.gd" id="5"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/camera/fit_camera_2d.gd" id="6"]
+
+[node name="EvolutionLab" type="Node2D"]
+script = ExtResource("1")
+
+[node name="ParallelArena2D" type="Node2D" parent="."]
+script = ExtResource("2")
+world_scene = ExtResource("3")
+count = 8
+spacing = 1400.0
+
+[node name="ChampionWorld" parent="." instance=ExtResource("3")]
+position = Vector2(4400, 1400)
+
+[node name="ChaseAgent" parent="ChampionWorld" index="2"]
+control_mode = 1
+
+[node name="ESTrainer" type="Node" parent="."]
+script = ExtResource("4")
+hidden_dims = [16]
+half_population = 8
+sigma = 0.4
+alpha = 0.1
+generations = 100000
+episode_decisions = 60
+episodes_per_candidate = 1
+speed_up = 5.0
+out_dir = "user://es_checkpoints/evolution_lab"
+checkpoint_stem = "lab"
+
+[node name="EvolutionLabHUD" type="CanvasLayer" parent="."]
+script = ExtResource("5")
+
+[node name="FitCamera2D" type="Camera2D" parent="."]
+script = ExtResource("6")
+world_rect = Rect2(-100, -100, 5700, 3700)

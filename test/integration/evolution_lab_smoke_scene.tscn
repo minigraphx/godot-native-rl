@@ -1,0 +1,21 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://examples/chase_the_target/evolution_lab.tscn" id="1"]
+[ext_resource type="Script" path="res://test/integration/evolution_lab_smoke_checker.gd" id="2"]
+
+[node name="EvolutionLabSmoke" type="Node2D"]
+
+[node name="EvolutionLab" parent="." instance=ExtResource("1")]
+
+[node name="ESTrainer" parent="EvolutionLab" index="3"]
+half_population = 4
+generations = 5
+episode_decisions = 8
+episodes_per_candidate = 1
+action_repeat = 4
+speed_up = 20.0
+out_dir = "user://es_lab_smoke"
+checkpoint_stem = "lab_smoke"
+
+[node name="Checker" type="Node" parent="."]
+script = ExtResource("2")

@@ -112,6 +112,9 @@ echo "== Native in-engine ES trainer smoke (no Python, #131) =="
 echo "== Trained ES chase behavioral check (net trained IN-ENGINE, #131) =="
 "$GODOT" --headless --path . res://test/integration/trained_es_chase_scene.tscn
 
+echo "== Evolution Lab demo smoke (live-training showcase wiring, #291) =="
+"$GODOT" --headless --path . res://test/integration/evolution_lab_smoke_scene.tscn
+
 echo "== Self-play pool/ELO smoke (headless) =="
 "$GODOT" --headless --path . res://test/integration/selfplay_smoke_scene.tscn
 

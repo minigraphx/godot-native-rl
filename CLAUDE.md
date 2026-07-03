@@ -170,7 +170,10 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   via `ParallelArena2D`) took mean fitness −0.9 → **13.5** in 400 generations (~25 min); the best
   net ships as `examples/chase_the_target/models/chase_es.ncnn.*` with a behavioral regression
   (`trained_es_chase_scene.tscn`, 19 catches/1800 frames through the standard inference
-  controller). Small nets + dense rewards only (ES is sample-inefficient).
+  controller). The launcher's **Evolution Lab** demo (`evolution_lab.tscn`, #291) shows it live:
+  8 worlds train on screen while a champion world hot-swaps onto every blessed checkpoint
+  (`checkpoint_saved` signal → `reload_model`); HUD learning curve, keys 1/2/3 = speed. Small
+  nets + dense rewards only (ES is sample-inefficient).
   **Gotcha found here:** ncnn's from-memory load ALIASES the source buffer (`DataReaderFromMemory`
   zero-copy) — the runner reads from a private owned copy that outlives the net; never assume a
   from-memory load copied the weights. (And never SUBCLASS ncnn classes in the extension — iOS

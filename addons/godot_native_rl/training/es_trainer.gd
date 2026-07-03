@@ -48,6 +48,10 @@ const RunSpeed = preload("res://addons/godot_native_rl/training/run_speed.gd")
 
 signal generation_finished(generation: int, mean_fitness: float, best_fitness: float)
 signal training_finished(best_mean_fitness: float)
+## Emitted after a checkpoint pair is written (stem is e.g. "<checkpoint_stem>_best"). Lets
+## consumers react to a blessed net without re-deriving the blessing rule — e.g. the Evolution
+## Lab demo hot-swaps its champion agent onto every new best.
+signal checkpoint_saved(stem: String, param_path: String, bin_path: String)
 ## Emitted right before an episode reset is requested — hook for CUSTOM per-episode game setup
 ## beyond the built-in seed_games seeding (curriculum stages, layout variants, ...).
 signal episode_starting(slot: int, candidate_index: int, generation: int, episode: int)
@@ -420,6 +424,9 @@ func _save_checkpoint(stem: String) -> void:
 		return
 	pf.store_buffer(_param_bytes)
 	bf.store_buffer(NcnnWeights.bin_bytes(_spec, _theta))
+	pf = null  # close before announcing: consumers may reload the pair from the signal
+	bf = null
+	checkpoint_saved.emit(stem, param_path, bin_path)
 
 
 ## Fail loud and STOP: push the error, halt the loop, restore the agents, and (for CLI runs)

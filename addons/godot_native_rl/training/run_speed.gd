@@ -6,10 +6,9 @@ extends RefCounted
 
 
 ## Apply a speedup: scale physics ticks + time, and raise the per-frame physics-step cap so the
-## configured rate is actually reachable. A no-op at 1.0.
+## configured rate is actually reachable. Idempotent and re-callable at runtime (live speed
+## toggles): apply(1.0) restores the 60 Hz baseline (the step cap is only ever raised — harmless).
 static func apply(speed_up: float) -> void:
-	if speed_up == 1.0:
-		return
 	Engine.physics_ticks_per_second = int(speed_up * 60.0)
 	Engine.time_scale = speed_up
 	Engine.max_physics_steps_per_frame = maxi(Engine.max_physics_steps_per_frame, int(ceil(speed_up)) * 2)
