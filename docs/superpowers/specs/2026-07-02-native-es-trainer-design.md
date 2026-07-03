@@ -138,3 +138,25 @@ per-player adaptation, not a PPO/SAC replacement.
   target.
 - **Wall-clock**: physics-bound; reuse the existing `speedup` machinery and `ParallelArena`
   tiling.
+
+## Post-review addendum (2026-07-03)
+
+The first two full runs plus an adversarial self-review reshaped the trainer; the shipped design
+differs from the sketch above in these load-bearing ways:
+
+- **The trainer owns the episode horizon** (`episode_decisions`, decision-step units; agents'
+  `reset_after` is overridden to effectively-infinite). The controller's horizon self-reset
+  zeroes the agent's reward accumulator before the trainer's boundary read — the final window's
+  reward (catches!) silently vanished from fitness, biased exactly against good candidates.
+- **Fitness comparability is first-class**: common-random-numbers seeding (`seed_games`
+  duck-types each agent's `game_path` game's `seed_rng()` per (generation, episode);
+  `episode_starting` signal for custom setup), k-episode averaging (`episodes_per_candidate`),
+  a candidate-independent neutral action over every reset window, and phantom-done restarts.
+  Without CRN, spawn luck drowned the ranking entirely (flat −0.89 mean, run 1).
+- **`<stem>_best` is blessed before the ES update** — the measured mean belongs to the
+  population around the *current* θ; the post-update θ is unevaluated.
+- **`load_model_from_buffers` copies**: ncnn's memory reader zero-copies (`reference()`), which
+  was a production use-after-free; a `read()`-only DataReader forces ModelBin to copy, so the
+  net owns its weights (see docs/dev/gotchas.md).
+- The Python and GDScript format writers are pinned together by a committed cross-language
+  fixture (byte-equality + `theta_from_bin` decode).
