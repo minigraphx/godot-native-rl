@@ -1,0 +1,132 @@
+# Publishes the examples project as a playable web build on GitHub Pages — the live browser
+# showcase ("this browser tab is training a neural net": the Evolution Lab demo, #291, plus every
+# other launcher demo). The WASM extension is single-threaded (no COOP/COEP headers, see
+# docs/dev/building.md), so plain GitHub Pages serves it unmodified.
+#
+# ONE-TIME REPO SETUP: Settings → Pages → "Build and deployment" → Source: **GitHub Actions**.
+# Until that is flipped, the deploy job fails with "Pages site not found" (build/export still
+# validate). Live URL after the first deploy: https://minigraphx.github.io/godot-native-rl/
+#
+# Triggers: pushes to main that can change the playable build, manual dispatch, and — build/export
+# only, no deploy — pull requests touching this workflow (so changes to it are validated in CI).
+
+name: Deploy web demo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "examples/**"
+      - "addons/**"
+      - "src/**"
+      - "project.godot"
+      - "export_presets.cfg"
+      - ".github/workflows/deploy-web-demo.yml"
+  pull_request:
+    paths:
+      - ".github/workflows/deploy-web-demo.yml"
+  workflow_dispatch:
+
+env:
+  GODOT_CPP_BRANCH: "4.5"   # matches cross-build.yml / ci.yml
+  NCNN_TAG: "20260526"
+  GODOT_VERSION: "4.5.2-stable"
+  GODOT_FILE: "Godot_v4.5.2-stable_linux.x86_64"
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  # Same recipe as cross-build.yml's `web` job: emsdk-pinned single-threaded wasm extension.
+  build-wasm:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential scons cmake git python3
+
+      - name: Setup emscripten
+        uses: emscripten-core/setup-emsdk@v16
+        with:
+          version: 3.1.64
+
+      - name: Clone godot-cpp + ncnn
+        run: |
+          git clone -b "${GODOT_CPP_BRANCH}" --depth 1 https://github.com/godotengine/godot-cpp.git
+          mkdir -p thirdparty
+          git clone -b "${NCNN_TAG}" --depth 1 https://github.com/Tencent/ncnn.git thirdparty/ncnn
+
+      - name: Build web (wasm32)
+        run: scripts/cross/build_web.sh
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-demo-wasm
+          path: addons/godot_native_rl/bin/
+          if-no-files-found: error
+
+  export:
+    needs: build-wasm
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download wasm extension binaries
+        uses: actions/download-artifact@v8
+        with:
+          name: web-demo-wasm
+          path: addons/godot_native_rl/bin/
+
+      - name: Download Godot ${{ env.GODOT_VERSION }} + web export templates
+        run: |
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}"
+          curl -fL "${base}/${GODOT_FILE}.zip" -o godot.zip
+          unzip -q godot.zip && chmod +x "${GODOT_FILE}"
+          curl -fL "${base}/Godot_v${GODOT_VERSION}_export_templates.tpz" -o templates.tpz
+          # A .tpz is a zip with a top-level templates/ dir; Godot expects them under
+          # ~/.local/share/godot/export_templates/<version without the v>/.
+          unzip -q templates.tpz
+          dest="$HOME/.local/share/godot/export_templates/${GODOT_VERSION/-stable/.stable}"
+          mkdir -p "$dest"
+          mv templates/* "$dest/"
+
+      - name: Import pass (script-class cache + resource imports)
+        # The linux extension binary is absent here (only wasm was downloaded) — the editor logs
+        # a load error and continues; nothing in the import/export path executes extension code
+        # (the addon's model-packing EditorExportPlugin is pure GDScript). Hence the `|| true`.
+        run: ./"${GODOT_FILE}" --headless --editor --quit >/dev/null 2>&1 || true
+
+      - name: Export web build
+        run: |
+          mkdir -p build/web
+          ./"${GODOT_FILE}" --headless --export-release "Web" build/web/index.html
+          # Fail loud if the export silently produced nothing (bad preset/templates).
+          test -s build/web/index.html
+          test -s "$(ls build/web/*.wasm | head -1)"
+          ls -la build/web
+
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: build/web
+
+  deploy:
+    # Never deploy from PR validation runs — only main pushes and manual dispatch publish.
+    if: github.event_name != 'pull_request'
+    needs: export
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -15,6 +15,12 @@ Python stack; deploy native on web/WASM, console, mobile, desktop, and edge.
 
 ▶ **[Watch the demo on YouTube](https://youtu.be/Cud1gvbjg0I)** — trained agents running on native ncnn, no Python at runtime.
 
+🕹️ **[Play it in your browser](https://minigraphx.github.io/godot-native-rl/)** — the demo launcher as a
+web build (single-threaded WASM, published from `main` by `.github/workflows/deploy-web-demo.yml`).
+Pick **"Evolution Lab (train LIVE)"** and the browser tab *trains* a neural net in front of you —
+no Python, no server, nothing but the page. (One-time repo setup: Settings → Pages → Source:
+GitHub Actions.)
+
 | Chase the target | Quadruped (locomotion) | Rover (3D) |
 |:---:|:---:|:---:|
 | ![Chase the target](media/Catch.jpeg) | ![Quadruped locomotion](media/Quadruped-Debug.jpeg) | ![Rover 3D](media/Rover.jpg) |
