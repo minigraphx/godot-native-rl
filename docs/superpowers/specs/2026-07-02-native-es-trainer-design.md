@@ -155,8 +155,9 @@ differs from the sketch above in these load-bearing ways:
   Without CRN, spawn luck drowned the ranking entirely (flat −0.89 mean, run 1).
 - **`<stem>_best` is blessed before the ES update** — the measured mean belongs to the
   population around the *current* θ; the post-update θ is unevaluated.
-- **`load_model_from_buffers` copies**: ncnn's memory reader zero-copies (`reference()`), which
-  was a production use-after-free; a `read()`-only DataReader forces ModelBin to copy, so the
-  net owns its weights (see docs/dev/gotchas.md).
+- **`load_model_from_buffers` owns its bytes**: ncnn's memory reader zero-copies
+  (`reference()`), which was a production use-after-free; the runner now reads from a private
+  owned copy that outlives the net (a DataReader subclass would have been cleaner but doesn't
+  link on iOS — ncnn builds without RTTI there; see docs/dev/gotchas.md).
 - The Python and GDScript format writers are pinned together by a committed cross-language
   fixture (byte-equality + `theta_from_bin` decode).

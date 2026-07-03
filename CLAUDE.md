@@ -168,8 +168,9 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   `episode_decisions` — agents' `reset_after` is overridden so a self-reset can't zero the tail
   reward before the trainer reads it). Small nets + dense rewards only (ES is sample-inefficient).
   **Gotcha found here:** ncnn's from-memory load ALIASES the source buffer (`DataReaderFromMemory`
-  zero-copy) — the runner forces a copy via a `reference()`-less DataReader; never assume a
-  from-memory load copied the weights.
+  zero-copy) — the runner reads from a private owned copy that outlives the net; never assume a
+  from-memory load copied the weights. (And never SUBCLASS ncnn classes in the extension — iOS
+  links ncnn without RTTI, so the base `typeinfo` is undefined.)
 - **Train (chase, CleanRL backend):** `./scripts/train_cleanrl.sh` — single-file CleanRL-style PPO over
   godot_rl's `CleanRLGodotEnv` (same chase scene + port 11008; `TIMESTEPS`/`SPEEDUP`/`ACTION_REPEAT`
   overrides). Exports ONNX (`models/chase_cleanrl_policy.onnx`) consumable unchanged by `export_to_ncnn.py`.

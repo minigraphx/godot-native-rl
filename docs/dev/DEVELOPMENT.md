@@ -62,9 +62,10 @@ evolves a flat θ, `training/ncnn_weights.gd` renders it straight to ncnn `.para
 (the same format `export_statedict_to_ncnn.py` writes), and `load_model_from_buffers` makes it a
 live net — train → checkpoint → deploy is a single format end-to-end. Design:
 `docs/superpowers/specs/2026-07-02-native-es-trainer-design.md`. Buffer-lifetime gotcha: ncnn's
-own memory reader makes loaded nets ALIAS the caller's bin buffer (zero-copy `reference()`);
-`load_model_from_buffers` forces a copy via a `reference()`-less DataReader since this feature's
-PR, so the net owns its weights.
+memory reader makes loaded nets ALIAS the buffer they were read from (zero-copy `reference()`);
+since this feature's PR `load_model_from_buffers` reads from a runner-owned private copy that
+outlives the net (see docs/dev/gotchas.md — incl. why a DataReader subclass is not an option on
+iOS).
 
 ## The inference-backend boundary (swappable runtime)
 

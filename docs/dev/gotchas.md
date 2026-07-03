@@ -148,13 +148,16 @@ outputs corrupt **nondeterministically** when the freed block is reused. `NcnnCr
 and `NcnnLODRunner` were affected in production; the 2D/3D controllers survived only because
 their `_last_bin_bytes` member happened to pin the buffer. Surfaced by the ES trainer's
 round-trip golden (#131): identical back-to-back runs printed different forward passes. Fix:
-`load_model_from_buffers` loads through a custom `DataReaderFromMemoryCopy` that implements only
-`read()` (no `reference()`), forcing `ModelBin` to allocate and copy — the `Net` owns its weights
-outright, so no buffer-lifetime invariant exists at all. (A first fix retained the buffer as a
-member; review found the member destruction order re-created the hazard during `~NcnnRunner` —
-forcing the copy is structurally safer.) Lesson: never assume a from-memory model load copied its
-input — check the reader for zero-copy `reference()` support, and if it has it, either force the
-copy or pin the buffer to the consumer's lifetime.
+`load_model_from_buffers` copies the bin bytes into a runner-owned `std::vector` (declared
+BEFORE `net_`, so the net and its aliasing Mats tear down first in `~NcnnRunner`) and feeds
+`DataReaderFromMemory` that private copy — the aliased memory now lives exactly as long as the
+net. Two rejected fixes, for the record: retaining the caller's `PackedByteArray` as a member
+re-created the hazard via member destruction order (declared after `net_` → destroyed first);
+a `reference()`-less `DataReader` subclass forced a copy elegantly but **doesn't link on iOS**
+(ncnn is built without RTTI there — `typeinfo for ncnn::DataReader` is undefined, so never
+subclass ncnn classes in the extension). Lesson: never assume a from-memory model load copied
+its input — check the reader for zero-copy `reference()` support, and pin the source to the
+consumer's lifetime, minding member destruction order.
 
 ## Position-based rewards must use TILE-LOCAL coordinates under ParallelArena
 

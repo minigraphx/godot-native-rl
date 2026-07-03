@@ -14,6 +14,7 @@
 #include <memory>
 #include <atomic>
 #include <thread>
+#include <vector>
 
 namespace ncnn {
 class Net;
@@ -84,6 +85,15 @@ private:
     // (logs via p_where) and joins a finished worker. Call before swapping net_ in load_*.
     bool ready_to_swap_net(const char *p_where);
 
+    // Private copy of the .bin bytes for buffer-loaded models: ncnn's ModelBin prefers
+    // DataReaderFromMemory::reference() (zero-copy), so the loaded Net's weight Mats ALIAS the
+    // memory they were read from. Aliasing the caller's PackedByteArray is a use-after-free once
+    // that temporary dies; aliasing THIS runner-owned copy is safe. Declared BEFORE net_ on
+    // purpose: members destroy in reverse declaration order, so net_ (and its aliasing Mats) is
+    // torn down first in ~NcnnRunner. Cleared on path-based loads (those copy internally).
+    // (Composition, not a DataReader subclass: iOS links ncnn without RTTI, so a subclass can't
+    // resolve `typeinfo for ncnn::DataReader`.)
+    std::vector<unsigned char> bin_copy_;
     std::unique_ptr<ncnn::Net> net_;
     bool model_loaded_ = false;
     String input_blob_name_ = "input";

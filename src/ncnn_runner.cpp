@@ -17,32 +17,6 @@
 
 using namespace godot;
 
-namespace {
-
-// Memory reader that forces ncnn to COPY weights on load. ncnn's own DataReaderFromMemory
-// advertises reference() (zero-copy), which makes every weight Mat in the loaded Net ALIAS
-// the caller's buffer — a use-after-free the moment a temporary PackedByteArray argument is
-// freed (weights corrupt nondeterministically when the heap block is reused; bit us in #131's
-// round-trip golden, and NcnnCrowdController/NcnnLODRunner passed locals in production). This
-// reader implements only read(); the DataReader base's reference() returns 0, so ModelBin
-// allocates and copies every blob and the Net owns its weights outright. One memcpy per load
-// is the whole cost.
-class DataReaderFromMemoryCopy : public ncnn::DataReader {
-public:
-    explicit DataReaderFromMemoryCopy(const unsigned char *p_mem) : mem_(p_mem) {}
-
-    size_t read(void *p_buf, size_t p_size) const override {
-        std::memcpy(p_buf, mem_, p_size);
-        mem_ += p_size;
-        return p_size;
-    }
-
-private:
-    mutable const unsigned char *mem_;
-};
-
-} // namespace
-
 NcnnRunner::NcnnRunner() : net_(std::make_unique<ncnn::Net>()) {
 }
 
@@ -108,9 +82,11 @@ bool NcnnRunner::load_model(const String &p_param_path, const String &p_bin_path
     if (bin_result != 0) {
         UtilityFunctions::push_error("NcnnRunner.load_model: failed to load bin file: ", p_bin_path);
         net_.reset();
+        bin_copy_.clear();
         return false;
     }
 
+    bin_copy_.clear(); // file-based load copies weights internally; drop any buffer-load copy
     model_loaded_ = true;
     return true;
 }
@@ -139,16 +115,21 @@ bool NcnnRunner::load_model_from_buffers(const PackedByteArray &p_param, const P
         return false;
     }
 
-    // The .bin weights load from an advancing memory cursor. The reader carries no length
-    // bound, so the .bin/.param are trusted app-bundled assets (same trust model as the
-    // path-based load_model). DataReaderFromMemoryCopy (not ncnn's zero-copy
-    // DataReaderFromMemory) makes the Net COPY and own its weights — see the class comment.
-    const unsigned char *bin_cursor = reinterpret_cast<const unsigned char *>(p_bin.ptr());
-    DataReaderFromMemoryCopy bin_reader(bin_cursor);
+    // The .bin weights load from an advancing memory cursor via DataReaderFromMemory, whose
+    // reference() support makes the Net's weight Mats ALIAS the memory they were read from —
+    // so read from a PRIVATE copy this runner owns (bin_copy_; see the header comment), never
+    // from the caller's PackedByteArray, or a temporary argument is a use-after-free. The old
+    // net_ was destroyed above, so replacing the previous copy here is safe. The reader carries
+    // no length bound: the .bin/.param are trusted app-bundled assets (same trust model as the
+    // path-based load_model).
+    bin_copy_.assign(p_bin.ptr(), p_bin.ptr() + p_bin.size());
+    const unsigned char *bin_cursor = bin_copy_.data();
+    ncnn::DataReaderFromMemory bin_reader(bin_cursor);
     const int bin_result = net_->load_model(bin_reader);
     if (bin_result != 0) {
         UtilityFunctions::push_error("NcnnRunner.load_model_from_buffers: failed to load bin buffer.");
         net_.reset();
+        bin_copy_.clear();
         return false;
     }
 
