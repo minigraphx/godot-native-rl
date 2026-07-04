@@ -6,7 +6,8 @@ extends Node
 # get_reward()/zero_reward(), get_done()/set_done_false(), needs_reset, get_action_space()) at the
 # same action_repeat cadence — honouring the same `speedup=`/`action_repeat=` cmdline overrides —
 # but the actions come from CANDIDATE nets the trainer itself evolves: an OpenAI-ES optimizer
-# (es_math.gd) perturbs a flat weight vector θ, each candidate becomes a live ncnn net via the
+# (es_math.gd; or sep-CMA-ES via `optimizer = "cma_es"`, cma_math.gd — self-adapting step size +
+# per-coordinate variances) perturbs a flat weight vector θ, each candidate becomes a live ncnn net via the
 # θ ⇄ buffers codec (ncnn_weights.gd) + NcnnRunner.load_model_from_buffers, and episodic return
 # (the existing reward system) is its fitness. Multi-agent scenes (e.g. ParallelArena tiles)
 # evaluate one candidate per agent slot in parallel waves.
@@ -42,6 +43,7 @@ extends Node
 # Place the trainer AFTER the agents in the scene tree (like Sync) so agents step first each tick.
 
 const EsMath = preload("res://addons/godot_native_rl/training/es_math.gd")
+const CmaMath = preload("res://addons/godot_native_rl/training/cma_math.gd")
 const NcnnWeights = preload("res://addons/godot_native_rl/training/ncnn_weights.gd")
 const ActionDecode = preload("res://addons/godot_native_rl/controllers/action_decode.gd")
 const RunSpeed = preload("res://addons/godot_native_rl/training/run_speed.gd")
@@ -59,9 +61,13 @@ signal episode_starting(slot: int, candidate_index: int, generation: int, episod
 @export var agent_group := "AGENT"
 @export var hidden_dims: Array[int] = [16]
 @export var hidden_activation := "relu"  # relu | tanh | sigmoid | "" (see ncnn_weights.gd)
+## "openai_es" (antithetic gradient estimate, es_math.gd) or "cma_es" (sep-CMA-ES, cma_math.gd:
+## top-μ recombination + step-size and per-coordinate variance adaptation — sigma becomes the
+## INITIAL step size and self-adapts; alpha is unused). Cmdline `optimizer=` overrides.
+@export var optimizer := "openai_es"
 @export var half_population := 8  ## candidates per generation = 2 * half_population (antithetic)
-@export var sigma := 0.1  ## perturbation stddev
-@export var alpha := 0.05  ## learning rate
+@export var sigma := 0.1  ## perturbation stddev (openai_es: fixed; cma_es: initial, self-adapts)
+@export var alpha := 0.05  ## learning rate (openai_es only)
 @export var generations := 100
 @export var episode_decisions := 100  ## episode horizon in DECISION steps (× action_repeat ticks)
 @export var episodes_per_candidate := 1  ## fitness = mean return over k seeded episodes
@@ -105,6 +111,7 @@ var _theta := PackedFloat32Array()
 var _action_space: Dictionary = {}
 var _neutral_action: Dictionary = {}  # decoded all-zero logits: the candidate-independent reset action
 var _rng := RandomNumberGenerator.new()
+var _cma = null  # CmaMath instance when optimizer == "cma_es"
 var _epsilons: Array = []
 var _fitness: Array = []
 var _next_candidate := 0
@@ -124,6 +131,8 @@ func _ready() -> void:
 	var args := RunSpeed.parse_cmdline_args()
 	speed_up = float(args.get("speedup", str(speed_up)))
 	action_repeat = int(args.get("action_repeat", str(action_repeat)))
+	optimizer = str(args.get("optimizer", optimizer))
+	generations = int(args.get("generations", str(generations)))
 	_rng.seed = rng_seed
 	set_physics_process(false)
 	# Agents register their group in their own _ready; initialize (and validate the possibly
@@ -134,6 +143,15 @@ func _ready() -> void:
 func _late_init() -> void:
 	if episode_decisions < 1 or episodes_per_candidate < 1 or half_population < 1:
 		_abort("episode_decisions, episodes_per_candidate and half_population must all be >= 1.")
+		return
+	if optimizer != "openai_es" and optimizer != "cma_es":
+		_abort("unknown optimizer '%s' (openai_es | cma_es — a bad cmdline override?)." % optimizer)
+		return
+	if optimizer == "cma_es" and half_population < 2:
+		_abort("cma_es needs a population of >= 4, so half_population >= 2.")
+		return
+	if generations < 1:
+		_abort("generations must be >= 1 (got %d — a bad cmdline override?)." % generations)
 		return
 	# int("garbage") is 0, so an action_repeat=typo cmdline override would otherwise reach the
 	# `_tick % action_repeat` hot path — a hang in debug builds and a SIGFPE (% 0) in release.
@@ -168,6 +186,11 @@ func _late_init() -> void:
 	zero_out.resize(action_dim)
 	_neutral_action = ActionDecode.decode_actions(zero_out, _action_space)
 	_n_candidates = 2 * half_population
+	if optimizer == "cma_es":
+		_cma = CmaMath.new()
+		if not _cma.setup(_theta, sigma, _n_candidates):
+			_abort("CMA-ES setup rejected the configuration (see the error above).")
+			return
 	if _n_candidates % _agents.size() != 0:
 		push_warning("ESTrainer: %d candidates across %d agent slot(s) leaves %d idle slot-episodes per generation — pick half_population so 2*half_population is a multiple of the slot count."
 			% [_n_candidates, _agents.size(), _agents.size() - (_n_candidates % _agents.size())])
@@ -194,8 +217,8 @@ func _late_init() -> void:
 	for arr in [_slot_phase, _slot_candidate, _slot_episode, _slot_decisions, _slot_accum, _slot_restarts]:
 		arr.resize(n_slots)
 		arr.fill(0)  # Array.resize pads with null, which would poison int/float arithmetic
-	print("[ESTrainer] net %s (θ=%d floats) · population %d × %d episode(s) · %d agent slot(s) · %d generations"
-		% [str(dims), _theta.size(), _n_candidates, episodes_per_candidate, n_slots, generations])
+	print("[ESTrainer] net %s (θ=%d floats) · %s · population %d × %d episode(s) · %d agent slot(s) · %d generations"
+		% [str(dims), _theta.size(), optimizer, _n_candidates, episodes_per_candidate, n_slots, generations])
 	_start_generation()
 	set_physics_process(true)
 
@@ -248,7 +271,10 @@ func _initial_theta() -> PackedFloat32Array:
 
 
 func _start_generation() -> void:
-	_epsilons = EsMath.sample_epsilons(_rng, half_population, _theta.size())
+	if _cma != null:
+		_cma.sample(_rng)
+	else:
+		_epsilons = EsMath.sample_epsilons(_rng, half_population, _theta.size())
 	_fitness = []
 	_fitness.resize(_n_candidates)
 	_fitness.fill(0.0)
@@ -261,7 +287,8 @@ func _assign_next(slot: int) -> void:
 	if _next_candidate >= _n_candidates:
 		_slot_phase[slot] = Phase.IDLE
 		return
-	var candidate: PackedFloat32Array = EsMath.candidate_at(_theta, sigma, _epsilons, _next_candidate)
+	var candidate: PackedFloat32Array = _cma.candidate_at(_next_candidate) if _cma != null \
+		else EsMath.candidate_at(_theta, sigma, _epsilons, _next_candidate)
 	var runner: NcnnRunner = _runners[slot]
 	if not runner.load_model_from_buffers(_param_bytes, NcnnWeights.bin_bytes(_spec, candidate)):
 		_abort("candidate net failed to load.")
@@ -387,8 +414,12 @@ func _finish_generation() -> void:
 	if mean > _best_mean:
 		_best_mean = mean
 		_save_checkpoint("%s_best" % checkpoint_stem)
-	var shaped: Array = EsMath.centered_ranks(_fitness)
-	_theta = EsMath.es_update(_theta, _epsilons, shaped, sigma, alpha)
+	if _cma != null:
+		_cma.update(_fitness)
+		_theta = _cma.mean_vector()
+	else:
+		var shaped: Array = EsMath.centered_ranks(_fitness)
+		_theta = EsMath.es_update(_theta, _epsilons, shaped, sigma, alpha)
 	if checkpoint_every > 0 and (_generation + 1) % checkpoint_every == 0:
 		_save_checkpoint("%s_gen%d" % [checkpoint_stem, _generation + 1])
 	_generation += 1

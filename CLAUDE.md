@@ -169,7 +169,9 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
 - **Train IN-ENGINE (ES — no Python, no socket, no backprop):** `godot --headless --path .
   res://examples/chase_the_target/chase_es_train.tscn` — the native ES trainer (#131): `ESTrainer`
   node (drop-in for `NcnnSync`; same agent contract, `action_repeat`/`speed_up`) evolves a flat θ
-  via OpenAI-ES (`training/es_math.gd`, pure), turns each candidate into a live ncnn net in memory
+  via OpenAI-ES (`training/es_math.gd`, pure) or **sep-CMA-ES** (`optimizer="cma_es"` / cmdline
+  `optimizer=`; `training/cma_math.gd` — diagonal-covariance CMA-ES with self-adapting step size +
+  per-coordinate variances, O(θ) per generation), turns each candidate into a live ncnn net in memory
   (`training/ncnn_weights.gd` θ⇄buffers codec — bijective, so `warm_start_*_path` fine-tunes a
   shipped net on-device), fitness = episodic return from the existing reward system. Checkpoints
   ARE deploy artifacts (`.ncnn.{param,bin}` in `out_dir`); multi-agent scenes evaluate candidates

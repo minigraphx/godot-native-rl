@@ -44,13 +44,31 @@ the update step** — deploy this one), `<stem>_final`, and optional `<stem>_gen
 | Export | What it does |
 |---|---|
 | `hidden_dims`, `hidden_activation` | The policy MLP between your obs and action space |
-| `half_population` | Candidates per generation = 2× this (antithetic pairs) |
-| `sigma`, `alpha` | Perturbation size / learning rate. He-init weights need σ large enough to change behavior (the chase examples use 0.4 from scratch, 0.25 for fine-tuning) |
+| `optimizer` | `openai_es` (default) or `cma_es` — see the optimizer section below. Cmdline `optimizer=` overrides |
+| `half_population` | Candidates per generation = 2× this (antithetic pairs; for `cma_es` simply λ = 2× this) |
+| `sigma`, `alpha` | Perturbation size / learning rate. He-init weights need σ large enough to change behavior (the chase examples use 0.4 from scratch, 0.25 for fine-tuning). Under `cma_es`, `sigma` is only the initial step size (self-adapts) and `alpha` is unused |
 | `episode_decisions` | Episode horizon in decision steps — **the trainer owns it** (agents' `reset_after` is overridden and restored, so a controller self-reset can never silently delete the final window's reward from fitness) |
 | `episodes_per_candidate` | Fitness = mean over k seeded episodes (noise ↓, wall-clock ↑) |
 | `seed_games` | Common random numbers (below). Leave on |
 | `speed_up` | Same mechanism as Sync (`speedup=` cmdline overrides it) |
 | `exit_on_finish` | CLI runs exit 0 on finish / 1 on abort — never hangs |
+
+## Choosing the optimizer: OpenAI-ES vs sep-CMA-ES
+
+`optimizer = "openai_es"` (default) is the antithetic gradient estimator described above.
+`optimizer = "cma_es"` switches to **sep-CMA-ES** (Ros & Hansen 2008) — the diagonal-covariance
+variant of CMA-ES, O(θ) per generation so it scales to net-sized search spaces — which adds what
+plain ES lacks: **self-adapting step size** (`sigma` becomes only the *initial* value; CSA grows
+it while progress is easy and shrinks it near an optimum) and **per-coordinate variances** (stiff
+weights get small perturbations, loose ones large). `alpha` is unused; everything else — CRN
+seeding, episode phases, blessing, checkpoints — is identical. Cmdline `optimizer=` (and
+`generations=`) override the scene, so the same training scene can run either:
+
+```bash
+godot --headless --path . res://examples/chase_the_target/chase_es_train_parallel.tscn optimizer=cma_es
+```
+
+BENCHMARK_PLACEHOLDER
 
 ## Fitness comparability: why the defaults look the way they do
 
