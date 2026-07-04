@@ -128,3 +128,15 @@ trajectories. #40 (MovieWriter) stays open as the next consumer.
 - Video export (#40), inference-time recording, multi-agent capture, obs storage (actions +
   rewards reproduce the episode; obs add bulk without aiding playback — the trainer-side demo
   format already stores obs where they're needed).
+
+## Addendum (2026-07-04): the tracked follow-ups shipped
+
+- **#195 multi-agent capture:** `record_all_agents` gives every agent slot its own buffer,
+  per-agent done segmentation, and file stream (`episode_NNNN_train_K.json`). The classic
+  single-agent stream keeps its historical file names.
+- **#194 inference-time capture:** `attach_agent(agent)` taps the controller's existing
+  `inference_step` signal — record deployed agents in a play scene with no Sync/trainer.
+  Episode boundaries via `n_steps` wrap (robust to who clears `done`); per-decision reward is
+  the accumulator delta with wrap handling. Honest limit: the final partial window's reward is
+  zeroed by the agent's own reset before it can be read (actions stay exact).
+  `flush_inference_episodes()` persists the in-progress tail (marked `partial`).

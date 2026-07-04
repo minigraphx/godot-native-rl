@@ -18,6 +18,17 @@ class StubGame:
 	func get_replay_state() -> Dictionary:
 		return {"x": x}
 
+class StubAgent:
+	extends Node
+	# Mimics an NCNN_INFERENCE controller's recordable surface (#194).
+	signal inference_step(payload: Dictionary)
+	var reward := 0.0
+	var n_steps := 0
+	func decide(action: int, reward_after: float, steps_after: int) -> void:
+		reward = reward_after
+		n_steps = steps_after
+		inference_step.emit({"action": {"move": action}})
+
 const OUT := "user://replay_test"
 
 func _emit_episode(sync: StubSync, n_steps: int, reward: float) -> void:
@@ -69,5 +80,58 @@ func _initialize() -> void:
 	# Steps without a pending action (step_sent alone) are ignored, no crash.
 	sync.step_sent.emit([9.9], [true])
 	h.assert_true(true, "orphan step_sent ignored")
+
+	# --- #195: multi-agent training capture — per-agent segmentation + file streams ---
+	var mrec = Recorder.new()
+	get_root().add_child(mrec)
+	mrec.out_dir = OUT + "_multi"
+	mrec.record_all_agents = true
+	mrec._game = game
+	mrec.attach_sync(sync)
+	mrec._snapshot_initial_state()
+	# Two agents; agent 1 finishes after 2 steps, agent 0 after 3.
+	sync.actions_received.emit([{"move": 0}, {"move": 2}])
+	sync.step_sent.emit([0.1, 1.0], [false, false])
+	sync.actions_received.emit([{"move": 1}, {"move": 2}])
+	sync.step_sent.emit([0.1, 1.0], [false, true])
+	sync.actions_received.emit([{"move": 2}, {"move": 0}])
+	sync.step_sent.emit([0.1, 0.5], [true, false])
+	var a0 := RF.from_json(FileAccess.get_file_as_string(OUT + "_multi/episode_0000_train_0.json"))
+	var a1 := RF.from_json(FileAccess.get_file_as_string(OUT + "_multi/episode_0000_train_1.json"))
+	h.assert_true(RF.validate(a0) and RF.validate(a1), "both agents' episodes written and valid")
+	h.assert_eq(int(a0["meta"]["n_steps"]), 3, "agent 0 episode has 3 steps")
+	h.assert_eq(int(a1["meta"]["n_steps"]), 2, "agent 1 episode segmented independently (2 steps)")
+	h.assert_eq(int(a1["meta"]["agent_index"]), 1, "agent index recorded per stream")
+	h.assert_true(absf(float(a1["meta"]["total_reward"]) - 2.0) < 1e-9, "agent 1 rewards summed")
+
+	# --- #194: inference-time capture — actions from inference_step, episodes via n_steps wrap ---
+	var agent := StubAgent.new()
+	agent.name = "Hero"
+	get_root().add_child(agent)
+	var irec = Recorder.new()
+	get_root().add_child(irec)
+	irec.out_dir = OUT + "_inf"
+	irec._game = game
+	irec.attach_agent(agent)
+	# Episode A: three decisions, cumulative reward 0.5 -> 0.8 -> 2.0 (deltas 0.5, 0.3, 1.2).
+	agent.decide(1, 0.5, 8)
+	agent.decide(2, 0.8, 16)
+	agent.decide(0, 2.0, 24)
+	# Controller reset (n_steps wraps, reward accumulator restarted): first decision of episode B.
+	agent.decide(3, 0.4, 8)
+	var i0 := RF.from_json(FileAccess.get_file_as_string(OUT + "_inf/episode_0000_inf_Hero.json"))
+	h.assert_true(RF.validate(i0), "inference episode written on n_steps wrap")
+	h.assert_eq(String(i0["meta"]["mode"]), "inference", "meta marks inference mode")
+	h.assert_eq(int(i0["meta"]["n_steps"]), 3, "episode A has 3 decisions")
+	h.assert_true(absf(float(i0["meta"]["total_reward"]) - 2.0) < 1e-9, "reward deltas sum to the accumulator")
+	h.assert_eq(int(i0["steps"][0]["action"]["move"]), 1, "actions captured from inference_step payload")
+	h.assert_true(absf(float(i0["steps"][2]["reward"]) - 1.2) < 1e-9, "per-decision reward is the delta")
+	# Flush captures the in-progress episode B as partial.
+	irec.flush_inference_episodes()
+	var i1 := RF.from_json(FileAccess.get_file_as_string(OUT + "_inf/episode_0001_inf_Hero.json"))
+	h.assert_true(RF.validate(i1), "flushed partial episode valid")
+	h.assert_eq(int(i1["meta"]["n_steps"]), 1, "episode B holds the post-reset decision")
+	h.assert_true(bool(i1["meta"]["partial"]), "flushed episode marked partial")
+	h.assert_true(absf(float(i1["steps"][0]["reward"]) - 0.4) < 1e-9, "post-reset delta is the fresh accumulator")
 
 	h.finish(self)

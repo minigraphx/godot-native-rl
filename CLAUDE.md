@@ -288,7 +288,12 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   (`chase_replay.tscn`, set `replay_path`) — feeds recorded actions at the recorded
   `action_repeat` cadence, no policy involved. Exact for kinematic seeded games (chase —
   CI-asserted by `replay_determinism_scene.tscn`); approximate under physics (Jolt
-  cross-run nondeterminism, see #60).
+  cross-run nondeterminism, see #60). `record_all_agents=true` captures EVERY agent slot with
+  independent per-agent episode segmentation/files (#195); `attach_agent(agent)` records a
+  DEPLOYED inference agent with no trainer/Sync at all — actions from the `inference_step`
+  signal, episodes via `n_steps` wrap, rewards as accumulator deltas (final partial window's
+  reward not capturable — the agent's own reset zeroes it first; #194). Call
+  `flush_inference_episodes()` before quitting a recording session.
 - **Record expert demos:** `godot --headless --path . res://examples/chase_the_target/record_chase_demos.tscn -- --demo-out=PATH --demo-trajectories=N`
   (offline — no trainer/socket; `gnrl_v1` default format; set `demo_format="godot_rl"` on the `NcnnSync` node for stock-tooling interop).
 - **Behavior cloning:** `.venv-train/bin/python scripts/train_bc.py --demos PATH --out models/bc.pt`
