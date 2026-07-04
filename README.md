@@ -91,6 +91,16 @@ the ordinary inference path, hot-swapped on every improvement: population evolvi
 today's best brain deployed on the right, zero export in between. HUD shows the live learning
 curve; keys 1/2/3 set speed. First visible competence in ~5–8 minutes.
 
+**On-device adaptation, measured honestly:** `chase_es_finetune_parallel.tscn` warm-starts the
+shipped chase net (`warm_start_*_path` — the θ⇄ncnn codec is bijective) against a **fleeing**
+target it never trained on. The measured value is **time-to-competence**: the warm-started
+population outscores 300 generations of from-scratch training *at generation 1* (mean fitness
+3.9 vs 0.67 blessed after the full cold run; replicated at two difficulty settings). The equally
+honest limit: same-architecture fine-tuning has ~no headroom when the environment shift demands
+features the observations lack (no target velocity here → informed pursuit is already the
+representable optimum) — details in the ES spec. The adapted net ships with a pipeline
+regression (`trained_es_drift_scene.tscn`).
+
 ## What you get
 - `NcnnRunner` C++ node: `load_model`, `run_inference`, `run_inference_image`,
   `run_discrete_action`, `run_inference_multi` (recurrent/LSTM state-carry), `run_inference_batch` (crowds).

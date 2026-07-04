@@ -181,7 +181,15 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   controller). The launcher's **Evolution Lab** demo (`evolution_lab.tscn`, #291) shows it live:
   8 worlds train on screen while a champion world hot-swaps onto every blessed checkpoint
   (`checkpoint_saved` signal → `reload_model`); HUD learning curve, keys 1/2/3 = speed. Small
-  nets + dense rewards only (ES is sample-inefficient).
+  nets + dense rewards only (ES is sample-inefficient). **Warm-start fine-tuning** (PR #298):
+  `chase_es_finetune_parallel.tscn` warm-starts from the shipped net against a FLEEING target
+  (`chase_drift_game.gd`, flee 260 px/s) — measured value is **time-to-competence** (warm gen-1
+  mean 3.9 vs cold-start 0.67 after 300 generations, replicated at two settings); adapted net +
+  pipeline regression in `trained_es_drift_scene.tscn`. Honest limit, documented in the spec:
+  same-arch fine-tuning has ~no headroom when the obs lack the features the shift demands (no
+  target velocity → informed pursuit is already the representable optimum). Seeded chase evals:
+  the checker re-rolls the first layout post-seed or the run is nondeterministic (game._ready
+  rolls it from the unseeded RNG).
   **Gotcha found here:** ncnn's from-memory load ALIASES the source buffer (`DataReaderFromMemory`
   zero-copy) — the runner reads from a private owned copy that outlives the net; never assume a
   from-memory load copied the weights. (And never SUBCLASS ncnn classes in the extension — iOS

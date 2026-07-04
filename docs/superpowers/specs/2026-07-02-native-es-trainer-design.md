@@ -161,3 +161,36 @@ differs from the sketch above in these load-bearing ways:
   link on iOS — ncnn builds without RTTI there; see docs/dev/gotchas.md).
 - The Python and GDScript format writers are pinned together by a committed cross-language
   fixture (byte-equality + `theta_from_bin` decode).
+
+## Warm-start fine-tuning experiment (2026-07-04, PR #298)
+
+The M3 "warm-start fine-tuning example" was built and measured honestly. Setup: the shipped
+`chase_es` net (trained vs a static target) dropped into `chase_drift_game` — a target that
+FLEES (away-vector + seeded jitter, wall reflection; 260 px/s vs the agent's 300). Deterministic
+eval (seeded, first layout re-rolled post-seed — a checker fix this experiment forced): the
+shipped net falls from ~19 catches/1800 frames (static) to 6/6/6/5 across seeds.
+
+Two identical 300-generation ES runs on the flee env (pop 32 × 3 CRN episodes, σ 0.25, α 0.08):
+
+| | gen-1 mean fitness | blessed best mean |
+|---|---|---|
+| **Warm-start** (`warm_start_*_path` from the shipped net) | **3.91** | **4.48** |
+| **Cold-start** (identical config, random init) | −1.33 | 0.67 |
+
+Replicated at a milder setting (200 px/s: warm 5.86 → 6.73 vs cold −1.35 → 0.94). Two findings:
+
+1. **Warm-start = time-to-competence.** At generation 1 the warm population already outperforms
+   300 generations of from-scratch training by ~6×. This is the on-device adaptation value:
+   after an environment change, the shipped brain is instantly competent and refining, where
+   from-scratch is unusable for the first ~20 minutes.
+2. **Same-architecture adaptation headroom on THIS task is ≈ nil** — the warm curve plateaus on
+   arrival (deterministic eval: adapted 6/6/7/7 vs un-adapted 6/6/6/5; retention, not gain).
+   Why: the 5-dim obs carry no target velocity, so informed pursuit is already the
+   representable optimum; interception/cornering strategies need velocity features. Stated in
+   the docs so users know when fine-tuning helps (policy near a NEW optimum reachable with the
+   SAME inputs) and when it can't (the shift demands features the obs lack — that's a
+   retrain-with-new-obs, not a fine-tune).
+
+The committed regression (`trained_es_drift_scene.tscn`) guards the full pipeline — shipped net
+→ warm-start decode → in-engine ES → blessed checkpoint → standard inference deploy — not an
+improvement claim.
