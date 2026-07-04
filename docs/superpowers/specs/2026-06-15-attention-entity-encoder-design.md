@@ -193,7 +193,16 @@ Two M2 pieces landed from an environment without the Python toolchain:
    demonstrated, not argued. **Gotcha encoded in the writer:** ncnn allows ONE consumer per
    blob — every fan-out needs an explicit `Split` layer (pnnx inserts them silently; hand
    authors must too, or lightmode blob recycling kills the forward chain with no log).
-3. **`examples/sorter/` shipped** (spec §2's env): variable 2..6 numbered tiles, ascending-order
+3. **The direct-export path is now PRODUCTION, not prototype (2026-07-04, third pass)** —
+   `export_statedict_to_ncnn.py` gained first-class attention builders
+   (`attention_policy_layers(n_entities, feat, embed_dim, num_heads, weights, head_dims)` plus
+   the Split/Crop/Reshape/Gemm/BinaryOp/Tile/Reduction/MultiHeadAttention layer emitters and a
+   `validate_single_consumer` guard that fails loud on the one-consumer-per-blob gotcha). The
+   fixture generator now *calls the production writer* (single source of graph truth), and a
+   byte-equality Python test pins the writer's output to the committed ncnn-verified fixtures —
+   so §5's "third deploy option" is a deterministic function call: torch state_dict →
+   `attention_policy_layers` → deploy artifact, no pnnx, optional trailing MLP head included.
+4. **`examples/sorter/` shipped** (spec §2's env): variable 2..6 numbered tiles, ascending-order
    visits, wrong-visit penalty on ENTER without consuming, `EntitySensor2D` block obs
    (`[6*4][6 flags]`, tiles join/leave the sensor group with the episode count). Pure helpers
    unit-tested; a scripted-expert smoke solves variable-count episodes in CI

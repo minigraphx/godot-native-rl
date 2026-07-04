@@ -77,8 +77,8 @@ func _initialize() -> void:
 	h.assert_true(not eg.is_empty(), "encoder golden json parses")
 	if not eg.is_empty():
 		var enc := NcnnRunner.new()
-		enc.input_blob_name = "flat"
-		enc.output_blob_name = "out"
+		enc.input_blob_name = "in0"
+		enc.output_blob_name = "out0"
 		var enc_ok := enc.load_model(
 			ProjectSettings.globalize_path("res://models/synthetic_entity_encoder.ncnn.param"),
 			ProjectSettings.globalize_path("res://models/synthetic_entity_encoder.ncnn.bin"))

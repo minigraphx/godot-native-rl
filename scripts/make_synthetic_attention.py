@@ -25,7 +25,11 @@ from __future__ import annotations
 import json
 import math
 import struct
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import export_statedict_to_ncnn as sd  # the production writer — single source of graph truth
 
 N = 3          # entities (seq len)
 D = 4          # embed_dim
@@ -154,51 +158,15 @@ def write_encoder_fixture(gen) -> None:
         })
 
     nf = N * F
-    # ncnn graph rule (pnnx always honors it): ONE consumer per blob — every fan-out goes
-    # through an explicit Split layer, or lightmode blob recycling breaks the forward chain.
-    lines = [
-        "7767517",
-        "0 0",
-        "Input flat 0 1 flat 0=%d" % (nf + N),
-        "Split flat_split 1 2 flat flat0 flat1",
-        "Crop entflat 1 1 flat0 entflat 0=0 3=%d" % nf,
-        "Crop flags 1 1 flat1 flags 0=%d 3=%d" % (nf, N),
-        "Split flags_split 1 2 flags flags0 flags1",
-        "Reshape ent 1 1 entflat ent 0=%d 1=%d" % (F, N),
-        "Gemm emb0 1 1 ent emb0 2=0 3=1 4=0 5=1 6=1 8=%d 9=%d 10=4" % (D, F),
-        "ReLU emb 1 1 emb0 emb",
-        "Reshape flagrow 1 1 flags0 flagrow 0=%d 1=1" % N,
-        "Split flagrow_split 1 2 flagrow flagrow0 flagrow1",
-        "BinaryOp inv 1 1 flagrow0 inv 0=7 1=1 2=1.0",
-        "BinaryOp negmask 1 1 inv negmask 0=2 1=1 2=-1000000000.0",
-        "Tile mask 1 1 negmask mask 0=0 1=%d" % N,
-        "MultiHeadAttention att 2 1 emb mask att 0=%d 1=%d 2=%d 5=1" % (D, HEADS, D * D),
-        "Gemm pool 2 1 flagrow1 att pool 1=0.0",
-        "Reduction denom0 1 1 flags1 denom0 0=0 1=1",
-        "BinaryOp denom 1 1 denom0 denom 0=4 1=1 2=1.0",
-        "BinaryOp out 2 1 pool denom out 0=3",
-    ]
-    n_layers = len(lines) - 2
-    blobs = set()
-    for l in lines[2:]:
-        toks = l.split()
-        nin, nout = int(toks[2]), int(toks[3])
-        blobs.update(toks[4 + nin:4 + nin + nout])
-    lines[1] = "%d %d" % (n_layers, len(blobs))
-    ENC_PARAM.write_text("\n".join(lines) + "\n")
+    weights = {
+        "emb_w": emb_w, "emb_b": emb_b,
+        "q_w": qw, "q_b": qb, "k_w": kw, "k_b": kb,
+        "v_w": vw, "v_b": vb, "out_w": ow, "out_b": ob,
+    }
+    layers = sd.attention_policy_layers(N, F, D, HEADS, weights)
+    ENC_PARAM.write_text(sd.ncnn_param_text(layers))
 
-    def packed(data, tagged):
-        blob = b"" if not tagged else struct.pack("<I", 0)
-        return blob + struct.pack("<%df" % len(data), *data)
-
-    ENC_BIN.write_bytes(b"".join([
-        packed(emb_w, True), packed(emb_b, True),  # Gemm B (transB: KxN load) + C (type 4) — both tagged
-        packed(qw, True), packed(qb, False),
-        packed(kw, True), packed(kb, False),
-        packed(vw, True), packed(vb, False),
-        packed(ow, True), packed(ob, False),
-    ]))
-
+    ENC_BIN.write_bytes(sd.ncnn_bin_bytes(layers))
     ENC_GOLDEN.write_text(json.dumps({
         "n": N, "f": F, "embed_dim": D, "obs_size": nf + N,
         "cases": cases,

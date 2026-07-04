@@ -139,3 +139,76 @@ class TestMlpParity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAttentionBuilders(unittest.TestCase):
+    """#46 direct-export path: the builders behind the ncnn-verified encoder fixture."""
+
+    def _weights(self, n=3, f=2, d=4):
+        def seq(count, base):
+            return [base + i * 0.01 for i in range(count)]
+        w = {"emb_w": seq(d * f, 0.1), "emb_b": seq(d, 0.2)}
+        for k in ("q", "k", "v", "out"):
+            w["%s_w" % k] = seq(d * d, 0.3)
+            w["%s_b" % k] = seq(d, 0.4)
+        return w
+
+    def test_single_consumer_validator_catches_missing_split(self):
+        layers = [
+            sd.input_layer("in0", 4),
+            sd.crop_layer("a", "in0", "a", 0, 2),
+            sd.crop_layer("b", "in0", "b", 2, 2),  # second consumer of in0 — needs a Split
+        ]
+        with self.assertRaises(ValueError):
+            sd.validate_single_consumer(layers)
+
+    def test_encoder_graph_is_split_clean_and_ends_at_out0(self):
+        layers = sd.attention_policy_layers(3, 2, 4, 2, self._weights())
+        sd.validate_single_consumer(layers)  # must not raise
+        self.assertEqual(layers[-1]["tops"], ["out0"])
+        self.assertEqual(layers[0]["params"][0], 3 * 2 + 3)  # flat obs width
+
+    def test_head_dims_append_mlp_with_relu_between(self):
+        w = self._weights()
+        w["head0_w"] = [0.1] * (4 * 8)
+        w["head0_b"] = [0.0] * 8
+        w["head1_w"] = [0.1] * (8 * 5)
+        w["head1_b"] = [0.0] * 5
+        layers = sd.attention_policy_layers(3, 2, 4, 2, w, head_dims=[8, 5])
+        types = [l["type"] for l in layers[-3:]]
+        self.assertEqual(types, ["InnerProduct", "ReLU", "InnerProduct"])
+        self.assertEqual(layers[-1]["tops"], ["out0"])
+        sd.validate_single_consumer(layers)
+
+    def test_mha_weight_tagging_matches_ncnn_load_model(self):
+        w = self._weights()
+        mha = sd.multihead_attention_layer("att", "x", "m", "att", 4, 2,
+                                           w["q_w"], w["q_b"], w["k_w"], w["k_b"],
+                                           w["v_w"], w["v_b"], w["out_w"], w["out_b"])
+        tags = [tagged for _, tagged in mha["weights"]]
+        self.assertEqual(tags, [True, False, True, False, True, False, True, False])
+        self.assertEqual(mha["params"][5], 1)  # attn_mask enabled
+
+    def test_regenerated_fixture_matches_committed_bytes(self):
+        """The committed fixture is executed by real ncnn in the GDScript golden suite at zero
+        error; the production writer must reproduce it byte-for-byte, pinning the two forever."""
+        import importlib
+        import make_synthetic_attention as gen
+        importlib.reload(gen)
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            gen.OUT_PARAM = tmp / "a.param"
+            gen.OUT_BIN = tmp / "a.bin"
+            gen.OUT_GOLDEN = tmp / "a.json"
+            gen.ENC_PARAM = tmp / "e.param"
+            gen.ENC_BIN = tmp / "e.bin"
+            gen.ENC_GOLDEN = tmp / "e.json"
+            gen.main()
+            self.assertEqual((tmp / "e.param").read_text(),
+                             (ROOT / "models/synthetic_entity_encoder.ncnn.param").read_text())
+            self.assertEqual((tmp / "e.bin").read_bytes(),
+                             (ROOT / "models/synthetic_entity_encoder.ncnn.bin").read_bytes())
+            self.assertEqual((tmp / "a.param").read_text(),
+                             (ROOT / "models/synthetic_attention.ncnn.param").read_text())
+            self.assertEqual((tmp / "a.bin").read_bytes(),
+                             (ROOT / "models/synthetic_attention.ncnn.bin").read_bytes())

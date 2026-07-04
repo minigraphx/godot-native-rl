@@ -116,6 +116,145 @@ def activation_layer(ncnn_type: str, name: str, bottom: str, top: str, params: d
     return {"type": ncnn_type, "name": name, "bottoms": [bottom], "tops": [top], "params": params or {}}
 
 
+# ---- attention-encoder layer builders (#46; the pnnx-independent export path) ----
+# Param IDs and weight layouts mirror the vendored ncnn sources exactly; the whole graph shape
+# below is byte-pinned to committed fixtures that the GDScript golden suite executes through the
+# real NcnnRunner at zero error (test_attention_golden_inference.gd).
+
+def split_layer(name: str, bottom: str, tops: list[str]) -> dict:
+    """ncnn permits ONE consumer per blob: every fan-out must pass through a Split (pnnx inserts
+    them silently; hand-authored graphs that skip this die at forward with no log)."""
+    return {"type": "Split", "name": name, "bottoms": [bottom], "tops": list(tops), "params": {}}
+
+
+def crop_layer(name: str, bottom: str, top: str, woffset: int, outw: int) -> dict:
+    return {"type": "Crop", "name": name, "bottoms": [bottom], "tops": [top],
+            "params": {0: int(woffset), 3: int(outw)}}
+
+
+def reshape_layer(name: str, bottom: str, top: str, w: int, h: int) -> dict:
+    return {"type": "Reshape", "name": name, "bottoms": [bottom], "tops": [top],
+            "params": {0: int(w), 1: int(h)}}
+
+
+def gemm_const_b_layer(name: str, bottom: str, top: str, weight: list[float], bias: list[float],
+                       in_features: int, out_features: int) -> dict:
+    """A(M,in) x W(out,in)^T + bias-row -> (M,out). transB=1 with torch-layout weights; bias is a
+    constant C of broadcast type 4 (one row over M). BOTH constant blobs are fp32-tagged."""
+    return {
+        "type": "Gemm", "name": name, "bottoms": [bottom], "tops": [top],
+        "params": {2: 0, 3: 1, 4: 0, 5: 1, 6: 1, 8: int(out_features), 9: int(in_features), 10: 4},
+        "weights": [(weight, True), (bias, True)],
+    }
+
+
+def gemm_two_input_layer(name: str, bottom_a: str, bottom_b: str, top: str) -> dict:
+    """Plain A x B on two runtime blobs (beta=0: no C term)."""
+    return {"type": "Gemm", "name": name, "bottoms": [bottom_a, bottom_b], "tops": [top],
+            "params": {1: 0.0}}
+
+
+def binaryop_scalar_layer(name: str, bottom: str, top: str, op: int, scalar: float) -> dict:
+    """One-blob BinaryOp with scalar operand. op: 0 ADD 1 SUB 2 MUL 3 DIV 4 MAX 5 MIN 7 RSUB."""
+    return {"type": "BinaryOp", "name": name, "bottoms": [bottom], "tops": [top],
+            "params": {0: int(op), 1: 1, 2: float(scalar)}}
+
+
+def binaryop_layer(name: str, bottom_a: str, bottom_b: str, top: str, op: int) -> dict:
+    return {"type": "BinaryOp", "name": name, "bottoms": [bottom_a, bottom_b], "tops": [top],
+            "params": {0: int(op)}}
+
+
+def tile_layer(name: str, bottom: str, top: str, axis: int, tiles: int) -> dict:
+    return {"type": "Tile", "name": name, "bottoms": [bottom], "tops": [top],
+            "params": {0: int(axis), 1: int(tiles)}}
+
+
+def reduction_sum_all_layer(name: str, bottom: str, top: str) -> dict:
+    return {"type": "Reduction", "name": name, "bottoms": [bottom], "tops": [top],
+            "params": {0: 0, 1: 1}}
+
+
+def multihead_attention_layer(name: str, bottom_x: str, bottom_mask: str, top: str,
+                              embed_dim: int, num_heads: int,
+                              q_w: list[float], q_b: list[float], k_w: list[float], k_b: list[float],
+                              v_w: list[float], v_b: list[float], out_w: list[float], out_b: list[float]) -> dict:
+    """Self-attention with an additive attn_mask bottom (param 5=1). Weight order/layout per
+    MultiHeadAttention::load_model: q/k/v/out as (out x in) row-major fp32-tagged weights, each
+    followed by its RAW (untagged) bias."""
+    return {
+        "type": "MultiHeadAttention", "name": name, "bottoms": [bottom_x, bottom_mask], "tops": [top],
+        "params": {0: int(embed_dim), 1: int(num_heads), 2: int(embed_dim) * int(embed_dim), 5: 1},
+        "weights": [(q_w, True), (q_b, False), (k_w, True), (k_b, False),
+                    (v_w, True), (v_b, False), (out_w, True), (out_b, False)],
+    }
+
+
+def validate_single_consumer(layers: list[dict]) -> None:
+    """Fail loud on the silent killer: a blob consumed by more than one layer (needs a Split)."""
+    consumers: dict[str, list[str]] = {}
+    for layer in layers:
+        for b in layer["bottoms"]:
+            consumers.setdefault(b, []).append(layer["name"])
+    multi = {b: c for b, c in consumers.items() if len(c) > 1}
+    if multi:
+        raise ValueError(
+            "blob(s) with multiple consumers (insert Split layers): %s" % multi)
+
+
+def attention_policy_layers(n_entities: int, feat: int, embed_dim: int, num_heads: int,
+                            weights: dict, head_dims: list[int] | None = None,
+                            neg_mask: float = -1e9) -> list[dict]:
+    """The proven single-input entity-encoder graph (#46), optionally followed by an MLP head.
+
+    Input blob `in0` = the EntitySensor flat obs [n*feat entities][n presence flags]; output
+    blob `out0` = the pooled embedding, or the MLP head's logits when head_dims is given.
+
+    `weights` keys (plain float lists, torch .tolist() layout):
+      emb_w (embed_dim x feat), emb_b, q_w/q_b/k_w/k_b/v_w/v_b/out_w/out_b (embed_dim square),
+      and for each head layer i: head{i}_w (out x in), head{i}_b. head_dims are the head's
+      OUTPUT sizes; ReLU between head layers, none after the last (logits).
+    """
+    n, f, d = int(n_entities), int(feat), int(embed_dim)
+    nf = n * f
+    layers = [
+        input_layer("in0", nf + n),
+        split_layer("in0_split", "in0", ["in0_a", "in0_b"]),
+        crop_layer("entflat", "in0_a", "entflat", 0, nf),
+        crop_layer("flags", "in0_b", "flags", nf, n),
+        split_layer("flags_split", "flags", ["flags_a", "flags_b"]),
+        reshape_layer("ent", "entflat", "ent", f, n),
+        gemm_const_b_layer("emb0", "ent", "emb0", weights["emb_w"], weights["emb_b"], f, d),
+        activation_layer("ReLU", "emb", "emb0", "emb", {0: 0.0}),
+        reshape_layer("flagrow", "flags_a", "flagrow", n, 1),
+        split_layer("flagrow_split", "flagrow", ["flagrow_a", "flagrow_b"]),
+        binaryop_scalar_layer("inv", "flagrow_a", "inv", 7, 1.0),          # 1 - p
+        binaryop_scalar_layer("negmask", "inv", "negmask", 2, neg_mask),   # * -1e9
+        tile_layer("mask", "negmask", "mask", 0, n),                       # (n,1) -> (n,n)
+        multihead_attention_layer("att", "emb", "mask", "att", d, num_heads,
+                                  weights["q_w"], weights["q_b"], weights["k_w"], weights["k_b"],
+                                  weights["v_w"], weights["v_b"], weights["out_w"], weights["out_b"]),
+        gemm_two_input_layer("pool", "flagrow_b", "att", "pool"),          # p^T x att -> (1,d)
+        reduction_sum_all_layer("denom0", "flags_b", "denom0"),
+        binaryop_scalar_layer("denom", "denom0", "denom", 4, 1.0),         # max(sum p, 1)
+        binaryop_layer("pooled", "pool", "denom", "pooled", 3),            # divide
+    ]
+    prev = "pooled"
+    for i, out_dim in enumerate(head_dims or []):
+        in_dim = d if i == 0 else int((head_dims or [])[i - 1])
+        name = "head%d" % i
+        layers.append(linear_layer(name, prev, name, weights["%s_w" % name], weights["%s_b" % name],
+                                   in_dim, int(out_dim)))
+        prev = name
+        if i < len(head_dims or []) - 1:
+            act = "head%d_relu" % i
+            layers.append(activation_layer("ReLU", act, prev, act, {0: 0.0}))
+            prev = act
+    layers[-1]["tops"] = ["out0"]
+    validate_single_consumer(layers)
+    return layers
+
+
 # ---- torch-facing module walk (lazy torch import) ----
 
 def module_to_layers(model, input_dim: int) -> list[dict]:
