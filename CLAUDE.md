@@ -88,7 +88,9 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   phases (#29): each phase trains ONE side with stock single-policy SB3 while the other plays as a
   frozen **native-ncnn ghost** (`NCNN_INFERENCE` agent — invisible to the trainer since `n_agents`
   counts only TRAINING agents) whose snapshot the in-scene `SelfPlayManager` swaps per episode from
-  the opponent pool with ELO tracking (`pool.json` ledger). Phase exports land in
+  the opponent pool with ELO tracking (`pool.json` ledger; matchmaking defaults to
+  **ELO-proximity** — near-rated sparring via a gaussian kernel on rating distance, #190;
+  `pick_mode` = `elo_proximity`|`uniform`|`latest`). Phase exports land in
   `models/selfplay_pool/{seeker,hider}` (gitignored) via `selfplay_phase.py register-snapshot`.
   `PHASES`/`TIMESTEPS_PER_PHASE`/`SPEEDUP`/`ACTION_REPEAT` overrides. Library:
   `training/{elo,opponent_pool,self_play_manager}.gd` + `reload_model()` on both controllers.

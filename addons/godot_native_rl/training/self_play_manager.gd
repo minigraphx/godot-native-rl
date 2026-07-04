@@ -12,7 +12,7 @@ signal ratings_updated(learner_rating: float)
 
 @export var pool_dir := "user://selfplay_pool"
 @export var ghost_agent_path: NodePath
-@export var pick_mode := "uniform"  ## "uniform" | "latest"
+@export var pick_mode := "elo_proximity"  ## "elo_proximity" (near-rated sparring, #190) | "uniform" | "latest"
 @export var elo_k := 32.0
 @export var rng_seed := 0
 

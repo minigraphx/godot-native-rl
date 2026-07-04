@@ -27,6 +27,10 @@ func is_empty() -> bool:
 func add_member(name: String) -> void:
 	_members[name] = {"rating": _learner_rating, "games": 0}
 
+# ELO scale on which a matchup stops being informative: 200 points ~ 76% expected score, so the
+# proximity kernel has largely decayed by ~2 sigma (400 points ~ 91%).
+const PROXIMITY_SIGMA := 200.0
+
 func pick_opponent(rng: RandomNumberGenerator, mode := "uniform") -> String:
 	if _members.is_empty():
 		return ""
@@ -34,8 +38,42 @@ func pick_opponent(rng: RandomNumberGenerator, mode := "uniform") -> String:
 	match mode:
 		"latest":
 			return names.back()
+		"elo_proximity":
+			# League matchmaking (#190): spar members rated NEAR the learner — far-weaker
+			# opponents teach nothing and far-stronger ones give pure-loss signal. Weighted
+			# draw, never a hard cutoff, so the whole pool stays reachable.
+			var ratings: Array = []
+			for n in names:
+				ratings.append(member_rating(n))
+			return weighted_pick(rng, names, proximity_weights(ratings, _learner_rating))
 		_:
 			return names[rng.randi_range(0, names.size() - 1)]
+
+## Gaussian kernel on rating distance to the learner: w_i = exp(-((r_i - learner)/sigma)^2).
+static func proximity_weights(ratings: Array, learner: float, sigma := PROXIMITY_SIGMA) -> Array:
+	var weights: Array = []
+	for r in ratings:
+		var d := (float(r) - learner) / maxf(sigma, 1e-6)
+		weights.append(exp(-d * d))
+	return weights
+
+## One weighted draw over names. Falls back to uniform when the total weight vanishes (every
+## member many sigma away) — matchmaking must never dead-end the league.
+static func weighted_pick(rng: RandomNumberGenerator, names: Array, weights: Array) -> String:
+	if names.is_empty():
+		return ""
+	var total := 0.0
+	for w in weights:
+		total += float(w)
+	if total <= 1e-12:
+		return names[rng.randi_range(0, names.size() - 1)]
+	var u := rng.randf() * total
+	var acc := 0.0
+	for i in range(names.size()):
+		acc += float(weights[i])
+		if u <= acc:
+			return names[i]
+	return names.back()
 
 func record_match(member_name: String, learner_won: bool, draw := false, k := 32.0) -> bool:
 	if not _members.has(member_name):
