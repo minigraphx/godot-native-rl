@@ -74,7 +74,9 @@ because we statically link two resident nets and switch them game-side at no run
 
 ## Train inside the engine (evolutionary strategies — no Python at all)
 `ESTrainer` (`addons/godot_native_rl/training/es_trainer.gd`) is a native, in-engine training loop:
-an OpenAI-style ES optimizer perturbs a flat weight vector, turns every candidate into a live ncnn
+an evolutionary optimizer — OpenAI-style ES, or **sep-CMA-ES** (`optimizer="cma_es"`, self-adapting
+step size + per-coordinate variances; measured mean fitness 13.4 vs 2.3 on a 200-generation paired
+chase run, so prefer it for new from-scratch runs) — perturbs a flat weight vector, turns every candidate into a live ncnn
 net in memory (`training/ncnn_weights.gd` θ⇄buffers codec + `load_model_from_buffers`), and scores
 it by episodic return from the existing reward system. No Python, no socket, no backprop — it runs
 on every deploy target the static ncnn build reaches, **including web**. The training artifact IS
