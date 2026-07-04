@@ -182,7 +182,18 @@ Two M2 pieces landed from an environment without the Python toolchain:
      2=weight_data_size 5=attn_mask 6=scale; weights q/k/v/out as (out×in) row-major fp32-tagged
      + raw biases; inputs 2D Mats (w=features, h=seq); mask 2D (src×dst), additive, shared
      across heads; `scale` multiplies the Q affine.
-2. **`examples/sorter/` shipped** (spec §2's env): variable 2..6 numbered tiles, ascending-order
+2. **The single-input encoder graph is ALSO proven (2026-07-04, second pass)** — the spec's
+   PREFERRED deploy shape: one flat obs in, with Crop (entities/flags split), Reshape,
+   Gemm-embedding + ReLU, in-graph mask construction ((1−p)·−1e9 via BinaryOp RSUB/MUL + Tile),
+   masked MultiHeadAttention, and the masked mean-pool (pᵀ·att via 2-input Gemm ÷ clamped
+   Reduction sum) all inside the graph. `run_inference(flat_obs)` matches the pure-math golden
+   at 0.0 worst error, padded-junk invariance included (fixture 2 in
+   `scripts/make_synthetic_attention.py` / `test_attention_golden_inference.gd`). §5 risks 1
+   AND 2 are now retired on the ncnn side; §1's "no new C++, no new deploy contract" claim is
+   demonstrated, not argued. **Gotcha encoded in the writer:** ncnn allows ONE consumer per
+   blob — every fan-out needs an explicit `Split` layer (pnnx inserts them silently; hand
+   authors must too, or lightmode blob recycling kills the forward chain with no log).
+3. **`examples/sorter/` shipped** (spec §2's env): variable 2..6 numbered tiles, ascending-order
    visits, wrong-visit penalty on ENTER without consuming, `EntitySensor2D` block obs
    (`[6*4][6 flags]`, tiles join/leave the sensor group with the episode count). Pure helpers
    unit-tested; a scripted-expert smoke solves variable-count episodes in CI

@@ -93,6 +93,119 @@ def mha_forward(x_rows, mask_rows, qw, qb, kw, kb, vw, vb, ow, ob):
     return out
 
 
+# ---------------------------------------------------------------------------
+# Fixture 2 (#46 single-input contract): the FULL entity encoder as ONE graph —
+# flat obs in, pooled embedding out. Crop splits entities/flags, Reshape rows,
+# Gemm(+ReLU) is the EntityEmbedding, the additive mask is BUILT IN-GRAPH from
+# the presence flags ((1-p)*-1e9, tiled to src x dst), MultiHeadAttention runs
+# masked, and the masked mean-pool is p^T*att (2-input Gemm) / max(sum p, 1).
+# Proves the spec's PREFERRED deploy shape (single run_inference call) without
+# pnnx — and doubles as the direct-export prototype for the encoder.
+# ---------------------------------------------------------------------------
+
+F = 2  # per-entity features in the encoder fixture
+
+ENC_PARAM = Path("models/synthetic_entity_encoder.ncnn.param")
+ENC_BIN = Path("models/synthetic_entity_encoder.ncnn.bin")
+ENC_GOLDEN = Path("models/synthetic_entity_encoder_golden.json")
+
+
+def encoder_forward(flat, emb_w, emb_b, qw, qb, kw, kb, vw, vb, ow, ob):
+    ents = [flat[i * F:(i + 1) * F] for i in range(N)]
+    flags = flat[N * F:N * F + N]
+    emb = []
+    for row in ents:
+        out_row = []
+        for j in range(D):
+            s = emb_b[j] + sum(row[k] * emb_w[j * F + k] for k in range(F))
+            out_row.append(max(s, 0.0))
+        emb.append(out_row)
+    mask_row = [(1.0 - p) * NEG for p in flags]
+    mask_rows = [mask_row for _ in range(N)]
+    att = mha_forward(emb, mask_rows, qw, qb, kw, kb, vw, vb, ow, ob)
+    denom = max(sum(flags), 1.0)
+    return [sum(flags[j] * att[j][k] for j in range(N)) / denom for k in range(D)]
+
+
+def write_encoder_fixture(gen) -> None:
+    emb_w, emb_b = take(gen, D * F), take(gen, D)
+    qw, qb = take(gen, D * D), take(gen, D)
+    kw, kb = take(gen, D * D), take(gen, D)
+    vw, vb = take(gen, D * D), take(gen, D)
+    ow, ob = take(gen, D * D), take(gen, D)
+
+    def flat_obs(ent_rows, flags):
+        padded = ent_rows + [[0.0] * F] * (N - len(ent_rows))
+        return [v for row in padded for v in row] + flags
+
+    real2 = [take(gen, F), take(gen, F)]
+    cases = []
+    for name, rows, flags in [
+        ("all_present", real2 + [take(gen, F)], [1.0, 1.0, 1.0]),
+        ("two_present", real2, [1.0, 1.0, 0.0]),
+        # Same two real entities, junk in the padded slot: output must equal two_present.
+        ("two_present_junk", real2 + [[9.0, -9.0]], [1.0, 1.0, 0.0]),
+    ]:
+        flat = flat_obs(rows, flags)
+        cases.append({
+            "name": name,
+            "obs": [f32(v) for v in flat],
+            "expected": [f32(v) for v in encoder_forward(flat, emb_w, emb_b, qw, qb, kw, kb, vw, vb, ow, ob)],
+        })
+
+    nf = N * F
+    # ncnn graph rule (pnnx always honors it): ONE consumer per blob — every fan-out goes
+    # through an explicit Split layer, or lightmode blob recycling breaks the forward chain.
+    lines = [
+        "7767517",
+        "0 0",
+        "Input flat 0 1 flat 0=%d" % (nf + N),
+        "Split flat_split 1 2 flat flat0 flat1",
+        "Crop entflat 1 1 flat0 entflat 0=0 3=%d" % nf,
+        "Crop flags 1 1 flat1 flags 0=%d 3=%d" % (nf, N),
+        "Split flags_split 1 2 flags flags0 flags1",
+        "Reshape ent 1 1 entflat ent 0=%d 1=%d" % (F, N),
+        "Gemm emb0 1 1 ent emb0 2=0 3=1 4=0 5=1 6=1 8=%d 9=%d 10=4" % (D, F),
+        "ReLU emb 1 1 emb0 emb",
+        "Reshape flagrow 1 1 flags0 flagrow 0=%d 1=1" % N,
+        "Split flagrow_split 1 2 flagrow flagrow0 flagrow1",
+        "BinaryOp inv 1 1 flagrow0 inv 0=7 1=1 2=1.0",
+        "BinaryOp negmask 1 1 inv negmask 0=2 1=1 2=-1000000000.0",
+        "Tile mask 1 1 negmask mask 0=0 1=%d" % N,
+        "MultiHeadAttention att 2 1 emb mask att 0=%d 1=%d 2=%d 5=1" % (D, HEADS, D * D),
+        "Gemm pool 2 1 flagrow1 att pool 1=0.0",
+        "Reduction denom0 1 1 flags1 denom0 0=0 1=1",
+        "BinaryOp denom 1 1 denom0 denom 0=4 1=1 2=1.0",
+        "BinaryOp out 2 1 pool denom out 0=3",
+    ]
+    n_layers = len(lines) - 2
+    blobs = set()
+    for l in lines[2:]:
+        toks = l.split()
+        nin, nout = int(toks[2]), int(toks[3])
+        blobs.update(toks[4 + nin:4 + nin + nout])
+    lines[1] = "%d %d" % (n_layers, len(blobs))
+    ENC_PARAM.write_text("\n".join(lines) + "\n")
+
+    def packed(data, tagged):
+        blob = b"" if not tagged else struct.pack("<I", 0)
+        return blob + struct.pack("<%df" % len(data), *data)
+
+    ENC_BIN.write_bytes(b"".join([
+        packed(emb_w, True), packed(emb_b, True),  # Gemm B (transB: KxN load) + C (type 4) — both tagged
+        packed(qw, True), packed(qb, False),
+        packed(kw, True), packed(kb, False),
+        packed(vw, True), packed(vb, False),
+        packed(ow, True), packed(ob, False),
+    ]))
+
+    ENC_GOLDEN.write_text(json.dumps({
+        "n": N, "f": F, "embed_dim": D, "obs_size": nf + N,
+        "cases": cases,
+    }, indent=1))
+    print("Wrote:", ENC_PARAM, ENC_BIN, ENC_GOLDEN)
+
+
 def main() -> None:
     gen = lcg(20260704)
     qw, qb = take(gen, D * D), take(gen, D)
@@ -147,6 +260,7 @@ def main() -> None:
         "cases": cases,
     }, indent=1))
     print("Wrote:", OUT_PARAM, OUT_BIN, OUT_GOLDEN)
+    write_encoder_fixture(gen)
 
 
 if __name__ == "__main__":

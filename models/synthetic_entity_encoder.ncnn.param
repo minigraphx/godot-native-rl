@@ -1,0 +1,20 @@
+7767517
+18 21
+Input flat 0 1 flat 0=9
+Split flat_split 1 2 flat flat0 flat1
+Crop entflat 1 1 flat0 entflat 0=0 3=6
+Crop flags 1 1 flat1 flags 0=6 3=3
+Split flags_split 1 2 flags flags0 flags1
+Reshape ent 1 1 entflat ent 0=2 1=3
+Gemm emb0 1 1 ent emb0 2=0 3=1 4=0 5=1 6=1 8=4 9=2 10=4
+ReLU emb 1 1 emb0 emb
+Reshape flagrow 1 1 flags0 flagrow 0=3 1=1
+Split flagrow_split 1 2 flagrow flagrow0 flagrow1
+BinaryOp inv 1 1 flagrow0 inv 0=7 1=1 2=1.0
+BinaryOp negmask 1 1 inv negmask 0=2 1=1 2=-1000000000.0
+Tile mask 1 1 negmask mask 0=0 1=3
+MultiHeadAttention att 2 1 emb mask att 0=4 1=2 2=16 5=1
+Gemm pool 2 1 flagrow1 att pool 1=0.0
+Reduction denom0 1 1 flags1 denom0 0=0 1=1
+BinaryOp denom 1 1 denom0 denom 0=4 1=1 2=1.0
+BinaryOp out 2 1 pool denom out 0=3

@@ -67,4 +67,42 @@ func _initialize() -> void:
 		h.assert_true(worst_inv < 1e-6, "masked slot's contents don't leak into surviving rows (worst |err| %f)" % worst_inv)
 
 	runner.free()
+
+	# --- Fixture 2 (#46): the FULL single-input entity encoder graph ---
+	# flat obs in -> in-graph Crop/Reshape/Gemm-embedding/mask-construction/MHA/masked-mean-pool
+	# -> pooled embedding out, via ONE plain run_inference call: the spec's preferred deploy
+	# shape, proven without pnnx. Includes the padded-junk invariance case single-input style.
+	var eg_text := FileAccess.get_file_as_string("res://models/synthetic_entity_encoder_golden.json")
+	var eg: Dictionary = JSON.parse_string(eg_text) if eg_text != "" else {}
+	h.assert_true(not eg.is_empty(), "encoder golden json parses")
+	if not eg.is_empty():
+		var enc := NcnnRunner.new()
+		enc.input_blob_name = "flat"
+		enc.output_blob_name = "out"
+		var enc_ok := enc.load_model(
+			ProjectSettings.globalize_path("res://models/synthetic_entity_encoder.ncnn.param"),
+			ProjectSettings.globalize_path("res://models/synthetic_entity_encoder.ncnn.bin"))
+		h.assert_true(enc_ok, "single-input encoder graph loads")
+		if enc_ok:
+			var enc_outs: Dictionary = {}
+			for c in eg["cases"]:
+				var out := enc.run_inference(PackedFloat32Array(c["obs"]))
+				enc_outs[c["name"]] = out
+				var expected: Array = c["expected"]
+				h.assert_eq(out.size(), expected.size(), "%s: encoder output size" % c["name"])
+				if out.size() != expected.size():
+					continue
+				var worst := 0.0
+				for i in range(out.size()):
+					worst = maxf(worst, absf(out[i] - float(expected[i])))
+				h.assert_true(worst < ATOL, "%s: encoder matches pure-math golden (worst |err| %f)" % [c["name"], worst])
+			var t2: PackedFloat32Array = enc_outs.get("two_present", PackedFloat32Array())
+			var t2j: PackedFloat32Array = enc_outs.get("two_present_junk", PackedFloat32Array())
+			if t2.size() > 0 and t2.size() == t2j.size():
+				var worst_j := 0.0
+				for i in range(t2.size()):
+					worst_j = maxf(worst_j, absf(t2[i] - t2j[i]))
+				h.assert_true(worst_j < 1e-6, "single-input: padded-slot junk can't reach the pooled embedding (worst |err| %f)" % worst_j)
+		enc.free()
+
 	h.finish(self)
