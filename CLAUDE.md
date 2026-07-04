@@ -30,7 +30,10 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   wasm extension, exports the examples project with the committed `Web` preset (headless Godot +
   export templates), and deploys to Pages on pushes to `main` touching examples/addons/src (or
   `workflow_dispatch`). Live at https://minigraphx.github.io/godot-native-rl/ (one-time: Settings
-  → Pages → Source: GitHub Actions). PRs touching the workflow run build+export only, no deploy.
+  → Pages → Source: GitHub Actions). PRs touching the workflow/preset/project.godot run
+  build+export only, no deploy. Append `?debug` to the page URL for an on-page console (Eruda via
+  the preset's `html/head_include`; buffers console+errors from the first instant, so boot
+  failures are visible on mobile with no USB inspector).
 - **Cut a release:** bump `addons/godot_native_rl/plugin.cfg` `version=`, then `git tag vX.Y.Z &&
   git push origin vX.Y.Z` → `.github/workflows/release.yml` builds all platforms, **runtime/symbol-validates
   each binary** (shared `validate-binaries.yml`, also used by `cross-build.yml`; publish is gated on it),

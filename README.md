@@ -19,7 +19,9 @@ Python stack; deploy native on web/WASM, console, mobile, desktop, and edge.
 web build (single-threaded WASM, published from `main` by `.github/workflows/deploy-web-demo.yml`).
 Pick **"Evolution Lab (train LIVE)"** and the browser tab *trains* a neural net in front of you —
 no Python, no server, nothing but the page. (One-time repo setup: Settings → Pages → Source:
-GitHub Actions.)
+GitHub Actions.) Append **`?debug`** to the URL for an on-page dev console ([Eruda](https://github.com/liriliri/eruda),
+loaded only when asked) that also captures errors from the very first boot instant — field-debug
+the web build from any phone, no USB inspector needed.
 
 | Chase the target | Quadruped (locomotion) | Rover (3D) |
 |:---:|:---:|:---:|
