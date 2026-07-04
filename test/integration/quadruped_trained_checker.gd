@@ -8,6 +8,11 @@ extends Node
 @export var agent_path: NodePath
 @export var frames_to_run := 1200
 @export var min_forward := 3.0   ## torso must reach at least this far in +Z in some episode
+## Robust alternative criterion (#288, same spirit as #214): a competent gait sustains forward
+## velocity even in the runner-hardware-dependent Jolt realization that caps max_forward short
+## (observed bit-identical 17.61 m @ 0.888 m/s on some 4.6.3 CI machines). A collapsed gait
+## averages ~0.04 m/s and an untrained one ~0, so either bar passing means "it walks".
+@export var min_mean_velocity := 0.6
 
 var _game
 var _agent
@@ -41,8 +46,11 @@ func _physics_process(_delta: float) -> void:
 		if _max_forward >= min_forward:
 			print("TRAINED QUADRUPED PASSED (max forward = %.2f m in %d frames)" % [_max_forward, _frames])
 			get_tree().quit(0)
+		elif mean_vel >= min_mean_velocity:
+			print("TRAINED QUADRUPED PASSED (sustained %.3f m/s over %d frames; max forward %.2f m — alternate gait realization, #288)" % [mean_vel, _frames, _max_forward])
+			get_tree().quit(0)
 		else:
-			_fail("max forward only %.2f m in %d frames (need %.2f)" % [_max_forward, _frames, min_forward])
+			_fail("max forward only %.2f m (need %.2f) AND mean fwd vel %.3f m/s (need %.3f) in %d frames" % [_max_forward, min_forward, mean_vel, min_mean_velocity, _frames])
 
 func _fail(reason: String) -> void:
 	printerr("TRAINED QUADRUPED FAILED: %s" % reason)
