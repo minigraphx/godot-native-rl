@@ -25,6 +25,8 @@ on:
   pull_request:
     paths:
       - ".github/workflows/deploy-web-demo.yml"
+      - "export_presets.cfg"
+      - "project.godot"
   workflow_dispatch:
 
 env:
