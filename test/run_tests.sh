@@ -106,6 +106,9 @@ echo "== Trained quadruped HURDLES behavioral check (headless, #60 M2) =="
 echo "== Curriculum promotion smoke (headless) =="
 "$GODOT" --headless --path . res://test/integration/curriculum_smoke_scene.tscn
 
+echo "== Sorter env smoke (variable-count entity obs, #46 M2) =="
+"$GODOT" --headless --path . res://test/integration/sorter_smoke_scene.tscn
+
 echo "== Native in-engine ES trainer smoke (no Python, #131) =="
 "$GODOT" --headless --path . res://test/integration/es_trainer_smoke_scene.tscn
 

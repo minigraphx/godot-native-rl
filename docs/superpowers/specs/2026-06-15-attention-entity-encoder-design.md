@@ -161,3 +161,30 @@ The spike runs in M2 and `log()`s which path we're on; whichever it picks, M4 im
 - Stacked/residual multi-layer attention (single block first; revisit only if the toy task needs it).
 - Combining attention with the recurrent (#22) deploy path.
 - A 3D Sorter example (`EntitySensor3D` ships, but the trained example is 2D).
+
+## Progress note (2026-07-04, torch-free groundwork)
+
+Two M2 pieces landed from an environment without the Python toolchain:
+
+1. **The ncnn-side half of the spike is PROVEN** — without pnnx: a hand-authored ncnn graph with
+   one `MultiHeadAttention` layer + an additive `attn_mask` bottom blob (param 5=1; fixture from
+   `scripts/make_synthetic_attention.py`, pure stdlib + a pure-Python replica of ncnn's exact
+   forward loops) runs through `NcnnRunner.run_inference_multi` and matches goldens to 1e-4,
+   including **mask invariance between two real ncnn runs** (masked slot contents don't leak).
+   `test/unit/test_attention_golden_inference.gd` guards it in CI. Implications:
+   - ncnn's runtime + our multi-IO deploy path handle masked attention natively — §5 risk 2's
+     "ncnn can't run it" half is retired; what remains of the spike is only "does pnnx EMIT this
+     graph from torch" (risk 1 + the emission half of risk 2).
+   - A **third deploy option** now exists beyond §5's list: extend the hand-written exporter
+     (`export_statedict_to_ncnn.py`) to emit the encoder graph directly — pnnx-independent, like
+     the MLP path. The fixture generator is the working prototype of that writer.
+   - Weight/param contract captured from source: param 0=embed_dim 1=num_heads
+     2=weight_data_size 5=attn_mask 6=scale; weights q/k/v/out as (out×in) row-major fp32-tagged
+     + raw biases; inputs 2D Mats (w=features, h=seq); mask 2D (src×dst), additive, shared
+     across heads; `scale` multiplies the Q affine.
+2. **`examples/sorter/` shipped** (spec §2's env): variable 2..6 numbered tiles, ascending-order
+   visits, wrong-visit penalty on ENTER without consuming, `EntitySensor2D` block obs
+   (`[6*4][6 flags]`, tiles join/leave the sensor group with the episode count). Pure helpers
+   unit-tested; a scripted-expert smoke solves variable-count episodes in CI
+   (`sorter_smoke_scene.tscn`). Ready for `train_sorter_cleanrl.py` to point at
+   `sorter_train_parallel.tscn` (8 tiled worlds) once the Python side runs.
