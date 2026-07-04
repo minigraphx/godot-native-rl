@@ -20,6 +20,12 @@ func _ready() -> void:
 		_fail("could not resolve game/agent nodes")
 	elif game_seed >= 0 and _game.has_method("seed_rng"):
 		_game.seed_rng(game_seed)
+		# The game's _ready already rolled the FIRST layout from the unseeded RNG (tree order:
+		# world before checker) — re-roll it from the seeded stream or the whole run's phase is
+		# nondeterministic despite the seed (bit us calibrating the fleeing-target eval: same
+		# config scored 6 and 9 catches on different launches).
+		if _game.has_method("reset_positions"):
+			_game.reset_positions()
 
 func _physics_process(_delta: float) -> void:
 	if _game == null or _agent == null:

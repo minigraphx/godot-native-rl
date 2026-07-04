@@ -13,9 +13,9 @@
 # camping — cornering is precisely where an adapted policy can beat the naive beeline.
 extends "res://examples/chase_the_target/chase_game.gd"
 
-@export var target_speed := 200.0  ## flee speed, px/s (agent move_speed is 300 — catchable, not free)
+@export var target_speed := 260.0  ## flee speed, px/s (agent move_speed is 300 — beeline barely gains; cornering wins)
 @export var drift_redraw_ticks := 30  ## physics ticks between fresh jitter draws
-@export var flee_jitter := 0.5  ## 0 = pure away-vector, 1 = pure random drift
+@export var flee_jitter := 0.3  ## 0 = pure away-vector, 1 = pure random drift
 
 var _drift_dir := Vector2.RIGHT
 var _jitter_dir := Vector2.RIGHT
