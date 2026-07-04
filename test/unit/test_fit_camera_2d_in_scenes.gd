@@ -14,6 +14,11 @@ const SCENES: Array[String] = [
 	"res://examples/coop_collect/coop_collect.tscn",
 	"res://examples/gridworld/gridworld.tscn",
 	"res://examples/visual_chase/visual_chase.tscn",
+	# Non-launcher standalone watchable scenes (#283).
+	"res://examples/chase_the_target/chase_crowd.tscn",
+	"res://examples/chase_the_target/chase_replay.tscn",
+	"res://examples/hide_and_seek/hide_and_seek.tscn",
+	"res://examples/hide_and_seek/hide_and_seek_multipolicy_eval.tscn",
 ]
 
 func _count(node: Node) -> int:
