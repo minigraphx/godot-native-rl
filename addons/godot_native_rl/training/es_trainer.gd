@@ -378,6 +378,10 @@ func _finish_generation() -> void:
 	mean /= float(_fitness.size())
 	print("[ESTrainer] generation %d/%d · mean fitness %.3f · best %.3f"
 		% [_generation + 1, generations, mean, best])
+	# Stats first, THEN blessing: generation_finished carries this generation's mean, and any
+	# checkpoint_saved that follows belongs to it — consumers that pair the two (the Evolution
+	# Lab HUD's best-so-far) would otherwise read a one-generation-stale mean at blessing time.
+	generation_finished.emit(_generation, mean, best)
 	# Bless BEFORE the update: the measured mean belongs to the population around the CURRENT θ;
 	# the post-update θ has never been evaluated and may be worse (noisy ranks, big alpha step).
 	if mean > _best_mean:
@@ -387,7 +391,6 @@ func _finish_generation() -> void:
 	_theta = EsMath.es_update(_theta, _epsilons, shaped, sigma, alpha)
 	if checkpoint_every > 0 and (_generation + 1) % checkpoint_every == 0:
 		_save_checkpoint("%s_gen%d" % [checkpoint_stem, _generation + 1])
-	generation_finished.emit(_generation, mean, best)
 	_generation += 1
 	if _generation >= generations:
 		_save_checkpoint("%s_final" % checkpoint_stem)
