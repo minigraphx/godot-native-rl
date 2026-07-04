@@ -194,3 +194,27 @@ Replicated at a milder setting (200 px/s: warm 5.86 → 6.73 vs cold −1.35 →
 The committed regression (`trained_es_drift_scene.tscn`) guards the full pipeline — shipped net
 → warm-start decode → in-engine ES → blessed checkpoint → standard inference deploy — not an
 improvement claim.
+
+## sep-CMA-ES optimizer (2026-07-04, the M4 stretch — measured)
+
+`training/cma_math.gd` adds the M4 "CMA-ES" stretch as **sep-CMA-ES** (Ros & Hansen 2008):
+diagonal covariance only, O(θ) per generation (full CMA's O(θ²) memory + O(θ³) eigendecomposition
+is wrong for net-sized θ in GDScript), with the paper's (n+2)/3 learning-rate speedup. Pure and
+caller-seeded like es_math.gd; `ESTrainer.optimizer = "cma_es"` (cmdline `optimizer=`) selects it,
+`sigma` becomes the initial step size (CSA self-adapts), `alpha` is unused. CRN, two-phase episode
+starts, blessing and checkpoints are shared — the optimizer swap changed nothing else.
+
+**Paired 200-generation chase benchmark** (parallel scene, identical seeds/budget; the OpenAI-ES
+baseline ran the shipped net's hand-tuned σ=0.4/α=0.1):
+
+| | OpenAI-ES | sep-CMA-ES |
+|---|---|---|
+| first gen with mean > 0 | 91 | 15 |
+| first gen above the baseline's whole-run best (2.314) | 192 | 22 |
+| best generation mean | 2.314 | **13.389** |
+
+CMA matched the historical **400-gen** OpenAI-ES result (13.5) in ~140 generations — a ~9× faster
+climb to the baseline's endpoint and ~3× less budget to the shipped-net level, from self-adapting
+step size + per-coordinate variances. One paired run (indicative, not a statistics claim), but far
+beyond run-to-run noise. The Evolution Lab demo now runs `cma_es` (faster visible learning in the
+browser); `chase_es_train_parallel.tscn` keeps `openai_es` so the committed net stays reproducible.

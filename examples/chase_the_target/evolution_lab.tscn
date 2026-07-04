@@ -25,6 +25,7 @@ control_mode = 1
 [node name="ESTrainer" type="Node" parent="."]
 script = ExtResource("4")
 hidden_dims = [16]
+optimizer = "cma_es"
 half_population = 8
 sigma = 0.4
 alpha = 0.1

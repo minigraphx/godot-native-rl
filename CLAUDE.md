@@ -182,8 +182,12 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   via `ParallelArena2D`) took mean fitness −0.9 → **13.5** in 400 generations (~25 min); the best
   net ships as `examples/chase_the_target/models/chase_es.ncnn.*` with a behavioral regression
   (`trained_es_chase_scene.tscn`, 19 catches/1800 frames through the standard inference
-  controller). The launcher's **Evolution Lab** demo (`evolution_lab.tscn`, #291) shows it live:
-  8 worlds train on screen while a champion world hot-swaps onto every blessed checkpoint
+  controller). Measured on chase (200-gen paired run, same seeds): sep-CMA-ES best mean **13.4**
+  vs OpenAI-ES **2.3** — CMA passed the baseline's whole-run best by gen 22 and matched the
+  historical 400-gen result in ~140 gens; prefer `cma_es` for new from-scratch runs (the parallel
+  chase scene keeps `openai_es` so the committed net stays reproducible). The launcher's
+  **Evolution Lab** demo (`evolution_lab.tscn`, #291) shows it live:
+  8 worlds train on screen (with `optimizer="cma_es"`) while a champion world hot-swaps onto every blessed checkpoint
   (`checkpoint_saved` signal → `reload_model`); HUD learning curve, keys 1/2/3 = speed. Small
   nets + dense rewards only (ES is sample-inefficient). **Warm-start fine-tuning** (PR #298):
   `chase_es_finetune_parallel.tscn` warm-starts from the shipped net against a FLEEING target

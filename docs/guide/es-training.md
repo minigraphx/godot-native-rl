@@ -68,7 +68,23 @@ seeding, episode phases, blessing, checkpoints — is identical. Cmdline `optimi
 godot --headless --path . res://examples/chase_the_target/chase_es_train_parallel.tscn optimizer=cma_es
 ```
 
-BENCHMARK_PLACEHOLDER
+**Measured head-to-head** (one paired run of the parallel chase scene: 200 generations each,
+identical seeds/CRN/budget, only `optimizer=` differing — and note the OpenAI-ES `sigma`/`alpha`
+were the hand-tuned values that produced the shipped net, so this is not a straw-man baseline):
+
+| Mean fitness | OpenAI-ES | sep-CMA-ES |
+|---|---|---|
+| first generation above 0 | 91 | **15** |
+| first generation above 2.314 (the baseline's whole-run best) | 192 | **22** |
+| first generation above 10 | never | **33** |
+| best generation mean in 200 generations | 2.314 | **13.389** |
+
+sep-CMA-ES reached the baseline's 200-generation endpoint ~9× sooner and matched the historical
+**400**-generation OpenAI-ES result (13.5) within ~140 generations. The mechanism is visible in
+the logs: CSA grows the step size while progress is easy (fast early climb) and shrinks it as the
+population closes in, which fixed-σ ES cannot do. One paired run, so treat the exact ratios as
+indicative — but the gap is far beyond run-to-run noise on this task. Default remains
+`openai_es` for continuity with the shipped nets; prefer `cma_es` for new from-scratch runs.
 
 ## Fitness comparability: why the defaults look the way they do
 
@@ -113,7 +129,8 @@ your inputs can express; add observations (and retrain properly) when it doesn't
 Open the launcher's **Evolution Lab** (`evolution_lab.tscn`): 8 worlds train on screen while a
 champion world hot-swaps onto every blessed checkpoint (`checkpoint_saved` signal →
 `reload_model`), with a live learning-curve HUD. Keys 1/2/3 set speed. The same scene runs in
-the published web build.
+the published web build. The lab trains with `cma_es` (the benchmark above is why — visibly
+faster learning while you watch).
 
 ## Signals & integration
 
