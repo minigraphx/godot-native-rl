@@ -109,9 +109,18 @@ func attach_agent(agent: Node) -> void:
 	var iid := agent.get_instance_id()
 	# Stream key carries a stable per-attach index (#309/#331): same-named agents (the same
 	# subscene instanced under different parents) never share a buffer/episode index/file ring,
-	# and re-runs reuse the same filenames so the on-disk ring stays bounded.
-	_agent_state[iid] = {"last_reward": 0.0, "last_n_steps": -1, "cadence": 0,
-		"name": String(agent.name), "key": "inf_%s_%d" % [String(agent.name), _attach_count]}
+	# and re-runs reuse the same filenames so the on-disk ring stays bounded. NOTE: the index is
+	# per-RECORDER — two recorders sharing one out_dir would overwrite each other's rings
+	# (detected below, #347); give each recorder its own out_dir.
+	var key := "inf_%s_%d" % [String(agent.name), _attach_count]
+	var foreign := out_dir.path_join("episode_0000_%s.json" % key)
+	if FileAccess.file_exists(foreign) and not _saved_paths.has(key):
+		push_warning("ReplayRecorder: out_dir '%s' already holds a ring for stream '%s' (another recorder or a previous run) — files will be overwritten; use a distinct out_dir per recorder to keep them (#347)." % [out_dir, key])
+	# Baseline = the agent's CURRENT accumulator (#347): deployed agents never zero it, so a
+	# mid-run attach (start recording on user action) would otherwise record the agent's entire
+	# pre-attach lifetime reward as the first step's delta.
+	_agent_state[iid] = {"last_reward": float(agent.get("reward")), "last_n_steps": -1, "cadence": 0,
+		"name": String(agent.name), "key": key}
 	_attach_count += 1
 	agent.inference_step.connect(_on_inference_step.bind(agent))
 	if _game == null:

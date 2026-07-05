@@ -58,4 +58,27 @@ func _initialize() -> void:
 	# row0 = [offx=1, offy=0, extra 0.7, extra 0.3]; row1 padded; flags [1,0].
 	h.assert_eq(obs3, [1.0, 0.0, 0.7, 0.3, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0], "extras appended + padded + flags")
 
+	# object_paths (#329/#348): the hand-authored-scene route on the ENTITY sensor. Width here is
+	# fixed by max_entities, so an unresolved path only costs the entity (loud error above) —
+	# the resolved one must still be observed.
+	var holder := Node2D.new()
+	var ent := Node2D.new()
+	ent.name = "Ent"
+	var s5 = EntitySensor2D.new()
+	s5.max_entities = 2
+	s5.max_distance = 10.0
+	var epaths: Array[NodePath] = [NodePath("../Ent"), NodePath("../Missing")]
+	s5.object_paths = epaths
+	holder.add_child(ent)
+	holder.add_child(s5)
+	root.add_child(holder)
+	await process_frame
+	ent.position = Vector2(5, 0)
+	var obs5: Array = s5.get_observation()
+	h.assert_eq(obs5.size(), s5.obs_size(), "#348: entity obs width fixed by max_entities")
+	h.assert_true(absf(float(obs5[0]) - 0.5) < 1e-5, "#348: path-resolved entity observed")
+	h.assert_eq([float(obs5[obs5.size() - 2]), float(obs5[obs5.size() - 1])], [1.0, 0.0],
+		"#348: presence flags count only the resolved entity")
+	holder.free()
+
 	h.finish(self)

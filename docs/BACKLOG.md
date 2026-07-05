@@ -576,7 +576,7 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     migrate the rover's inline goal obs onto `RelativePositionSensor3D` with a retrain), to show
     the sensor end-to-end and provide a trained regression. *(follow-up from item 7)*
     **Done 2026-07-05** — `examples/seek_target/`: reach-the-goal / avoid-the-patrolling-hazard 2D
-    env whose ENTIRE observation is one `RelativePositionSensor2D` (goal + hazard slots, 4 floats,
+    env whose ENTIRE observation is one `RelativePositionSensor2D` (goal + hazard slots, 6 floats — unit dir + distance per target,
     zero hand-coded obs, `collect_sensors()` auto-discovery); the shipped net is the first example
     trained **in-engine** by `ESTrainer` with sep-CMA-ES — no Python anywhere in the loop. New
     `object_paths: Array[NodePath]` export on both RelativePositionSensors (exported typed NODE

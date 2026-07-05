@@ -159,6 +159,45 @@ func _initialize() -> void:
 		"res://examples/chase_the_target/models/chase_the_target.ncnn.param",
 		"res://examples/chase_the_target/models/chase_the_target.ncnn.bin").size(), 0,
 		"warm_start_theta rejects an architecture mismatch")
+	# --- #340: FUSED activations (InnerProduct 9=) — shipped nets use them (chase_dummy: 9=1).
+	# Ignoring 9= mis-parsed fused-ReLU nets as activation-less: either refused with wrong
+	# diagnostics, or silently ADOPTED without their ReLUs (a corrupted warm-start θ).
+	var dummy_param := FileAccess.get_file_as_string("res://examples/chase_the_target/models/chase_dummy.ncnn.param")
+	var dummy_spec: Dictionary = W.spec_from_param_text(dummy_param)
+	h.assert_eq(dummy_spec.get("dims", []), [5, 32, 5], "fused-activation net parses to [5,32,5]")
+	h.assert_eq(String(dummy_spec.get("hidden_activation", "?")), "relu", "#340: fused 9=1 parsed as relu hidden")
+	var dummy_theta: PackedFloat32Array = W.warm_start_theta(dummy_spec,
+		"res://examples/chase_the_target/models/chase_dummy.ncnn.param",
+		"res://examples/chase_the_target/models/chase_dummy.ncnn.bin")
+	h.assert_eq(dummy_theta.size(), W.theta_size(dummy_spec), "#340: fused-activation net warm-starts")
+	if dummy_theta.size() == W.theta_size(dummy_spec):
+		# Parity: canonical re-emission (standalone ReLU line) must behave EXACTLY like the
+		# fused original on real ncnn — fusion is an encoding, not a semantic difference.
+		var orig2 := NcnnRunner.new()
+		var ok_o2 := orig2.load_model(
+			ProjectSettings.globalize_path("res://examples/chase_the_target/models/chase_dummy.ncnn.param"),
+			ProjectSettings.globalize_path("res://examples/chase_the_target/models/chase_dummy.ncnn.bin"))
+		var canon2 := NcnnRunner.new()
+		var ok_c2 := canon2.load_model_from_buffers(
+			W.param_text(dummy_spec).to_utf8_buffer(), W.bin_bytes(dummy_spec, dummy_theta))
+		h.assert_true(ok_o2 and ok_c2, "#340: fused original + canonical both load")
+		if ok_o2 and ok_c2:
+			var obs2 := PackedFloat32Array([0.2, -0.4, 0.6, -0.8, 0.1])
+			var da := orig2.run_inference(obs2)
+			var db := canon2.run_inference(obs2)
+			var dworst := 0.0
+			for i in range(mini(da.size(), db.size())):
+				dworst = maxf(dworst, absf(da[i] - db[i]))
+			h.assert_true(da.size() == db.size() and dworst < 1e-4,
+				"#340: canonical net output-matches the fused original (worst |err| %f)" % dworst)
+		orig2.free()
+		canon2.free()
+	# Unsupported fused type and double activations fail loud, not silently mis-adopt.
+	h.assert_eq(W.spec_from_param_text("7767517\n2 2\nInput in0 0 1 in0\nInnerProduct l 1 1 in0 out0 0=4 1=1 2=16 9=2\n"), {},
+		"#340: unsupported fused activation (9=2 leaky) rejected loud")
+	h.assert_eq(W.spec_from_param_text("7767517\n4 4\nInput in0 0 1 in0\nInnerProduct l 1 1 in0 1 0=4 1=1 2=16\nReLU r 1 1 1 2\nSigmoid s 1 1 2 out0\n"), {},
+		"#340: two activations after one linear rejected loud (would silently drop one)")
+
 	# Our own canonical pairs still take the strict path (chase_es was written by this codec).
 	var es_spec: Dictionary = W.spec_from_param_text(
 		FileAccess.get_file_as_string("res://examples/chase_the_target/models/chase_es.ncnn.param"))

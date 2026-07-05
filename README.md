@@ -80,7 +80,9 @@ net in memory (`training/ncnn_weights.gd` θ⇄buffers codec + `load_model_from_
 it by episodic return from the existing reward system. No Python, no socket, no backprop — it runs
 on every deploy target the static ncnn build reaches, **including web**. The training artifact IS
 the deploy artifact (checkpoints are ncnn `.param`/`.bin`), and the codec is bijective, so you can
-warm-start from a shipped net and fine-tune on-device. Drop it into a scene in place of `NcnnSync`:
+warm-start from a shipped net and fine-tune on-device — including **pnnx-exported PPO actors**
+(a structural adapter parses foreign MLP params and fp16-tagged bins; plain MLP policies only —
+CNN policies like visual_chase are refused loud). Drop it into a scene in place of `NcnnSync`:
 `godot --headless --path . res://examples/chase_the_target/chase_es_train.tscn` (single world), or
 `chase_es_train_parallel.tscn` for 8 tiled worlds via `ParallelArena2D` — that run learns chase
 from scratch in ~25 min (mean fitness −0.9 → 13.5 over 400 generations), and the resulting net
@@ -99,7 +101,7 @@ today's best brain deployed on the right, zero export in between. HUD shows the 
 curve; keys 1/2/3 set speed. First visible competence in ~5–8 minutes.
 
 **On-device adaptation, measured honestly:** `chase_es_finetune_parallel.tscn` warm-starts the
-shipped chase net (`warm_start_*_path` — the θ⇄ncnn codec is bijective) against a **fleeing**
+shipped chase net (`warm_start_*_path`; ES-trained or pnnx-exported alike) against a **fleeing**
 target it never trained on. The measured value is **time-to-competence**: the warm-started
 population outscores 300 generations of from-scratch training *at generation 1* (mean fitness
 3.9 vs 0.67 blessed after the full cold run; replicated at two difficulty settings). The equally

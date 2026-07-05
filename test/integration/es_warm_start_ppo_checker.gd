@@ -9,8 +9,6 @@ const Harness = preload("res://test/harness.gd")
 const NcnnWeights = preload("res://addons/godot_native_rl/training/ncnn_weights.gd")
 
 const TIMEOUT_SEC := 90.0
-const PPO_PARAM := "res://examples/chase_the_target/models/chase_the_target.ncnn.param"
-const PPO_BIN := "res://examples/chase_the_target/models/chase_the_target.ncnn.bin"
 ## An untrained He-init policy hovers around -1..0 on this horizon; the shipped PPO net chases
 ## reliably. Well below its typical score, far above anything an accidental-garbage θ reaches.
 const MIN_GEN1_BEST := 2.0
@@ -31,8 +29,13 @@ func _ready() -> void:
 		get_tree().quit(1))
 
 func _check_adopted_theta() -> void:
-	var spec: Dictionary = NcnnWeights.mlp_spec([5, 64, 64, 5], "tanh")
-	var want: PackedFloat32Array = NcnnWeights.warm_start_theta(spec, PPO_PARAM, PPO_BIN)
+	# Config read OFF the trainer node (#342): hard-coding the paths/dims here would compare the
+	# trainer's θ against a DIFFERENT reference the moment the scene changes — masking or
+	# manufacturing a regression. The spec derives from the net the scene actually points at.
+	var spec: Dictionary = NcnnWeights.spec_from_param_text(
+		FileAccess.get_file_as_string(_trainer.warm_start_param_path))
+	var want: PackedFloat32Array = NcnnWeights.warm_start_theta(spec,
+		_trainer.warm_start_param_path, _trainer.warm_start_bin_path)
 	_h.assert_eq(_trainer.current_theta().size(), want.size(), "trainer θ sized like the PPO net (4869 floats)")
 	_h.assert_true(_trainer.current_theta() == want, "trainer θ IS the decoded PPO net (adapter path, bit-for-bit)")
 

@@ -25,3 +25,11 @@ static func resolve(sensor: Node, paths: Array[NodePath], required_class: String
 		else:
 			out.append(n)
 	return out
+
+
+## The whole lazy-resolution body the four sensors share (#348): resolve `paths` and append the
+## results (nulls included — they reserve zero-filling slots where width matters, and candidate
+## unions skip them) into `dest`. Each sensor keeps only its ~3-line _paths_resolved guard.
+static func append_resolved(sensor: Node, paths: Array[NodePath], required_class: String, dest) -> void:
+	for n in resolve(sensor, paths, required_class):
+		dest.append(n)

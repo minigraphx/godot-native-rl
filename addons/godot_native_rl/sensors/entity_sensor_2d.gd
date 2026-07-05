@@ -53,9 +53,7 @@ func _ensure_paths_resolved() -> void:
 	if _paths_resolved or object_paths.is_empty() or not is_inside_tree():
 		return
 	_paths_resolved = true
-	for n in SensorPaths.resolve(self, object_paths, "Node2D"):
-		if n != null:  # nulls carry no dim here — _candidates skips them anyway
-			objects_to_observe.append(n)
+	SensorPaths.append_resolved(self, object_paths, "Node2D", objects_to_observe)
 
 # Floats per entity = relative-position features + extra scalars.
 func feature_width() -> int:

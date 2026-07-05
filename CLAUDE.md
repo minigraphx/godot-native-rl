@@ -174,8 +174,9 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   per-coordinate variances, O(θ) per generation), turns each candidate into a live ncnn net in memory
   (`training/ncnn_weights.gd` θ⇄buffers codec — bijective, so `warm_start_*_path` fine-tunes a
   shipped net on-device; since #328 pt 1 this includes **pnnx-exported PPO nets** — a structural
-  adapter parses foreign MLP params + fp16-tagged bins, CI-proven by adopting the chase PPO net
-  bit-for-bit at gen-1 fitness ~5), fitness = episodic return from the existing reward system. Checkpoints
+  adapter parses foreign MLP params (incl. fused `9=` activations, #340) + fp16-tagged bins,
+  CI-proven by adopting the chase PPO net bit-for-bit at gen-1 fitness ~5; plain MLPs only —
+  CNN policies refuse loud), fitness = episodic return from the existing reward system. Checkpoints
   ARE deploy artifacts (`.ncnn.{param,bin}` in `out_dir`); multi-agent scenes evaluate candidates
   in parallel waves; fitness comparability is built in (common-random-numbers `seed_games` via the
   agent's `game_path`, k-episode averaging `episodes_per_candidate`, trainer-owned horizon
@@ -299,8 +300,10 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   cross-run nondeterminism, see #60). `record_all_agents=true` captures EVERY agent slot with
   independent per-agent episode segmentation/files (#195); `attach_agent(agent)` records a
   DEPLOYED inference agent with no trainer/Sync at all — actions from the `inference_step`
-  signal, episodes via `n_steps` wrap, rewards as accumulator deltas (final partial window's
-  reward not capturable — the agent's own reset zeroes it first; #194). Call
+  signal, episodes via `n_steps` wrap, rewards as deltas against a
+  recorder-side baseline re-snapshotted at each n_steps wrap (#330 — deployed agents never zero
+  their accumulator; the pre-reset tail + the new episode's first window fold into the baseline
+  and are not capturable; #194). Call
   `flush_inference_episodes()` before quitting a recording session.
 - **Record expert demos:** `godot --headless --path . res://examples/chase_the_target/record_chase_demos.tscn -- --demo-out=PATH --demo-trajectories=N`
   (offline — no trainer/socket; `gnrl_v1` default format; set `demo_format="godot_rl"` on the `NcnnSync` node for stock-tooling interop).

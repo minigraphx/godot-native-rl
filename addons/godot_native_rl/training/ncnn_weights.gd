@@ -113,22 +113,10 @@ static func bin_bytes(spec: Dictionary, theta: PackedFloat32Array) -> PackedByte
 
 
 ## Inverse of bin_bytes: recover the flat θ from `.bin` bytes (warm-start from a shipped net).
+## One decoder for one byte format (#342): the canonical layout is exactly theta_from_model_bin's
+## fp32-tag path, so this delegates instead of duplicating the offset walk.
 static func theta_from_bin(spec: Dictionary, bin: PackedByteArray) -> PackedFloat32Array:
-	var dims: Array = spec.get("dims", [])
-	var expected := 0
-	for i in range(dims.size() - 1):
-		expected += 4 + (int(dims[i]) * int(dims[i + 1]) + int(dims[i + 1])) * 4
-	if dims.size() < 2 or bin.size() != expected:
-		push_error("NcnnWeights.theta_from_bin: bin is %d bytes, spec needs %d" % [bin.size(), expected])
-		return PackedFloat32Array()
-	var theta := PackedFloat32Array()
-	var offset := 0
-	for i in range(dims.size() - 1):
-		offset += 4  # skip the fp32 tag
-		var n_floats := int(dims[i]) * int(dims[i + 1]) + int(dims[i + 1])
-		theta += bin.slice(offset, offset + n_floats * 4).to_float32_array()
-		offset += n_floats * 4
-	return theta
+	return theta_from_model_bin(spec, bin)
 
 
 # ---- pnnx warm-start adapter (#328): adopt an EXTERNALLY-exported MLP into the θ codec ----
@@ -161,6 +149,7 @@ static func spec_from_param_text(param_text: String) -> Dictionary:
 				var out_features := 0
 				var weight_size := 0
 				var has_bias := false
+				var fused_act := 0
 				for t in tokens:
 					if t.begins_with("0="):
 						out_features = int(t.substr(2))
@@ -168,6 +157,8 @@ static func spec_from_param_text(param_text: String) -> Dictionary:
 						has_bias = int(t.substr(2)) == 1
 					elif t.begins_with("2="):
 						weight_size = int(t.substr(2))
+					elif t.begins_with("9="):
+						fused_act = int(t.substr(2))
 				if out_features <= 0 or weight_size <= 0 or weight_size % out_features != 0 or not has_bias:
 					push_error("NcnnWeights.spec_from_param_text: unsupported InnerProduct line '%s'." % raw_line.strip_edges())
 					return {}
@@ -177,11 +168,30 @@ static func spec_from_param_text(param_text: String) -> Dictionary:
 					push_error("NcnnWeights.spec_from_param_text: layer fan-in %d does not chain from previous width %d." % [weight_size / out_features, int(dims[-1])])
 					return {}
 				dims.append(out_features)
-				acts.append("")
+				# ncnn fuses activations INTO InnerProduct via param 9= (#340) — exporters emit
+				# e.g. `9=1` (ReLU) instead of a standalone ReLU line (ball_chase_sac does).
+				# Ignoring it silently adopted nets WITHOUT their activations — a corrupted
+				# warm-start θ. Map the subset the codec can express; reject the rest loud.
+				match fused_act:
+					0:
+						acts.append("")
+					1:
+						acts.append("relu")
+					4:
+						acts.append("sigmoid")
+					_:
+						push_error("NcnnWeights.spec_from_param_text: unsupported fused activation 9=%d (know 0/none, 1/relu, 4/sigmoid)." % fused_act)
+						return {}
 			_:
 				if type_to_act.has(ltype):
 					if acts.is_empty():
 						push_error("NcnnWeights.spec_from_param_text: activation before any linear layer.")
+						return {}
+					if String(acts[-1]) != "":
+						# A second activation on one linear (fused + standalone, or stacked
+						# standalone lines) is inexpressible here — adopting would silently
+						# drop one of them (#340).
+						push_error("NcnnWeights.spec_from_param_text: two activations after one linear layer ('%s' then '%s') — not a plain MLP this codec can express." % [acts[-1], type_to_act[ltype]])
 						return {}
 					acts[-1] = type_to_act[ltype]
 				else:
@@ -191,11 +201,9 @@ static func spec_from_param_text(param_text: String) -> Dictionary:
 		push_error("NcnnWeights.spec_from_param_text: no InnerProduct layers found.")
 		return {}
 	# Hidden activations must be uniform (that's what the canonical writer can express).
-	var hidden := ""
-	for i in range(acts.size() - 1):
-		if i == 0:
-			hidden = acts[0]
-		elif acts[i] != hidden:
+	var hidden: String = acts[0] if acts.size() > 1 else ""
+	for i in range(1, acts.size() - 1):
+		if acts[i] != hidden:
 			push_error("NcnnWeights.spec_from_param_text: mixed hidden activations (%s vs %s)." % [hidden, acts[i]])
 			return {}
 	return mlp_spec(dims, hidden, acts[-1])
@@ -223,7 +231,7 @@ static func theta_from_model_bin(spec: Dictionary, bin: PackedByteArray) -> Pack
 				if offset + n_weights * 4 > bin.size():
 					push_error("NcnnWeights.theta_from_model_bin: bin truncated in fp32 weights of layer %d." % i)
 					return PackedFloat32Array()
-				theta += bin.slice(offset, offset + n_weights * 4).to_float32_array()
+				theta.append_array(bin.slice(offset, offset + n_weights * 4).to_float32_array())
 				offset += n_weights * 4
 			_FP16_TAG:
 				var half_bytes := n_weights * 2
@@ -239,7 +247,7 @@ static func theta_from_model_bin(spec: Dictionary, bin: PackedByteArray) -> Pack
 		if offset + n_bias * 4 > bin.size():
 			push_error("NcnnWeights.theta_from_model_bin: bin truncated in bias of layer %d." % i)
 			return PackedFloat32Array()
-		theta += bin.slice(offset, offset + n_bias * 4).to_float32_array()
+		theta.append_array(bin.slice(offset, offset + n_bias * 4).to_float32_array())
 		offset += n_bias * 4
 	if offset != bin.size():
 		push_error("NcnnWeights.theta_from_model_bin: %d trailing bytes after the last layer — architecture mismatch." % (bin.size() - offset))

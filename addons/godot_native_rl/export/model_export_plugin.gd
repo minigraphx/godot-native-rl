@@ -19,11 +19,12 @@ func _export_begin(features: PackedStringArray, is_debug: bool, path: String, fl
 	# downstream projects). The prune must be VISIBLE: add_file bypasses preset filters, so a
 	# silent skip looks like the "cannot read model files" bug this plugin exists to prevent.
 	var skip_roots := ModelFileScan.effective_skip_roots()
-	for root in skip_roots:
-		for pruned in ModelFileScan.find_model_files(root, []):
-			push_warning("Godot Native RL: NOT packing '%s' (under skip root '%s' — see the %s project setting)."
-				% [pruned, root, ModelFileScan.SKIP_ROOTS_SETTING])
-	for file_path in ModelFileScan.find_model_files("res://", skip_roots):
+	var pruned: Array = []
+	var to_pack := ModelFileScan.find_model_files("res://", skip_roots, pruned)
+	for p in pruned:
+		push_warning("Godot Native RL: NOT packing '%s' (under a skip root — see the %s project setting)."
+			% [p, ModelFileScan.SKIP_ROOTS_SETTING])
+	for file_path in to_pack:
 		var bytes := FileAccess.get_file_as_bytes(file_path)
 		if bytes.is_empty():
 			push_warning("Godot Native RL: skipping unreadable model file '%s' during export." % file_path)

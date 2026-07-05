@@ -443,11 +443,10 @@ func _get_args() -> Dictionary:
 	return RunSpeed.parse_cmdline_args()
 
 func _get_speedup() -> float:
-	# to_float() turns garbage into 0.0, and RunSpeed.apply(0) would zero the physics tick rate.
-	var s: float = args.get("speedup", str(speed_up)).to_float()
-	if s <= 0.0:
-		return 1.0  # helper already pushed the specific error
-	return s
+	# Strict parse (#345): raw to_float() turned garbage into 0.0 SILENTLY — an overnight run at
+	# 1x with zero diagnostics. The helper owns the error; we fall back to 1.0 loudly-informed.
+	var s := RunSpeed.parse_positive_float(args, "speedup", speed_up)
+	return s if s > 0.0 else 1.0
 
 func _get_port() -> int:
 	return RunSpeed.parse_positive_int(args, "port", DEFAULT_PORT.to_int())

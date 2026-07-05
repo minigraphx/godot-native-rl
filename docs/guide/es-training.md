@@ -125,8 +125,10 @@ wrote — a structural adapter parses foreign MLP params (pnnx layer names, stra
 fp16-tagged weight blobs) and adopts any net whose architecture matches the scene
 (`hidden_dims`/`hidden_activation` must mirror it, e.g. `[64, 64]` + `"tanh"` for SB3-default
 PPO actors). CI proves it live: the shipped chase PPO net is adopted bit-for-bit and scores
-generation-1 fitness ~5 (an untrained init starts near −1), then CMA-ES keeps improving it —
-so every PPO policy this repo ships can be fine-tuned on-device with no Python.
+generation-1 fitness ~5 (an untrained init starts near −1), then CMA-ES keeps improving it.
+Scope: plain MLP actors — standalone OR fused (`9=`) activations both parse (#340) — which
+covers chase, rover, fly_by, quadruped, hexapod and 3dball; CNN policies (visual_chase) are
+refused loud by design.
 
 **What warm-start buys — measured honestly:** *time-to-competence*. In the shipped experiment
 the warm-started population outperformed 300 generations of identical from-scratch training **at

@@ -56,4 +56,29 @@ func _initialize() -> void:
 	h.assert_eq(s2.get_observation().size(), 0, "no targets -> empty obs")
 	s2.free()
 
+	# object_paths (#329/#348): same contract the 2D test pins — an unresolved path RESERVES a
+	# zero-filled slot, so the declared obs width never shrinks (3D was untested and could drift).
+	var holder := Node3D.new()
+	var ptarget := Node3D.new()
+	ptarget.name = "PTarget"
+	var s4 = RelativePositionSensor3D.new()
+	s4.max_distance = 100.0
+	var paths: Array[NodePath] = [NodePath("../PTarget"), NodePath("../Missing")]
+	s4.object_paths = paths
+	holder.add_child(ptarget)
+	holder.add_child(s4)
+	root.add_child(holder)
+	await process_frame  # _ready resolves the paths
+	h.assert_eq(s4.objects_to_observe.size(), 2, "#348: valid path resolved AND the missing path reserves a slot")
+	ptarget.position = Vector3(50, 0, 0)
+	var obs4: Array = s4.get_observation()
+	h.assert_eq(obs4.size(), 6, "#348: 3D obs width includes the reserved slot (2 slots x 3 axes)")
+	h.assert_true(absf(float(obs4[0]) - 0.5) < 1e-5, "resolved 3D slot encodes the offset")
+	var tail_zero := true
+	for i in range(3, 6):
+		if absf(float(obs4[i])) > 1e-9:
+			tail_zero = false
+	h.assert_true(tail_zero, "#348: unresolved 3D slot zero-fills")
+	holder.free()
+
 	h.finish(self)

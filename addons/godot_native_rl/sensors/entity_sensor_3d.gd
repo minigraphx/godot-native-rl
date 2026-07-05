@@ -51,9 +51,7 @@ func _ensure_paths_resolved() -> void:
 	if _paths_resolved or object_paths.is_empty() or not is_inside_tree():
 		return
 	_paths_resolved = true
-	for n in SensorPaths.resolve(self, object_paths, "Node3D"):
-		if n != null:  # nulls carry no dim here — _candidates skips them anyway
-			objects_to_observe.append(n)
+	SensorPaths.append_resolved(self, object_paths, "Node3D", objects_to_observe)
 
 func feature_width() -> int:
 	return RelativePositionMath.per_target_size(use_separate_direction, include_x, include_y, include_z) + extra_feature_count
