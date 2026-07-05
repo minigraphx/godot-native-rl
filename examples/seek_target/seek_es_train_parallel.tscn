@@ -1,0 +1,29 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://addons/godot_native_rl/training/parallel_arena_2d.gd" id="1"]
+[ext_resource type="PackedScene" path="res://examples/seek_target/seek_world.tscn" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/training/es_trainer.gd" id="3"]
+
+[node name="SeekESTrainParallel" type="Node2D"]
+
+[node name="ParallelArena2D" type="Node2D" parent="."]
+script = ExtResource("1")
+world_scene = ExtResource("2")
+count = 8
+spacing = 1400.0
+
+[node name="ESTrainer" type="Node" parent="."]
+script = ExtResource("3")
+hidden_dims = [8]
+optimizer = "cma_es"
+half_population = 16
+sigma = 0.4
+alpha = 0.1
+generations = 300
+episode_decisions = 112
+episodes_per_candidate = 3
+speed_up = 50.0
+out_dir = "user://es_checkpoints/seek_parallel"
+checkpoint_stem = "seek_es"
+checkpoint_every = 50
+exit_on_finish = true

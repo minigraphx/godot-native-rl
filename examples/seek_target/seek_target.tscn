@@ -1,0 +1,43 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://examples/seek_target/seek_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/seek_target/seek_agent.gd" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sensors/relative_position_sensor_2d.gd" id="3"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="4"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/debug/policy_debug_overlay.gd" id="5"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/camera/fit_camera_2d.gd" id="6"]
+
+[node name="SeekGame" type="Node2D"]
+script = ExtResource("1")
+agent_body_path = NodePath("AgentBody")
+goal_path = NodePath("Goal")
+hazard_path = NodePath("Hazard")
+
+[node name="Goal" type="Node2D" parent="."]
+
+[node name="Hazard" type="Node2D" parent="."]
+
+[node name="AgentBody" type="Node2D" parent="."]
+
+[node name="SeekAgent" type="Node2D" parent="AgentBody"]
+script = ExtResource("2")
+game_path = NodePath("../..")
+control_mode = 3
+model_param_path = "res://examples/seek_target/models/seek_es.ncnn.param"
+model_bin_path = "res://examples/seek_target/models/seek_es.ncnn.bin"
+
+[node name="RelPosSensor" type="Node2D" parent="AgentBody/SeekAgent"]
+script = ExtResource("3")
+objects_to_observe = [NodePath("../../../Goal"), NodePath("../../../Hazard")]
+max_distance = 1200.0
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("4")
+control_mode = 2
+
+[node name="PolicyDebugOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("5")
+
+[node name="FitCamera2D" type="Camera2D" parent="."]
+script = ExtResource("6")
+world_rect = Rect2(0, 0, 1000, 600)
