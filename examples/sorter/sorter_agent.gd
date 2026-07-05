@@ -9,6 +9,8 @@ extends "res://addons/godot_native_rl/controllers/ncnn_ai_controller_2d.gd"
 const ACTION_KEY := "move"
 const ACTION_COUNT := 5  # stay + 4 directions
 const ChaseObs = preload("res://examples/chase_the_target/chase_obs.gd")
+const RewardBuilderScript = preload("res://addons/godot_native_rl/reward/reward_builder.gd")
+const ControllerCore = preload("res://addons/godot_native_rl/controllers/ncnn_controller_core.gd")
 
 @export var game_path: NodePath
 @export var step_penalty := 0.002
@@ -25,11 +27,24 @@ func _ready() -> void:
 	if _game == null:
 		push_warning("SorterAgent: game_path is not set — agent will produce zero observations.")
 		return
-	_game.correct_visit.connect(func() -> void: reward += correct_reward)
-	_game.wrong_visit.connect(func() -> void: reward -= wrong_penalty)
+	# Signal-driven rewards through the addon reward system, like the sibling agents (#317).
+	reward_source = RewardBuilderScript.new() \
+		.add_event_bonus("correct_visit", correct_reward) \
+		.add_event_bonus("wrong_visit", -wrong_penalty) \
+		.add_step_penalty(step_penalty) \
+		.build()
+	var adapter := RewardAdapterScript.new()
+	add_child(adapter)
+	adapter.on_signal_event(_game, "correct_visit", "correct_visit")
+	adapter.on_signal_event(_game, "wrong_visit", "wrong_visit")
 	_game.all_sorted.connect(func() -> void:
 		done = true
 		needs_reset = true)
+	# Point the sensor at THIS world's tile group (#313): groups are tree-global, so the shared
+	# literal group leaked every ParallelArena2D world's tiles into every sensor.
+	for sensor in ControllerCore.collect_sensors_nodes(self):
+		if "group_name" in sensor:
+			sensor.group_name = _game.instance_group()
 
 
 func get_action_space() -> Dictionary:
@@ -54,11 +69,15 @@ func _physics_process(delta: float) -> void:
 	super._physics_process(delta)
 	if _game == null:
 		return
-	reward -= step_penalty
 	var velocity: Vector2 = ChaseObs.action_index_to_velocity(_action_index, _game.move_speed)
 	_game.move_agent(velocity, delta)
+	accumulate_reward()  # applies the step penalty + any visit events this move just fired
 	if needs_reset:
 		needs_reset = false
 		_game.reset_episode()
 		reset()
-		zero_reward()
+		# Do NOT zero_reward(): the bridge reads reward+done together THEN zeroes (hide&seek
+		# contract) — zeroing here wiped the +1.0 completion bonus of the final tile before the
+		# trainer ever saw it, silently deleting the sparse success signal (#314).
+		if reward_source != null:
+			reward_source.reset()

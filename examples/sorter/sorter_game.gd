@@ -7,8 +7,12 @@ extends Node2D
 # whole point: the policy sees the tiles through an EntitySensor2D block whose presence flags
 # carry the count — the attention encoder's input contract.
 #
-# Tiles the sensor should see this episode are members of `tile_group` (inactive slots leave the
-# group, so the sensor's candidate set matches the spawned count exactly).
+# Tiles the sensor should see this episode are members of the INSTANCE-UNIQUE group
+# `instance_group()` (tile_group + this node's instance id; inactive slots leave it, so the
+# sensor's candidate set matches the spawned count exactly). Instance-unique because scene-tree
+# groups are GLOBAL: under ParallelArena2D tiling, a shared literal group leaked every world's
+# tiles into every sensor — presence flags saturated and neighbor-world tiles displaced local
+# ones in the nearest-N (#313). Any tiled EntitySensor env needs this pattern.
 
 signal correct_visit   ## the next-in-order tile was entered (and consumed)
 signal wrong_visit     ## a not-next tile was entered (not consumed)
@@ -33,9 +37,9 @@ var wrong_visits := 0
 var _agent_body: Node2D
 var _tiles: Array = []          # max_tiles pre-built tile nodes (active subset used per episode)
 var _tile_count := 0
-var _visited: Array = []
 var _prev_overlaps: Array = []
 var _rng := RandomNumberGenerator.new()
+var _instance_group: StringName = &""
 
 
 func _ready() -> void:
@@ -49,6 +53,14 @@ func _ready() -> void:
 	reset_episode()
 
 
+## The world-scoped tile group the agent's EntitySensor2D must observe (#313). Lazily computed:
+## the agent (a CHILD) readies before this node and wires its sensor from here.
+func instance_group() -> StringName:
+	if _instance_group == StringName(""):
+		_instance_group = StringName("%s_%d" % [tile_group, get_instance_id()])
+	return _instance_group
+
+
 ## s must be a non-negative integer (RandomNumberGenerator.seed is uint64; negatives wrap).
 func seed_rng(s: int) -> void:
 	_rng.seed = s
@@ -57,7 +69,6 @@ func seed_rng(s: int) -> void:
 func reset_episode() -> void:
 	_tile_count = _rng.randi_range(min_tiles, max_tiles)
 	var layout: Array = SorterMath.tile_layout(_rng, _tile_count, arena_size, edge_margin)
-	_visited = []
 	_prev_overlaps = []
 	for i in range(max_tiles):
 		var tile: Node2D = _tiles[i]
@@ -68,18 +79,30 @@ func reset_episode() -> void:
 		tile.total = _tile_count
 		if live:
 			tile.position = layout[i]
-			if not tile.is_in_group(tile_group):
-				tile.add_to_group(tile_group)
-			_visited.append(false)
+			if not tile.is_in_group(_instance_group):
+				tile.add_to_group(_instance_group)
 			_prev_overlaps.append(false)
 		else:
 			tile.position = Vector2(-10000, -10000)  # parked far outside; also out of the group
-			if tile.is_in_group(tile_group):
-				tile.remove_from_group(tile_group)
+			if tile.is_in_group(_instance_group):
+				tile.remove_from_group(_instance_group)
 	if _agent_body != null:
-		_agent_body.position = Vector2(
-			_rng.randf_range(edge_margin, arena_size.x - edge_margin),
-			_rng.randf_range(edge_margin, arena_size.y - edge_margin))
+		# Reject spawns inside a tile's visit radius (#315): _prev_overlaps starts all-false, so
+		# spawning ON a tile would fire a phantom ENTER (free reward / undeserved penalty) on the
+		# first step. Rejection (rather than priming the overlap state) keeps the enter semantics
+		# clean — a primed spawn-on-target would stall a greedy policy that never re-enters.
+		for _attempt in range(20):
+			var pos := Vector2(
+				_rng.randf_range(edge_margin, arena_size.x - edge_margin),
+				_rng.randf_range(edge_margin, arena_size.y - edge_margin))
+			_agent_body.position = pos
+			var clear := true
+			for i in range(_tile_count):
+				if pos.distance_to(layout[i]) <= visit_radius + 5.0:
+					clear = false
+					break
+			if clear:
+				break
 
 
 func move_agent(velocity: Vector2, delta: float) -> void:
@@ -95,15 +118,16 @@ func _process_visits() -> void:
 	for i in range(_tile_count):
 		tile_positions.append((_tiles[i] as Node2D).position)
 	var overlaps: Array = SorterMath.overlap_flags(_agent_body.position, tile_positions, visit_radius)
+	var visited := _visited_flags()
 	for idx in SorterMath.entered_tiles(_prev_overlaps, overlaps):
-		if _visited[idx]:
+		if visited[idx]:
 			continue  # standing on / re-entering an already-sorted tile is neutral
-		if idx + 1 == SorterMath.next_target(_visited):
-			_visited[idx] = true
+		if idx + 1 == SorterMath.next_target(visited):
+			visited[idx] = true
 			(_tiles[idx] as Node2D).visited = true
 			correct_visits += 1
 			correct_visit.emit()
-			if SorterMath.all_visited(_visited):
+			if SorterMath.all_visited(visited):
 				episodes_solved += 1
 				all_sorted.emit()
 		else:
@@ -112,12 +136,22 @@ func _process_visits() -> void:
 	_prev_overlaps = overlaps
 
 
+## The per-tile `visited` bools ARE the single source of truth (the sensor obs reads them via
+## get_entity_features); this derives the flat array SorterMath consumes — a second stored copy
+## previously had to be kept in lockstep by hand (#317).
+func _visited_flags() -> Array:
+	var out: Array = []
+	for i in range(_tile_count):
+		out.append(bool((_tiles[i] as Node2D).visited))
+	return out
+
+
 func tile_count() -> int:
 	return _tile_count
 
 
 func next_target() -> int:
-	return SorterMath.next_target(_visited)
+	return SorterMath.next_target(_visited_flags())
 
 
 func get_agent_pos() -> Vector2:
