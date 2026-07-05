@@ -107,6 +107,48 @@ func reset_positions() -> void:
 		_hazard.position = random_position()
 	_hazard_waypoint = random_position()
 
+# Episode replay hooks (#39/#335): minimal state for exact playback (kinematic + seeded game).
+# rng_state is REQUIRED for exactness: goal/hazard relocations and waypoint re-rolls consume the
+# RNG, so a replay without the recorded state diverges after the first event. Stored as String —
+# the uint64 RNG state does not survive JSON's float64 numbers.
+func get_replay_state() -> Dictionary:
+	return {"agent_x": get_agent_pos().x, "agent_y": get_agent_pos().y,
+		"goal_x": get_goal_pos().x, "goal_y": get_goal_pos().y,
+		"hazard_x": get_hazard_pos().x, "hazard_y": get_hazard_pos().y,
+		"waypoint_x": _hazard_waypoint.x, "waypoint_y": _hazard_waypoint.y,
+		"goals_reached": goals_reached, "hazard_hits": hazard_hits, "rng_state": str(_rng.state)}
+
+
+func apply_replay_state(state: Dictionary) -> void:
+	if _agent_body != null and state.has("agent_x"):
+		_agent_body.position = Vector2(float(state["agent_x"]), float(state["agent_y"]))
+	if _goal != null and state.has("goal_x"):
+		_goal.position = Vector2(float(state["goal_x"]), float(state["goal_y"]))
+	if _hazard != null and state.has("hazard_x"):
+		_hazard.position = Vector2(float(state["hazard_x"]), float(state["hazard_y"]))
+	if state.has("waypoint_x"):
+		_hazard_waypoint = Vector2(float(state["waypoint_x"]), float(state["waypoint_y"]))
+	goals_reached = int(state.get("goals_reached", 0))
+	hazard_hits = int(state.get("hazard_hits", 0))
+	if state.has("rng_state"):
+		_rng.state = int(String(state["rng_state"]))
+
+
+# Curriculum hook (#28/#335): stage params applied at episode boundaries by CurriculumController.
+# Flat floats only (params arrive from JSON / the wire — no Vector2).
+func apply_curriculum(params: Dictionary) -> void:
+	if params.has("hazard_speed"):
+		hazard_speed = float(params["hazard_speed"])
+	if params.has("goal_radius"):
+		goal_radius = float(params["goal_radius"])
+	if params.has("hazard_radius"):
+		hazard_radius = float(params["hazard_radius"])
+	if params.has("arena_size_x"):
+		arena_size.x = float(params["arena_size_x"])
+	if params.has("arena_size_y"):
+		arena_size.y = float(params["arena_size_y"])
+
+
 # --- Lightweight visualizer (free headless: _draw never runs without a renderer) ---
 func _process(_delta: float) -> void:
 	queue_redraw()

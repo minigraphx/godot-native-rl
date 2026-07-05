@@ -77,4 +77,12 @@ func _initialize() -> void:
 	var space: Dictionary = agent.get_action_space()
 	h.assert_eq(int(space["move"]["size"]), 5, "5 discrete actions")
 
+	# --- #335: seek uses the SHARED discrete-action convention (ChaseObs: 1=up) — a hand-rolled
+	# mapping silently swapped axes for tooling written against the convention. ---
+	var before_y: float = world_a.get_node("AgentBody").position.y
+	agent._action_index = 1
+	agent._physics_process(1.0 / 60.0)
+	h.assert_true(world_a.get_node("AgentBody").position.y < before_y,
+		"#335: action 1 moves UP (ChaseObs convention, not the old hand-rolled left)")
+
 	h.finish(self)

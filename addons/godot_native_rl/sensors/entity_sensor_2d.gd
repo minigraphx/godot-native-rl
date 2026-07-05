@@ -26,6 +26,12 @@ const SensorPaths = preload("res://addons/godot_native_rl/sensors/sensor_paths.g
 @export var object_paths: Array[NodePath] = []
 ## Optional group whose members are also observed (added to objects_to_observe).
 @export var group_name: StringName = &""
+## Subtree scope for group members (#336): when set, group members OUTSIDE this node's subtree
+## are ignored. Scene-tree groups are GLOBAL, so under ParallelArena tiling a shared group leaks
+## every world's entities into every sensor (presence flags saturate, neighbor entities displace
+## local ones — the #313 failure). Point this at the sensor's own world root and tiling is safe
+## with ONE export — no per-example instance-group suffixing needed.
+@export var scope_root: NodePath = ^""
 ## Distance normalizer for the relative-position features (0 = closest, 1 = at/over this).
 @export_range(0.01, 20000.0) var max_distance: float = 1.0
 ## Include the relative X component in each entity's features.
@@ -86,9 +92,13 @@ func _candidates() -> Array:
 		if o != null and not out.has(o):
 			out.append(o)
 	if not group_name.is_empty() and is_inside_tree():
+		var scope: Node = get_node_or_null(scope_root) if scope_root != NodePath("") else null
 		for o in get_tree().get_nodes_in_group(group_name):
-			if o != null and not out.has(o):
-				out.append(o)
+			if o == null or out.has(o):
+				continue
+			if scope != null and o != scope and not scope.is_ancestor_of(o):
+				continue  # another world's member (#336)
+			out.append(o)
 	return out
 
 # Extra per-entity scalars from a duck-typed get_entity_features(); zero-filled when absent or the

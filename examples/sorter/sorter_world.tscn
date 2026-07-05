@@ -17,5 +17,6 @@ control_mode = 2
 script = ExtResource("3")
 max_entities = 6
 group_name = &"SORTER_TILES"
+scope_root = NodePath("../..")
 max_distance = 1200.0
 extra_feature_count = 2

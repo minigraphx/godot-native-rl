@@ -7,12 +7,11 @@ extends Node2D
 # whole point: the policy sees the tiles through an EntitySensor2D block whose presence flags
 # carry the count — the attention encoder's input contract.
 #
-# Tiles the sensor should see this episode are members of the INSTANCE-UNIQUE group
-# `instance_group()` (tile_group + this node's instance id; inactive slots leave it, so the
-# sensor's candidate set matches the spawned count exactly). Instance-unique because scene-tree
-# groups are GLOBAL: under ParallelArena2D tiling, a shared literal group leaked every world's
-# tiles into every sensor — presence flags saturated and neighbor-world tiles displaced local
-# ones in the nearest-N (#313). Any tiled EntitySensor env needs this pattern.
+# Tiles the sensor should see this episode are members of `tile_group` (inactive slots leave the
+# group, so the candidate set matches the spawned count). Scene-tree groups are GLOBAL, so under
+# ParallelArena2D tiling every world's tiles share it — per-world isolation is the SENSOR's job:
+# the world scene sets EntitySensor2D.scope_root to this world's root (#336, generalizing the
+# #313 fix out of per-example instance-group suffixing and into shared infra).
 
 signal correct_visit   ## the next-in-order tile was entered (and consumed)
 signal wrong_visit     ## a not-next tile was entered (not consumed)
@@ -39,7 +38,6 @@ var _tiles: Array = []          # max_tiles pre-built tile nodes (active subset 
 var _tile_count := 0
 var _prev_overlaps: Array = []
 var _rng := RandomNumberGenerator.new()
-var _instance_group: StringName = &""
 
 
 func _ready() -> void:
@@ -51,14 +49,6 @@ func _ready() -> void:
 		add_child(tile)
 		_tiles.append(tile)
 	reset_episode()
-
-
-## The world-scoped tile group the agent's EntitySensor2D must observe (#313). Lazily computed:
-## the agent (a CHILD) readies before this node and wires its sensor from here.
-func instance_group() -> StringName:
-	if _instance_group == StringName(""):
-		_instance_group = StringName("%s_%d" % [tile_group, get_instance_id()])
-	return _instance_group
 
 
 ## s must be a non-negative integer (RandomNumberGenerator.seed is uint64; negatives wrap).
@@ -81,7 +71,7 @@ func reset_episode() -> void:
 		tile.visited = false
 		tile.number = i + 1
 		tile.total = _tile_count
-		var group := instance_group()  # accessor, NOT the raw field (#333): lazy init must run
+		var group := StringName(tile_group)
 		if live:
 			tile.position = layout[i]
 			if not tile.is_in_group(group):

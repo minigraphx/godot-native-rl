@@ -1,46 +1,16 @@
-extends Node
-# Headless check: runs the TRAINED agent under ncnn inference and asserts it actually
-# catches the target at least `min_catches` times within `frames_to_run` physics frames.
-# A random/untrained policy almost never reaches this threshold, so this verifies learning.
+extends "res://test/integration/trained_checker_base.gd"
+# Trained-chase behavioral gate: the ncnn policy must actually CATCH (a random policy almost
+# never clears the threshold). Skeleton (seed + re-roll + guards) lives in the base (#335).
 
-@export var game_path: NodePath
-@export var agent_path: NodePath
-@export var frames_to_run := 1800
 @export var min_catches := 5
-@export var game_seed := -1  ## >= 0 pins the game RNG (reproducible spawns/relocations)
 
-var _game
-var _agent
-var _frames := 0
+func _label() -> String:
+	return "TRAINED CHASE"
 
-func _ready() -> void:
-	_game = get_node_or_null(game_path)
-	_agent = get_node_or_null(agent_path)
-	if _game == null or _agent == null:
-		_fail("could not resolve game/agent nodes")
-	elif game_seed >= 0 and _game.has_method("seed_rng"):
-		_game.seed_rng(game_seed)
-		# The game's _ready already rolled the FIRST layout from the unseeded RNG (tree order:
-		# world before checker) — re-roll it from the seeded stream or the whole run's phase is
-		# nondeterministic despite the seed (bit us calibrating the fleeing-target eval: same
-		# config scored 6 and 9 catches on different launches).
-		if _game.has_method("reset_positions"):
-			_game.reset_positions()
+func _passed() -> bool:
+	return int(_game.catches) >= min_catches
 
-func _physics_process(_delta: float) -> void:
-	if _game == null or _agent == null:
-		return
-	if _agent._ncnn_runner == null or not _agent._ncnn_runner.is_model_loaded():
-		_fail("trained ncnn model not loaded")
-		return
-	_frames += 1
-	if _frames >= frames_to_run:
-		if _game.catches >= min_catches:
-			print("TRAINED CHASE PASSED (%d catches in %d frames)" % [_game.catches, _frames])
-			get_tree().quit(0)
-		else:
-			_fail("only %d catches in %d frames (need %d) — agent did not learn to chase" % [_game.catches, _frames, min_catches])
-
-func _fail(reason: String) -> void:
-	printerr("TRAINED CHASE FAILED: %s" % reason)
-	get_tree().quit(1)
+func _report() -> String:
+	if _passed():
+		return "%d catches in %d frames" % [int(_game.catches), _frames]
+	return "only %d catches in %d frames (need %d) — agent did not learn to chase" % [int(_game.catches), _frames, min_catches]

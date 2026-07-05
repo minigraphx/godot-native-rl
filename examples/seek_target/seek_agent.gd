@@ -11,11 +11,11 @@ extends "res://addons/godot_native_rl/controllers/ncnn_ai_controller_2d.gd"
 const ACTION_KEY := "move"
 const ACTION_COUNT := 5
 const RewardBuilderScript = preload("res://addons/godot_native_rl/reward/reward_builder.gd")
-
-## Discrete action set: idle, left, right, up, down.
-const DIRECTIONS: Array[Vector2] = [
-	Vector2.ZERO, Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN,
-]
+# The ONE discrete-action convention the 2D examples share (#335): 0=stay, 1=up, 2=down, 3=left,
+# 4=right via ChaseObs.action_index_to_velocity — a hand-rolled mapping here silently swapped
+# axes for any tooling (scripted experts, demo recorders) written against the shared convention.
+# The shipped seek_es net is trained on this mapping.
+const ChaseObs = preload("res://examples/chase_the_target/chase_obs.gd")
 
 @export var game_path: NodePath
 @export var step_penalty := 0.001
@@ -73,7 +73,7 @@ func _physics_process(delta: float) -> void:
 	if _game == null:
 		return
 
-	_game.move_agent(DIRECTIONS[_action_index] * _game.move_speed, delta)
+	_game.move_agent(ChaseObs.action_index_to_velocity(_action_index, _game.move_speed), delta)
 	_game.step_hazard(delta)
 
 	# Score events against the CURRENT layout BEFORE any relocation (chase pattern): the

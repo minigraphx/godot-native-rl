@@ -10,7 +10,6 @@ const ACTION_KEY := "move"
 const ACTION_COUNT := 5  # stay + 4 directions
 const ChaseObs = preload("res://examples/chase_the_target/chase_obs.gd")
 const RewardBuilderScript = preload("res://addons/godot_native_rl/reward/reward_builder.gd")
-const ControllerCore = preload("res://addons/godot_native_rl/controllers/ncnn_controller_core.gd")
 
 @export var game_path: NodePath
 @export var step_penalty := 0.002
@@ -40,11 +39,8 @@ func _ready() -> void:
 	_game.all_sorted.connect(func() -> void:
 		done = true
 		needs_reset = true)
-	# Point the sensor at THIS world's tile group (#313): groups are tree-global, so the shared
-	# literal group leaked every ParallelArena2D world's tiles into every sensor.
-	for sensor in ControllerCore.collect_sensors_nodes(self):
-		if "group_name" in sensor:
-			sensor.group_name = _game.instance_group()
+	# Per-world tile isolation is the sensor's own scope_root export (#336) — set in the world
+	# scene, no runtime rewiring.
 
 
 func get_action_space() -> Dictionary:
