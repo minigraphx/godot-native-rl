@@ -11,6 +11,11 @@ Writes models/synthetic_sac.ncnn.{param,bin} and models/synthetic_sac_golden.jso
 raw means, expected tanh(mean)) used by test/unit/test_algorithm_agnostic_golden_inference.gd.
 
 Regenerate:  .venv-train/bin/python scripts/make_synthetic_sac.py
+
+NOTE (#319): no regenerate-and-diff CI gate exists for this generator (it needs the
+torch venv, unlike make_synthetic_attention.py which is byte-pinned in CI). If you edit
+it, rerun it and commit the regenerated models/ artifacts in the SAME change, or the
+committed fixtures silently drift from the generator.
 """
 import json
 import subprocess

@@ -99,11 +99,28 @@ def input_layer(blob: str, width: int) -> dict:
     return {"type": "Input", "name": blob, "bottoms": [], "tops": [blob], "params": {0: int(width)}}
 
 
+def input_layer_2d(blob: str, width: int, height: int) -> dict:
+    """2D Mat input (w=features, h=sequence) — MultiHeadAttention's x/mask blob shape."""
+    return {"type": "Input", "name": blob, "bottoms": [], "tops": [blob],
+            "params": {0: int(width), 1: int(height)}}
+
+
+def _expect_len(what: str, data, expected: int) -> None:
+    """ncnn's ModelBin reads blobs sequentially by DECLARED size, so a mis-sized list shifts
+    every later blob and the net loads fine but computes garbage (#323). Fail loud instead."""
+    if len(data) != expected:
+        raise ValueError("%s has %d floats, expected %d — the .bin would load but every "
+                         "subsequent blob would be misaligned (silent wrong logits)"
+                         % (what, len(data), expected))
+
+
 def linear_layer(name: str, bottom: str, top: str, weight: list[float], bias: list[float] | None,
                  in_features: int, out_features: int) -> dict:
     """Build an InnerProduct layer. `weight` is the flat [out, in] row-major list."""
+    _expect_len("linear '%s' weight" % name, weight, in_features * out_features)
     weights = [(weight, True)]
     if bias is not None:
+        _expect_len("linear '%s' bias" % name, bias, out_features)
         weights.append((bias, False))
     return {
         "type": "InnerProduct", "name": name, "bottoms": [bottom], "tops": [top],
@@ -141,6 +158,8 @@ def gemm_const_b_layer(name: str, bottom: str, top: str, weight: list[float], bi
                        in_features: int, out_features: int) -> dict:
     """A(M,in) x W(out,in)^T + bias-row -> (M,out). transB=1 with torch-layout weights; bias is a
     constant C of broadcast type 4 (one row over M). BOTH constant blobs are fp32-tagged."""
+    _expect_len("gemm '%s' weight" % name, weight, in_features * out_features)
+    _expect_len("gemm '%s' bias" % name, bias, out_features)
     return {
         "type": "Gemm", "name": name, "bottoms": [bottom], "tops": [top],
         "params": {2: 0, 3: 1, 4: 0, 5: 1, 6: 1, 8: int(out_features), 9: int(in_features), 10: 4},
@@ -182,6 +201,13 @@ def multihead_attention_layer(name: str, bottom_x: str, bottom_mask: str, top: s
     """Self-attention with an additive attn_mask bottom (param 5=1). Weight order/layout per
     MultiHeadAttention::load_model: q/k/v/out as (out x in) row-major fp32-tagged weights, each
     followed by its RAW (untagged) bias."""
+    if int(embed_dim) % int(num_heads) != 0:
+        raise ValueError("embed_dim %d not divisible by num_heads %d — ncnn truncates "
+                         "embed_dim_per_head and silently drops dimensions from attention"
+                         % (embed_dim, num_heads))
+    for label, w, b in [("q", q_w, q_b), ("k", k_w, k_b), ("v", v_w, v_b), ("out", out_w, out_b)]:
+        _expect_len("mha '%s' %s weight" % (name, label), w, int(embed_dim) * int(embed_dim))
+        _expect_len("mha '%s' %s bias" % (name, label), b, int(embed_dim))
     return {
         "type": "MultiHeadAttention", "name": name, "bottoms": [bottom_x, bottom_mask], "tops": [top],
         "params": {0: int(embed_dim), 1: int(num_heads), 2: int(embed_dim) * int(embed_dim), 5: 1},
@@ -202,9 +228,17 @@ def validate_single_consumer(layers: list[dict]) -> None:
             "blob(s) with multiple consumers (insert Split layers): %s" % multi)
 
 
+# fp16-FINITE mask constant (#322): -1e9 overflows fp16 (max ±65504) to -inf, and a softmax row
+# that is ALL -inf (every entity absent — a representable EntitySensor obs) computes
+# exp(-inf - -inf) = NaN. ncnn enables fp16 storage/arithmetic by default on ARM, so the NaN
+# only appears on the mobile/edge deploys CI's fp32-x86 goldens can't see. -6e4 stays finite in
+# fp16 while still dominating any post-embedding logit scale.
+FP16_SAFE_NEG_MASK = -6e4
+
+
 def attention_policy_layers(n_entities: int, feat: int, embed_dim: int, num_heads: int,
                             weights: dict, head_dims: list[int] | None = None,
-                            neg_mask: float = -1e9) -> list[dict]:
+                            neg_mask: float = FP16_SAFE_NEG_MASK) -> list[dict]:
     """The proven single-input entity-encoder graph (#46), optionally followed by an MLP head.
 
     Input blob `in0` = the EntitySensor flat obs [n*feat entities][n presence flags]; output
@@ -229,7 +263,7 @@ def attention_policy_layers(n_entities: int, feat: int, embed_dim: int, num_head
         reshape_layer("flagrow", "flags_a", "flagrow", n, 1),
         split_layer("flagrow_split", "flagrow", ["flagrow_a", "flagrow_b"]),
         binaryop_scalar_layer("inv", "flagrow_a", "inv", 7, 1.0),          # 1 - p
-        binaryop_scalar_layer("negmask", "inv", "negmask", 2, neg_mask),   # * -1e9
+        binaryop_scalar_layer("negmask", "inv", "negmask", 2, neg_mask),   # * neg_mask (fp16-finite)
         tile_layer("mask", "negmask", "mask", 0, n),                       # (n,1) -> (n,n)
         multihead_attention_layer("att", "emb", "mask", "att", d, num_heads,
                                   weights["q_w"], weights["q_b"], weights["k_w"], weights["k_b"],

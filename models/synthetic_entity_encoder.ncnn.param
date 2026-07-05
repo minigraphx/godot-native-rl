@@ -11,7 +11,7 @@ ReLU emb 1 1 emb0 emb 0=0.0
 Reshape flagrow 1 1 flags_a flagrow 0=3 1=1
 Split flagrow_split 1 2 flagrow flagrow_a flagrow_b
 BinaryOp inv 1 1 flagrow_a inv 0=7 1=1 2=1.0
-BinaryOp negmask 1 1 inv negmask 0=2 1=1 2=-1000000000.0
+BinaryOp negmask 1 1 inv negmask 0=2 1=1 2=-60000.0
 Tile mask 1 1 negmask mask 0=0 1=3
 MultiHeadAttention att 2 1 emb mask att 0=4 1=2 2=16 5=1
 Gemm pool 2 1 flagrow_b att pool 1=0.0

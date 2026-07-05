@@ -189,6 +189,40 @@ class TestAttentionBuilders(unittest.TestCase):
         self.assertEqual(tags, [True, False, True, False, True, False, True, False])
         self.assertEqual(mha["params"][5], 1)  # attn_mask enabled
 
+    def test_mis_sized_weight_lists_fail_loud(self):
+        """#323: ncnn's ModelBin reads sequentially by declared size — a too-long blob shifts
+        every later one and the net loads fine but computes garbage. The builders must raise."""
+        w = self._weights()
+        with self.assertRaises(ValueError):
+            sd.gemm_const_b_layer("g", "a", "g", w["emb_w"] + [0.0], w["emb_b"], 2, 4)
+        with self.assertRaises(ValueError):
+            sd.gemm_const_b_layer("g", "a", "g", w["emb_w"], w["emb_b"][:-1], 2, 4)
+        with self.assertRaises(ValueError):
+            sd.multihead_attention_layer("att", "x", "m", "att", 4, 2,
+                                         w["q_w"][:-1], w["q_b"], w["k_w"], w["k_b"],
+                                         w["v_w"], w["v_b"], w["out_w"], w["out_b"])
+        with self.assertRaises(ValueError):
+            sd.linear_layer("l", "a", "l", w["q_w"], w["q_b"], 4, 5)  # 16 floats, needs 20
+        bad = dict(w)
+        bad["emb_w"] = w["emb_w"] + [0.0]
+        with self.assertRaises(ValueError):
+            sd.attention_policy_layers(3, 2, 4, 2, bad)
+
+    def test_non_divisible_heads_fail_loud(self):
+        """#323 item 2: ncnn truncates embed_dim/num_heads, silently dropping dimensions."""
+        w = self._weights()
+        with self.assertRaises(ValueError):
+            sd.multihead_attention_layer("att", "x", "m", "att", 4, 3,
+                                         w["q_w"], w["q_b"], w["k_w"], w["k_b"],
+                                         w["v_w"], w["v_b"], w["out_w"], w["out_b"])
+
+    def test_neg_mask_default_is_fp16_finite(self):
+        """#322: -1e9 overflows fp16 (max 65504) to -inf; an all-absent obs then NaNs on ARM."""
+        self.assertLessEqual(abs(sd.FP16_SAFE_NEG_MASK), 65504.0)
+        layers = sd.attention_policy_layers(3, 2, 4, 2, self._weights())
+        negmask = next(l for l in layers if l["name"] == "negmask")
+        self.assertEqual(negmask["params"][2], sd.FP16_SAFE_NEG_MASK)
+
     def test_regenerated_fixture_matches_committed_bytes(self):
         """The committed fixture is executed by real ncnn in the GDScript golden suite at zero
         error; the production writer must reproduce it byte-for-byte, pinning the two forever."""

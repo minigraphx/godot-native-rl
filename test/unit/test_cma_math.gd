@@ -6,14 +6,10 @@ extends SceneTree
 
 const Harness = preload("res://test/harness.gd")
 const Cma = preload("res://addons/godot_native_rl/training/cma_math.gd")
+const Landscapes = preload("res://test/fitness_landscapes.gd")
 
 func _sphere_fitness(x: PackedFloat32Array, target: Array) -> float:
-	# Maximize -||x - target||^2 (optimum 0 at x == target).
-	var total := 0.0
-	for i in range(x.size()):
-		var d := x[i] - float(target[i])
-		total -= d * d
-	return total
+	return Landscapes.sphere(x, target)
 
 func _ellipsoid_fitness(x: PackedFloat32Array, scales: Array) -> float:
 	# Maximize -sum(a_j * x_j^2): badly axis-scaled — per-coordinate variance adaptation territory.
@@ -62,15 +58,15 @@ func _initialize() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 42
 	cma.sample(rng)
-	h.assert_eq(cma._z.size(), 16, "sample draws population z vectors")
+	h.assert_eq(cma._z.size(), 16 * 5, "sample fills the flat population*n z buffer")
 	h.assert_eq(cma.candidate_at(0).size(), 5, "candidate dimension matches n")
 	h.assert_eq(cma.candidate_at(16), PackedFloat32Array(), "candidate_at out of range fails loud")
-	# Fresh state: candidates are mean + sigma*z exactly (C starts at identity).
+	# Fresh state: candidates are mean + sigma*z exactly (C starts at identity). Candidate 0's
+	# z lives in the first n floats of the flat buffer.
 	var c0: PackedFloat32Array = cma.candidate_at(0)
-	var z0: PackedFloat32Array = cma._z[0]
 	var worst := 0.0
 	for j in range(5):
-		worst = maxf(worst, absf(c0[j] - 0.5 * z0[j]))
+		worst = maxf(worst, absf(c0[j] - 0.5 * cma._z[j]))
 	h.assert_true(worst < 1e-6, "identity-C candidates are mean + sigma*z (worst |err| %f)" % worst)
 
 	# --- update guards ---

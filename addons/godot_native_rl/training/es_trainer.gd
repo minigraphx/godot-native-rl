@@ -130,9 +130,12 @@ var _best_mean := -INF
 func _ready() -> void:
 	var args := RunSpeed.parse_cmdline_args()
 	speed_up = float(args.get("speedup", str(speed_up)))
-	action_repeat = int(args.get("action_repeat", str(action_repeat)))
+	# Strict int parses (#290/#324): int("garbage") is 0 and int("1e3") prefix-parses to 1 — an
+	# intended 1000-generation overnight run would exit cleanly after ONE generation. -1 on a bad
+	# override, which the existing < 1 guards below turn into a loud abort.
+	action_repeat = RunSpeed.parse_positive_int(args, "action_repeat", action_repeat)
 	optimizer = str(args.get("optimizer", optimizer))
-	generations = int(args.get("generations", str(generations)))
+	generations = RunSpeed.parse_positive_int(args, "generations", generations)
 	_rng.seed = rng_seed
 	set_physics_process(false)
 	# Agents register their group in their own _ready; initialize (and validate the possibly
@@ -147,9 +150,7 @@ func _late_init() -> void:
 	if optimizer != "openai_es" and optimizer != "cma_es":
 		_abort("unknown optimizer '%s' (openai_es | cma_es — a bad cmdline override?)." % optimizer)
 		return
-	if optimizer == "cma_es" and half_population < 2:
-		_abort("cma_es needs a population of >= 4, so half_population >= 2.")
-		return
+	# (cma_es population >= 4 is CmaMath.setup's own guard — one owner, not two.)
 	if generations < 1:
 		_abort("generations must be >= 1 (got %d — a bad cmdline override?)." % generations)
 		return

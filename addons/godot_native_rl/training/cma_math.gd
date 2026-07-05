@@ -18,11 +18,13 @@ extends RefCounted
 #   candidate_at(i) for i in 0..λ-1  # x_i = m + σ·√C∘z_i (lazy — one candidate at a time)
 #   update(fitness)                  # rank, recombine, adapt σ and C, advance the mean
 
+const EsMath = preload("res://addons/godot_native_rl/training/es_math.gd")
+
 var n := 0
 var population := 0  ## λ — candidates per generation
 var mu := 0  ## parents (top-μ recombination)
 var mu_eff := 0.0
-var weights: Array = []  # recombination weights, descending, sum 1
+var weights := PackedFloat32Array()  # recombination weights, descending, sum 1
 var c_sigma := 0.0
 var d_sigma := 0.0
 var c_c := 0.0
@@ -33,9 +35,14 @@ var chi_n := 0.0  # E||N(0,I)||
 var sigma := 0.0
 var _mean := PackedFloat32Array()
 var _c_diag := PackedFloat32Array()  # diagonal of the covariance C
+var _c_sqrt := PackedFloat32Array()  # cached sqrt(_c_diag), refreshed once per update (#324)
 var _p_sigma := PackedFloat32Array()
 var _p_c := PackedFloat32Array()
-var _z: Array = []  # this generation's λ standard-normal draws
+# This generation's λ standard-normal draws as ONE flat λ*n buffer (candidate i = [i*n, i*n+n)).
+# Flat because packed arrays nested in an Array are copy-on-write — refilling them in place
+# would silently copy each one every generation; a single owner refills with zero allocation.
+var _z := PackedFloat32Array()
+var _sampled := false
 var _generation := 0
 
 
@@ -50,16 +57,16 @@ func setup(mean0: PackedFloat32Array, sigma0: float, population_size: int) -> bo
 	population = population_size
 	mu = population / 2
 	# Log-rank recombination weights over the top-μ, normalized to sum 1.
-	weights = []
+	weights = PackedFloat32Array()
+	weights.resize(mu)
 	var w_sum := 0.0
 	for i in range(mu):
-		var w := log((float(population) + 1.0) / 2.0) - log(float(i + 1))
-		weights.append(w)
-		w_sum += w
+		weights[i] = log((float(population) + 1.0) / 2.0) - log(float(i + 1))
+		w_sum += weights[i]
 	var w_sq := 0.0
 	for i in range(mu):
-		weights[i] = float(weights[i]) / w_sum
-		w_sq += float(weights[i]) * float(weights[i])
+		weights[i] = weights[i] / w_sum
+		w_sq += weights[i] * weights[i]
 	mu_eff = 1.0 / w_sq
 	var nf := float(n)
 	c_sigma = (mu_eff + 2.0) / (nf + mu_eff + 5.0)
@@ -76,69 +83,70 @@ func setup(mean0: PackedFloat32Array, sigma0: float, population_size: int) -> bo
 	_c_diag = PackedFloat32Array()
 	_c_diag.resize(n)
 	_c_diag.fill(1.0)
+	_c_sqrt = PackedFloat32Array()
+	_c_sqrt.resize(n)
+	_c_sqrt.fill(1.0)
 	_p_sigma = PackedFloat32Array()
 	_p_sigma.resize(n)
 	_p_c = PackedFloat32Array()
 	_p_c.resize(n)
+	_z = PackedFloat32Array()
+	_z.resize(population * n)  # allocated once; sample() refills in place every generation
+	_sampled = false
 	_generation = 0
 	return true
 
 
-## Draw this generation's λ standard-normal vectors. Must be called once per generation, before
-## candidate_at / update.
+## Draw this generation's λ standard-normal vectors (into the reused flat buffer). Must be
+## called once per generation, before candidate_at / update.
 func sample(rng: RandomNumberGenerator) -> void:
-	_z = []
-	for _i in range(population):
-		var z := PackedFloat32Array()
-		z.resize(n)
-		for j in range(n):
-			z[j] = rng.randfn()
-		_z.append(z)
+	EsMath.fill_gaussian(rng, _z)  # the shared draw-order primitive (lockstep with OpenAI-ES)
+	_sampled = true
 
 
 ## Candidate i of the current generation: x_i = m + σ·√C ∘ z_i. Lazy like EsMath.candidate_at —
 ## the trainer consumes one candidate at a time, so the population never needs materializing.
 func candidate_at(idx: int) -> PackedFloat32Array:
-	if idx < 0 or idx >= _z.size():
-		push_error("CmaMath.candidate_at: index %d out of range for %d sampled candidates." % [idx, _z.size()])
+	if not _sampled or idx < 0 or idx >= population:
+		push_error("CmaMath.candidate_at: index %d out of range for %d sampled candidates." % [idx, population if _sampled else 0])
 		return PackedFloat32Array()
-	var z: PackedFloat32Array = _z[idx]
+	var base := idx * n
 	var out := PackedFloat32Array()
 	out.resize(n)
 	for j in range(n):
-		out[j] = _mean[j] + sigma * sqrt(_c_diag[j]) * z[j]
+		out[j] = _mean[j] + sigma * _c_sqrt[j] * _z[base + j]
 	return out
 
 
 ## One sep-CMA-ES step from the λ fitness values (aligned with candidate_at indices; MAXIMIZED).
 ## Advances the mean, the evolution paths, the step size and the diagonal covariance.
 func update(fitness: Array) -> void:
-	if fitness.size() != _z.size() or _z.is_empty():
+	if fitness.size() != population or not _sampled:
 		push_error("CmaMath.update: need one fitness per sampled candidate (got %d for %d)."
-			% [fitness.size(), _z.size()])
+			% [fitness.size(), population if _sampled else 0])
 		return
 	# Rank descending (maximize), ties stable by candidate index.
 	var order: Array = []
 	for i in range(population):
 		order.append([-float(fitness[i]), i])
 	order.sort()
-	# Weighted recombination over the top-μ: z_w (isotropic) and y_w = √C∘z_w-per-candidate.
+	# Weighted recombination over the top-μ in ONE pass: z_w (isotropic), y_w = √C∘z_w, and the
+	# rank-μ Σw·y² term folded in (#324 — no materialized per-candidate y vectors).
 	var z_w := PackedFloat32Array()
 	var y_w := PackedFloat32Array()
+	var rank_mu := PackedFloat32Array()
 	z_w.resize(n)
 	y_w.resize(n)
-	var y_sel: Array = []  # top-μ y vectors, for the rank-μ covariance term
+	rank_mu.resize(n)
 	for r in range(mu):
-		var idx: int = order[r][1]
+		var base: int = int(order[r][1]) * n
 		var w: float = weights[r]
-		var z: PackedFloat32Array = _z[idx]
-		var y := PackedFloat32Array()
-		y.resize(n)
 		for j in range(n):
-			y[j] = sqrt(_c_diag[j]) * z[j]
-			z_w[j] += w * z[j]
-			y_w[j] += w * y[j]
-		y_sel.append(y)
+			var zj := _z[base + j]
+			var yj := _c_sqrt[j] * zj
+			z_w[j] += w * zj
+			y_w[j] += w * yj
+			rank_mu[j] += w * yj * yj
 	# Mean shift.
 	for j in range(n):
 		_mean[j] += sigma * y_w[j]
@@ -157,17 +165,14 @@ func update(fitness: Array) -> void:
 	var cc_norm := sqrt(c_c * (2.0 - c_c) * mu_eff)
 	for j in range(n):
 		_p_c[j] = (1.0 - c_c) * _p_c[j] + h_sigma * cc_norm * y_w[j]
-	# Diagonal covariance: decay + rank-one (p_c²) + rank-μ (weighted y²), with the h_σ
-	# correction folded into the decay when the rank-one term is gated off.
+	# Diagonal covariance: decay + rank-one (p_c²) + rank-μ (weighted y², accumulated above),
+	# with the h_σ correction folded into the decay when the rank-one term is gated off.
 	var decay := 1.0 - c_1 - c_mu + (1.0 - h_sigma) * c_1 * c_c * (2.0 - c_c)
 	for j in range(n):
-		var rank_mu := 0.0
-		for r in range(mu):
-			var yj: float = y_sel[r][j]
-			rank_mu += float(weights[r]) * yj * yj
-		_c_diag[j] = maxf(1e-20, decay * _c_diag[j] + c_1 * _p_c[j] * _p_c[j] + c_mu * rank_mu)
+		_c_diag[j] = maxf(1e-20, decay * _c_diag[j] + c_1 * _p_c[j] * _p_c[j] + c_mu * rank_mu[j])
+		_c_sqrt[j] = sqrt(_c_diag[j])
 	sigma = clampf(sigma * exp((c_sigma / d_sigma) * (ps_norm / chi_n - 1.0)), 1e-12, 1e12)
-	_z = []
+	_sampled = false
 
 
 ## The current distribution mean — the trainer's θ / the checkpointed net.

@@ -6,14 +6,10 @@ extends SceneTree
 
 const Harness = preload("res://test/harness.gd")
 const ES = preload("res://addons/godot_native_rl/training/es_math.gd")
+const Landscapes = preload("res://test/fitness_landscapes.gd")
 
 func _sphere_fitness(x: PackedFloat32Array, target: Array) -> float:
-	# Maximize -||x - target||^2 (optimum 0 at x == target).
-	var total := 0.0
-	for i in range(x.size()):
-		var d := x[i] - float(target[i])
-		total -= d * d
-	return total
+	return Landscapes.sphere(x, target)
 
 func _initialize() -> void:
 	var h := Harness.new()

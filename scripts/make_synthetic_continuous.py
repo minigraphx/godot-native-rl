@@ -7,6 +7,11 @@ test/unit/test_action_decode_golden.gd to verify run_inference numerical closene
 and the continuous decode path.
 
 Regenerate:  .venv-train/bin/python scripts/make_synthetic_continuous.py
+
+NOTE (#319): no regenerate-and-diff CI gate exists for this generator (it needs the
+torch venv, unlike make_synthetic_attention.py which is byte-pinned in CI). If you edit
+it, rerun it and commit the regenerated models/ artifacts in the SAME change, or the
+committed fixtures silently drift from the generator.
 """
 import json
 import subprocess

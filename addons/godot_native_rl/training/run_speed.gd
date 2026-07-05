@@ -23,3 +23,18 @@ static func parse_cmdline_args() -> Dictionary:
 			var kv := argument.split("=")
 			arguments[kv[0].lstrip("--")] = kv[1]
 	return arguments
+
+
+## Strict positive-int cmdline override (#290/#324): GDScript's `int("garbage")` is 0 and
+## `int("1e3")` prefix-parses to 1, so an unvalidated override silently turns into a
+## modulo-by-zero (SIGFPE in release) or truncates an overnight run to one generation. Returns
+## `fallback` when the key is absent; pushes an error and returns -1 (callers fail loud) when
+## the value is not a pure positive integer.
+static func parse_positive_int(args: Dictionary, key: String, fallback: int) -> int:
+	if not args.has(key):
+		return fallback
+	var raw := str(args[key])
+	if not raw.is_valid_int() or int(raw) < 1:
+		push_error("RunSpeed: cmdline override %s=%s is not a positive integer." % [key, raw])
+		return -1
+	return int(raw)

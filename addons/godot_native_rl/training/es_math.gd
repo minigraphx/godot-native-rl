@@ -11,6 +11,15 @@ extends RefCounted
 # fitness array handed back to es_update must match it.
 
 
+## Fill a packed array with standard-normal draws IN PLACE — the one RNG-stream-consuming
+## primitive, shared with CmaMath so both optimizers draw in the same order (a divergence would
+## silently break seeded-run comparability). Also the zero-allocation path for per-generation
+## buffer reuse (#324).
+static func fill_gaussian(rng: RandomNumberGenerator, out: PackedFloat32Array) -> void:
+	for j in range(out.size()):
+		out[j] = rng.randfn()
+
+
 ## half_pop gaussian noise vectors of dimension n (candidates come in mirrored pairs, so the
 ## effective population is 2*half_pop).
 static func sample_epsilons(rng: RandomNumberGenerator, half_pop: int, n: int) -> Array:
@@ -18,8 +27,7 @@ static func sample_epsilons(rng: RandomNumberGenerator, half_pop: int, n: int) -
 	for _i in range(half_pop):
 		var eps := PackedFloat32Array()
 		eps.resize(n)
-		for j in range(n):
-			eps[j] = rng.randfn()
+		fill_gaussian(rng, eps)
 		epsilons.append(eps)
 	return epsilons
 

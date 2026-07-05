@@ -11,6 +11,11 @@ hand-author the .param LSTM wiring (see DEVELOPMENT.md). The script writes the E
 and Mat shapes it verified into the sidecar, so the GDScript side stays shape-agnostic.
 
 Regenerate:  .venv-train/bin/python scripts/make_synthetic_lstm.py
+
+NOTE (#319): no regenerate-and-diff CI gate exists for this generator (it needs the
+torch venv, unlike make_synthetic_attention.py which is byte-pinned in CI). If you edit
+it, rerun it and commit the regenerated models/ artifacts in the SAME change, or the
+committed fixtures silently drift from the generator.
 """
 import json
 import subprocess

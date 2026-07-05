@@ -439,7 +439,12 @@ func _get_args() -> Dictionary:
 	return RunSpeed.parse_cmdline_args()
 
 func _get_speedup() -> float:
-	return args.get("speedup", str(speed_up)).to_float()
+	# to_float() turns garbage into 0.0, and RunSpeed.apply(0) would zero the physics tick rate.
+	var s: float = args.get("speedup", str(speed_up)).to_float()
+	if s <= 0.0:
+		push_error("NcnnSync: invalid speedup= cmdline override — running at 1.0.")
+		return 1.0
+	return s
 
 func _get_port() -> int:
 	return args.get("port", DEFAULT_PORT).to_int()
@@ -448,7 +453,13 @@ func _set_seed() -> void:
 	seed(args.get("env_seed", DEFAULT_SEED).to_int())
 
 func _set_action_repeat() -> void:
-	action_repeat = args.get("action_repeat", str(action_repeat)).to_int()
+	# Strict parse (#290): to_int() turns "garbage" (and "0") into 0, and `_tick % 0` is a
+	# per-frame error in debug builds and a SIGFPE in release — the trainer side then hangs
+	# waiting for obs instead of this scene failing loud once.
+	action_repeat = RunSpeed.parse_positive_int(args, "action_repeat", action_repeat)
+	if action_repeat < 1:
+		push_error("NcnnSync: invalid action_repeat= cmdline override — quitting instead of a modulo-by-zero every physics frame.")
+		get_tree().quit(1)
 
 func _get_connect_timeout_ms() -> int:
 	return int(args.get("connect_timeout", str(connect_timeout_sec)).to_float() * 1000.0)
