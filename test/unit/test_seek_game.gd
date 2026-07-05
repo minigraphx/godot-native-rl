@@ -49,23 +49,29 @@ func _initialize() -> void:
 	world_a.trigger_hazard_hit()
 	h.assert_eq(world_a.hazard_hits, hits_before + 1, "trigger_hazard_hit counts the hit")
 
-	# --- the #38 contract: obs comes ONLY from the RelativePositionSensor2D, 4 floats ---
+	# --- the #38 contract: obs comes ONLY from the RelativePositionSensor2D (separate-direction
+	# mode: [unit dir_x, dir_y, norm dist] per target -> 6 floats), nothing hand-coded ---
 	var agent: Node = world_a.get_node("AgentBody/SeekAgent")
 	var obs: Array = agent.get_obs()["obs"]
-	h.assert_eq(obs.size(), 4, "obs = 2 sensor slots x 2 axes (goal + hazard), nothing hand-coded")
+	h.assert_eq(obs.size(), 6, "obs = 2 sensor slots x (unit dir + dist), nothing hand-coded")
 	var any_nonzero := false
 	for v in obs:
 		h.assert_true(absf(float(v)) <= 1.0 + 1e-6, "sensor obs normalized into [-1, 1]")
 		if absf(float(v)) > 1e-9:
 			any_nonzero = true
 	h.assert_true(any_nonzero, "sensor sees the goal/hazard (non-zero obs)")
-	# Direction sanity: slot 0 is the goal offset; moving the goal right of the agent must
-	# make the slot-0 x component positive (unrotated sensor).
+	# Direction sanity: slot 0 = the goal's unit direction; a goal due right of the agent must
+	# read (1, 0) at any range. Guarded so an empty obs FAILS instead of crashing _initialize
+	# (a crash skips finish() and hangs the suite silently).
 	world_a.get_node("AgentBody").position = Vector2(100, 300)
 	world_a.get_node("Goal").position = Vector2(700, 300)
 	var obs2: Array = agent.get_obs()["obs"]
-	h.assert_true(float(obs2[0]) > 0.4, "goal slot points toward the goal (x %f)" % float(obs2[0]))
-	h.assert_true(absf(float(obs2[1])) < 1e-6, "goal slot y ~0 for a purely horizontal offset")
+	if obs2.size() == 6:
+		h.assert_true(absf(float(obs2[0]) - 1.0) < 1e-5, "goal unit dir x = 1 for a due-right goal (got %f)" % float(obs2[0]))
+		h.assert_true(absf(float(obs2[1])) < 1e-6, "goal unit dir y ~0 for a purely horizontal offset")
+		h.assert_true(absf(float(obs2[2]) - 0.5) < 1e-5, "goal distance normalized (600/1200 = 0.5, got %f)" % float(obs2[2]))
+	else:
+		h.assert_true(false, "direction sanity skipped: obs has %d floats, expected 6" % obs2.size())
 
 	# --- action space contract ---
 	var space: Dictionary = agent.get_action_space()

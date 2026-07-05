@@ -28,8 +28,9 @@ model_bin_path = "res://examples/seek_target/models/seek_es.ncnn.bin"
 
 [node name="RelPosSensor" type="Node2D" parent="AgentBody/SeekAgent"]
 script = ExtResource("3")
-objects_to_observe = [NodePath("../../../Goal"), NodePath("../../../Hazard")]
+object_paths = [NodePath("../../../Goal"), NodePath("../../../Hazard")]
 max_distance = 1200.0
+use_separate_direction = true
 
 [node name="Sync" type="Node" parent="."]
 script = ExtResource("4")

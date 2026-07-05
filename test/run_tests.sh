@@ -118,6 +118,9 @@ echo "== Trained ES chase behavioral check (net trained IN-ENGINE, #131) =="
 echo "== Warm-start fine-tuned net behavioral check (on-device adaptation pipeline, #131) =="
 "$GODOT" --headless --path . res://test/integration/trained_es_drift_scene.tscn
 
+echo "== Trained seek behavioral check (RelativePositionSensor2D example, in-engine CMA-ES net, #38) =="
+"$GODOT" --headless --path . res://test/integration/trained_seek_scene.tscn
+
 echo "== Evolution Lab demo smoke (live-training showcase wiring, #291) =="
 "$GODOT" --headless --path . res://test/integration/evolution_lab_smoke_scene.tscn
 

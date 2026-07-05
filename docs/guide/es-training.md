@@ -39,6 +39,10 @@ land in `out_dir` as `<stem>_best` (blessed on every improved generation mean, *
 the update step** — deploy this one), `<stem>_final`, and optional `<stem>_genN` snapshots
 (`checkpoint_every`).
 
+The `examples/seek_target` demo (#38) is the fully in-engine showcase: its shipped net was
+trained by `seek_es_train_parallel.tscn` with `optimizer = "cma_es"` — env, training, and deploy
+all native, no Python installed at any point.
+
 ## The knobs that matter
 
 | Export | What it does |

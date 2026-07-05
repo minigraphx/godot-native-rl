@@ -11,6 +11,11 @@ const RelativePositionMath = preload("res://addons/godot_native_rl/sensors/relat
 
 ## Targets to observe, in order; each contributes a slot. Freed/invalid entries zero-fill.
 @export var objects_to_observe: Array[Node3D]
+## NodePath alternative for hand-authored scenes: resolved once in _ready and appended (in
+## order) after objects_to_observe. Needed because an exported typed NODE array in a .tscn is
+## stored as NodePaths that do NOT resolve at plain runtime instantiation ("Unable to convert
+## array index 0 from NodePath to Object") — only single-Node exports get that treatment.
+@export var object_paths: Array[NodePath] = []
 ## Include the relative x component in each slot.
 @export var include_x: bool = true
 ## Include the relative y component in each slot.
@@ -23,6 +28,14 @@ const RelativePositionMath = preload("res://addons/godot_native_rl/sensors/relat
 @export var use_separate_direction: bool = false
 
 var _warned_invalid := false
+
+func _ready() -> void:
+	for p in object_paths:
+		var n := get_node_or_null(p) as Node3D
+		if n != null:
+			objects_to_observe.append(n)
+		else:
+			push_error("RelativePositionSensor3D: object_paths entry '%s' does not resolve to a Node3D." % str(p))
 
 func obs_size() -> int:
 	return objects_to_observe.size() * RelativePositionMath.per_target_size(use_separate_direction, include_x, include_y, include_z)

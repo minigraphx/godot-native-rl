@@ -572,9 +572,16 @@ of godot_rl training — godot_rl can train these; we just can't yet *deploy* th
     env to train at 100–1000× the speed, then deploy the policy back in Godot via ncnn. Only viable for
     simple envs and reintroduces a sim-to-deploy gap to validate (run the trained policy in the Godot
     smoke scene). *Later.* *(brainstormed alongside item 30)*
-32. ⬜ **Example using `RelativePositionSensor`** — a small 2D seek/navigate-to-target demo (or
+32. ✅ **Example using `RelativePositionSensor`** — a small 2D seek/navigate-to-target demo (or
     migrate the rover's inline goal obs onto `RelativePositionSensor3D` with a retrain), to show
     the sensor end-to-end and provide a trained regression. *(follow-up from item 7)*
+    **Done 2026-07-05** — `examples/seek_target/`: reach-the-goal / avoid-the-patrolling-hazard 2D
+    env whose ENTIRE observation is one `RelativePositionSensor2D` (goal + hazard slots, 4 floats,
+    zero hand-coded obs, `collect_sensors()` auto-discovery); the shipped net is the first example
+    trained **in-engine** by `ESTrainer` with sep-CMA-ES — no Python anywhere in the loop. New
+    `object_paths: Array[NodePath]` export on both RelativePositionSensors (exported typed NODE
+    arrays in hand-authored .tscn files do not resolve at runtime — found building this). Unit
+    tests + trained behavioral regression (`trained_seek_scene.tscn`) + launcher entry.
 33. ✅ **TorchScript → ncnn direct export (skip ONNX)** — `export_to_ncnn.py` now accepts a `.pt`/`.ptl`
     TorchScript file and runs pnnx on it directly (no ONNX hop; pnnx's native format → better parity,
     one fewer step). **Done 2026-06-02** — spec

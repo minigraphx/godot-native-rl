@@ -19,7 +19,7 @@ const DIRECTIONS: Array[Vector2] = [
 
 @export var game_path: NodePath
 @export var step_penalty := 0.001
-@export var goal_bonus := 1.0
+@export var goal_bonus := 2.0
 @export var hazard_penalty := 1.0
 
 var _game  # SeekGame (duck-typed to avoid class_name scope issues headless)
@@ -47,8 +47,10 @@ func get_action_space() -> Dictionary:
 	return {ACTION_KEY: {"size": ACTION_COUNT, "action_type": "discrete"}}
 
 func get_obs() -> Dictionary:
-	# The whole observation IS the sensor sweep: [goal dx, goal dy, hazard dx, hazard dy],
-	# each normalized by the sensor's max_distance. Sensors are discovered under this node.
+	# The whole observation IS the sensor sweep (use_separate_direction mode): per target a UNIT
+	# direction + a normalized distance -> [goal dir_x, dir_y, dist, hazard dir_x, dir_y, dist].
+	# Unit directions matter: with plain normalized offsets the direction signal shrinks to ~0
+	# near the target — the first training run barely learned to seek until this switch.
 	return {"obs": collect_sensors()}
 
 func get_reward() -> float:

@@ -3,8 +3,8 @@ extends Node2D
 
 # Seek-the-goal / avoid-the-hazard (#38): the RelativePositionSensor2D worked example. The agent
 # must reach a goal while a hazard patrols the arena; BOTH are observed exclusively through one
-# RelativePositionSensor2D on the agent (two slots, 4 obs floats total) — no hand-coded obs at
-# all. Kinematic and fully seeded (seed_rng + deterministic patrol), so it is exact under the ES
+# RelativePositionSensor2D on the agent (separate-direction mode: unit dir + distance per target,
+# 6 obs floats total) — no hand-coded obs at all. Kinematic and fully seeded (seed_rng + deterministic patrol), so it is exact under the ES
 # trainer's common-random-numbers evaluation; the shipped net is trained IN-ENGINE by ESTrainer
 # with the sep-CMA-ES optimizer — no Python anywhere in this example's loop.
 
