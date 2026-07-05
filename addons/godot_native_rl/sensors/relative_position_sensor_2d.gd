@@ -9,6 +9,7 @@ extends "res://addons/godot_native_rl/sensors/i_sensor_2d.gd"
 # its slot rather than shrinking the vector.
 
 const RelativePositionMath = preload("res://addons/godot_native_rl/sensors/relative_position_math.gd")
+const SensorPaths = preload("res://addons/godot_native_rl/sensors/sensor_paths.gd")
 
 ## Targets to observe, in order; each contributes a slot. Freed/invalid entries zero-fill.
 @export var objects_to_observe: Array[Node2D]
@@ -27,19 +28,28 @@ const RelativePositionMath = preload("res://addons/godot_native_rl/sensors/relat
 @export var use_separate_direction: bool = false
 
 var _warned_invalid := false
+var _paths_resolved := false
 
 func _ready() -> void:
-	for p in object_paths:
-		var n := get_node_or_null(p) as Node2D
-		if n != null:
-			objects_to_observe.append(n)
-		else:
-			push_error("RelativePositionSensor2D: object_paths entry '%s' does not resolve to a Node2D." % str(p))
+	_ensure_paths_resolved()
+
+## Resolve object_paths once, as soon as the sensor is in the tree (#329): also invoked from
+## obs_size()/get_observation() so a caller querying before _ready (or a detached-then-attached
+## sensor) still counts path-declared targets. An unresolved path reserves a NULL slot — it
+## zero-fills like a freed target, keeping the declared obs width instead of silently shrinking.
+func _ensure_paths_resolved() -> void:
+	if _paths_resolved or object_paths.is_empty() or not is_inside_tree():
+		return
+	_paths_resolved = true
+	for n in SensorPaths.resolve(self, object_paths, "Node2D"):
+		objects_to_observe.append(n)
 
 func obs_size() -> int:
+	_ensure_paths_resolved()
 	return objects_to_observe.size() * RelativePositionMath.per_target_size(use_separate_direction, include_x, include_y, false)
 
 func get_observation() -> Array:
+	_ensure_paths_resolved()
 	# World transform when in the tree; local transform fallback when detached (unit tests).
 	var sensor_xform := global_transform if is_inside_tree() else transform
 	var sensor_rotation := sensor_xform.get_rotation()

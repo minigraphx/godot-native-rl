@@ -57,6 +57,6 @@ func _physics_process(_delta: float) -> void:
 		# The expert clips the occasional wrong tile EN ROUTE (axis-aligned pathing) — that's
 		# legitimate. What must stay bounded is the rate: spawn-on-tile phantoms (#315, now
 		# rejected at spawn) or broken enter accounting would inflate it past sanity.
-		_h.assert_true(int(_game.wrong_visits) < int(_game.correct_visits) / 4,
+		_h.assert_true(float(_game.wrong_visits) < float(_game.correct_visits) / 4.0,
 			"wrong visits stay a small fraction of correct (%d vs %d)" % [int(_game.wrong_visits), int(_game.correct_visits)])
 		_h.finish(get_tree())

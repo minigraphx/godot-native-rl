@@ -1,7 +1,7 @@
 extends SceneTree
 
 # Headless unit tests for the seek_target example (#38 — the RelativePositionSensor2D worked
-# example): the game's pure/seeded helpers, the sensor-only observation contract (4 floats from
+# example): the game's pure/seeded helpers, the sensor-only observation contract (6 floats from
 # one RelativePositionSensor2D, zero hand-coded features), and event scoring.
 
 const Harness = preload("res://test/harness.gd")

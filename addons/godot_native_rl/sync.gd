@@ -123,13 +123,17 @@ func _initialize() -> void:
 	# Shared with ESTrainer: also raises max_physics_steps_per_frame, without which the default
 	# 8-steps-per-frame cap silently throttles SPEEDUP above ~8 (found in #287).
 	RunSpeed.apply(_get_speedup())
+	# Cmdline overrides parse BEFORE any socket work (#332): a bad flag must refuse cleanly here
+	# — parsing after connect+handshake+env_info made the trainer see a mid-session EOF instead.
+	_set_seed()
+	if not _set_action_repeat() or not _validate_port():
+		get_tree().quit(1)
+		return
 	_set_heuristic("human", all_agents)
 	if control_mode == ControlModes.RECORD_EXPERT_DEMOS:
 		_initialize_demo_recording()
 	else:
 		_initialize_training_agents()
-	_set_seed()
-	_set_action_repeat()
 	initialized = true
 
 func _initialize_training_agents() -> void:
@@ -442,27 +446,34 @@ func _get_speedup() -> float:
 	# to_float() turns garbage into 0.0, and RunSpeed.apply(0) would zero the physics tick rate.
 	var s: float = args.get("speedup", str(speed_up)).to_float()
 	if s <= 0.0:
-		push_error("NcnnSync: invalid speedup= cmdline override — running at 1.0.")
-		return 1.0
+		return 1.0  # helper already pushed the specific error
 	return s
 
 func _get_port() -> int:
-	return args.get("port", DEFAULT_PORT).to_int()
+	return RunSpeed.parse_positive_int(args, "port", DEFAULT_PORT.to_int())
+
+## port=garbage used to become 0 -> connect fails -> the human-controls fallback, while the
+## trainer hangs listening on the real port (#332): the exact silent desync #290 killed for
+## action_repeat. Validated before any socket work.
+func _validate_port() -> bool:
+	return _get_port() > 0
 
 func _set_seed() -> void:
-	seed(args.get("env_seed", DEFAULT_SEED).to_int())
+	# env_seed=garbage silently seeded 0 (#332) — corrupting seeded-run comparability with no
+	# message. Strict any-sign parse: garbage errors loudly and keeps the default.
+	seed(RunSpeed.parse_int_any(args, "env_seed", DEFAULT_SEED.to_int()))
 
-func _set_action_repeat() -> void:
-	# Strict parse (#290): to_int() turns "garbage" (and "0") into 0, and `_tick % 0` is a
-	# per-frame error in debug builds and a SIGFPE in release — the trainer side then hangs
-	# waiting for obs instead of this scene failing loud once.
+## Strict parse (#290): to_int() turns "garbage" (and "0") into 0, and `_tick % 0` is a
+## per-frame error in debug builds and a SIGFPE in release. False -> the caller refuses to run
+## (the helper already pushed the specific error).
+func _set_action_repeat() -> bool:
 	action_repeat = RunSpeed.parse_positive_int(args, "action_repeat", action_repeat)
-	if action_repeat < 1:
-		push_error("NcnnSync: invalid action_repeat= cmdline override — quitting instead of a modulo-by-zero every physics frame.")
-		get_tree().quit(1)
+	return action_repeat >= 1
 
 func _get_connect_timeout_ms() -> int:
-	return int(args.get("connect_timeout", str(connect_timeout_sec)).to_float() * 1000.0)
+	# parse_float_any (#332): non-numeric errors loudly and keeps the export default; an explicit
+	# numeric <= 0 passes through as the documented "disable the timeout" convention.
+	return int(RunSpeed.parse_float_any(args, "connect_timeout", connect_timeout_sec) * 1000.0)
 
 func _get_read_timeout_ms() -> int:
-	return int(args.get("read_timeout", str(read_timeout_sec)).to_float() * 1000.0)
+	return int(RunSpeed.parse_float_any(args, "read_timeout", read_timeout_sec) * 1000.0)

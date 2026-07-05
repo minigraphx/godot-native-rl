@@ -1,7 +1,7 @@
 # Training In-Engine (Evolutionary Strategies — no Python)
 
 `ESTrainer` is a training loop that runs **entirely inside the Godot process**: no Python, no
-socket, no backprop. It evolves a small MLP policy with OpenAI-style evolutionary strategies —
+socket, no backprop. It evolves a small MLP policy with evolutionary strategies (OpenAI-style ES or sep-CMA-ES) —
 each candidate weight vector becomes a live ncnn net in memory, one episode's return (your
 existing reward system) is its fitness — and every checkpoint it writes **is already a deploy
 artifact** (`.ncnn.param`/`.ncnn.bin`, loadable by every controller, no export step).

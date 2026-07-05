@@ -65,11 +65,12 @@ func _initialize() -> void:
 	holder.add_child(s3)
 	root.add_child(holder)
 	await process_frame  # _ready resolves the paths
-	h.assert_eq(s3.objects_to_observe.size(), 1, "object_paths: valid path resolved, missing path skipped (loud error above)")
+	h.assert_eq(s3.objects_to_observe.size(), 2, "#329: valid path resolved AND the missing path RESERVES a slot (loud error above)")
 	target.position = Vector2(50, 0)
 	var obs4: Array = s3.get_observation()
-	h.assert_eq(obs4.size(), 2, "object_paths target contributes a slot")
+	h.assert_eq(obs4.size(), 4, "#329: obs width includes the reserved (zero-filled) slot — never shrinks")
 	h.assert_true(absf(float(obs4[0]) - 0.5) < 1e-5, "object_paths slot encodes the offset")
+	h.assert_true(absf(float(obs4[2])) < 1e-9 and absf(float(obs4[3])) < 1e-9, "#329: unresolved slot zero-fills")
 	holder.free()
 
 	h.finish(self)

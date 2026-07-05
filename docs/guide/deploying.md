@@ -115,6 +115,12 @@ files Godot's exporter skips by default (they're referenced by string path, not 
 without this an exported game crashes at runtime with `cannot read model files …` — on *every*
 platform. With the addon enabled there is nothing else to configure.
 
+One pruning rule: models under **`res://test`** are not packed (test fixtures are never deploy
+content). Your `res://models/…` nets ARE packed. To prune additional trees (say your project
+keeps training scratch nets in a non-deploy folder), set the
+`godot_native_rl/export/skip_roots` project setting to the list of roots to skip — every pruned
+model file is `push_warning`'d at export time so the skip is never silent.
+
 > Not enabling the plugin? Then add the model files to your export preset by hand: Project →
 > Export → *Resources* → "Filters to export non-resource files/folders" →
 > `*.ncnn.param, *.ncnn.bin`.

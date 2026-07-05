@@ -38,3 +38,43 @@ static func parse_positive_int(args: Dictionary, key: String, fallback: int) -> 
 		push_error("RunSpeed: cmdline override %s=%s is not a positive integer." % [key, raw])
 		return -1
 	return int(raw)
+
+
+## Strict INT cmdline override, any sign (#332 — env_seed): rejects non-integers loudly.
+## Returns `fallback` when absent; pushes an error and returns `fallback` on garbage (a seed has
+## no sensible sentinel — corrupting comparability silently was the bug, so the error IS the fix).
+static func parse_int_any(args: Dictionary, key: String, fallback: int) -> int:
+	if not args.has(key):
+		return fallback
+	var raw := str(args[key])
+	if not raw.is_valid_int():
+		push_error("RunSpeed: cmdline override %s=%s is not an integer — using %d." % [key, raw, fallback])
+		return fallback
+	return int(raw)
+
+
+## Strict positive-float cmdline override (#332): `to_float()` turns garbage into 0.0, which for
+## speedups zeroes the tick rate and for socket timeouts means "wait forever" per their <= 0
+## convention. Returns `fallback` when absent; pushes an error and returns -1.0 on a value that
+## is not a positive number (callers decide: abort, or fall back).
+static func parse_positive_float(args: Dictionary, key: String, fallback: float) -> float:
+	if not args.has(key):
+		return fallback
+	var raw := str(args[key])
+	if not raw.is_valid_float() or raw.to_float() <= 0.0:
+		push_error("RunSpeed: cmdline override %s=%s is not a positive number." % [key, raw])
+		return -1.0
+	return raw.to_float()
+
+
+## Strict FLOAT cmdline override, any sign (#332 — socket timeouts, whose documented convention
+## is "<= 0 disables"): rejects non-numeric values loudly and returns `fallback` (an explicit
+## numeric 0/negative passes through as the caller's disable semantics).
+static func parse_float_any(args: Dictionary, key: String, fallback: float) -> float:
+	if not args.has(key):
+		return fallback
+	var raw := str(args[key])
+	if not raw.is_valid_float():
+		push_error("RunSpeed: cmdline override %s=%s is not a number — using %s." % [key, raw, str(fallback)])
+		return fallback
+	return raw.to_float()

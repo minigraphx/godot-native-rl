@@ -81,32 +81,43 @@ func reset_episode() -> void:
 		tile.visited = false
 		tile.number = i + 1
 		tile.total = _tile_count
+		var group := instance_group()  # accessor, NOT the raw field (#333): lazy init must run
 		if live:
 			tile.position = layout[i]
-			if not tile.is_in_group(_instance_group):
-				tile.add_to_group(_instance_group)
+			if not tile.is_in_group(group):
+				tile.add_to_group(group)
 			_prev_overlaps.append(false)
 		else:
 			tile.position = Vector2(-10000, -10000)  # parked far outside; also out of the group
-			if tile.is_in_group(_instance_group):
-				tile.remove_from_group(_instance_group)
+			if tile.is_in_group(group):
+				tile.remove_from_group(group)
 	if _agent_body != null:
 		# Reject spawns inside a tile's visit radius (#315): _prev_overlaps starts all-false, so
 		# spawning ON a tile would fire a phantom ENTER (free reward / undeserved penalty) on the
 		# first step. Rejection (rather than priming the overlap state) keeps the enter semantics
 		# clean — a primed spawn-on-target would stall a greedy policy that never re-enters.
+		var spawned_clear := false
 		for _attempt in range(20):
 			var pos := Vector2(
 				_rng.randf_range(edge_margin, arena_size.x - edge_margin),
 				_rng.randf_range(edge_margin, arena_size.y - edge_margin))
 			_agent_body.position = pos
-			var clear := true
+			spawned_clear = true
 			for i in range(_tile_count):
 				if pos.distance_to(layout[i]) <= visit_radius + 5.0:
-					clear = false
+					spawned_clear = false
 					break
-			if clear:
+			if spawned_clear:
 				break
+		if not spawned_clear:
+			# 20 blocked draws (vanishingly rare at shipped params; reachable with a tiny arena /
+			# huge radius): keep the last position but PRIME the overlap state, or the first step
+			# fires exactly the phantom ENTER the rejection loop exists to prevent (#333).
+			push_warning("SorterGame: could not place the agent clear of all tiles after 20 attempts — priming overlap state instead.")
+			var tile_positions: Array = []
+			for i in range(_tile_count):
+				tile_positions.append(layout[i])
+			_prev_overlaps = SorterMath.overlap_flags(_agent_body.position, tile_positions, visit_radius)
 
 
 func move_agent(velocity: Vector2, delta: float) -> void:
@@ -127,8 +138,10 @@ func _process_visits() -> void:
 		if visited[idx]:
 			continue  # standing on / re-entering an already-sorted tile is neutral
 		if idx + 1 == SorterMath.next_target(visited):
-			visited[idx] = true
+			# The tiles ARE the single source of truth (#317/#333): write there, re-derive the
+			# snapshot — no shadow mutation to keep in lockstep.
 			(_tiles[idx] as Node2D).visited = true
+			visited = _visited_flags()
 			correct_visits += 1
 			correct_visit.emit()
 			if SorterMath.all_visited(visited):

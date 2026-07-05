@@ -101,20 +101,43 @@ func _initialize() -> void:
 	m3._ready()
 	h.assert_eq(m3.current_opponent(), "gen1", "snapshot loaded first (latest pick)")
 	h.assert_true(String(ghost3.reloads[-1][0]).ends_with("gen1.ncnn.param"), "ghost holds the snapshot")
-	# Under seeded uniform picks, BASELINE comes up within a few assignments (deterministic
-	# under the seed). Pre-fix, that pick left the ghost on gen1's weights while _current
-	# claimed __baseline__.
-	m3.pick_mode = "uniform"
-	var restored := false
-	for _i in range(16):
-		m3._assign_next_opponent()
-		if m3.current_opponent() == "__baseline__":
-			restored = true
-			break
-	h.assert_true(restored, "#305: uniform picks reached BASELINE within 16 tries")
+	# DETERMINISTIC baseline pick (#338 item 4 — no probabilistic try-loop): shrink the pool to
+	# __baseline__ only, so the next assignment MUST pick it. Pre-fix, that pick left the ghost
+	# on gen1's weights while _current claimed __baseline__.
+	_write_ledger({"__baseline__": {"rating": 1200.0, "games": 1}}, 1200.0)
+	m3.rescan_pool()
 	h.assert_eq(String(ghost3.reloads[-1][0]), "res://scene_model.ncnn.param",
 		"#305: BASELINE pick restored the ghost's scene-preconfigured model")
 	h.assert_eq(m3.current_opponent(), "__baseline__", "ELO attribution matches the restored model")
+
+	# --- #338 item 2: a ghost with only ONE scene path set must not attempt a half restore ---
+	_write_ledger({
+		"__baseline__": {"rating": 1200.0, "games": 1},
+		"gen1": {"rating": 1200.0, "games": 1},
+	}, 1200.0)
+	var ghost4 := StubGhost.new()
+	ghost4.model_bin_path = ""  # param set, bin missing — reload_model(param, "") would fail
+	get_root().add_child(ghost4)
+	var m4 = Manager.new()
+	get_root().add_child(m4)
+	m4.set_ghost_for_test(ghost4)
+	m4.pool_dir = POOL_DIR
+	m4.pick_mode = "latest"
+	m4._ready()
+	h.assert_eq(m4.current_opponent(), "gen1", "half-configured ghost still plays snapshots")
+	var reloads_before: int = ghost4.reloads.size()
+	_write_ledger({"__baseline__": {"rating": 1200.0, "games": 1}}, 1200.0)
+	m4.rescan_pool()  # forced BASELINE pick; restore must be REFUSED (loud), not half-tried
+	h.assert_eq(ghost4.reloads.size(), reloads_before, "#338: no reload attempted with an empty bin path")
+	h.assert_eq(m4.current_opponent(), "gen1", "#338: ELO attribution stays on the snapshot actually playing")
+
+	# --- #338 item 1: ledger member without 'games' loads (defaulted) and record_match works ---
+	var Pool2 = preload("res://addons/godot_native_rl/training/opponent_pool.gd")
+	var p2 = Pool2.new()
+	h.assert_true(p2.load_ledger(JSON.stringify({
+		"members": {"gen1": {"rating": 1300.0}}, "learner_rating": 1200.0})),
+		"#338: member without games accepted (defaulted to 0)")
+	h.assert_true(p2.record_match("gen1", true, false, 32.0), "#338: record_match works on the defaulted member")
 
 	# --- #306: malformed ledger member entries are rejected loudly at load ---
 	var Pool = preload("res://addons/godot_native_rl/training/opponent_pool.gd")

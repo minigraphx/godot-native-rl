@@ -80,29 +80,33 @@ func _assign_next_opponent() -> void:
 	var pick: String = _pool.pick_opponent(_rng, pick_mode)
 	if pick == "" or pick == BASELINE:
 		# BASELINE means the ghost's SCENE model — restore it if a snapshot swap displaced it
-		# (#305). If the restore fails (or the ghost has no scene paths to restore), keep
-		# recording against the snapshot actually playing rather than misattributing to
-		# __baseline__ and corrupting both ratings.
-		if _current != BASELINE:
-			if _baseline_param != "" and _ghost.has_method("reload_model") \
-					and _ghost.reload_model(_baseline_param, _baseline_bin):
-				print("SelfPlay: ghost restored to its scene model (%s)" % BASELINE)
-				_current = BASELINE
-				opponent_changed.emit(BASELINE)
-			else:
-				push_error("SelfPlayManager: BASELINE picked but the scene model could not be restored; keeping '%s' so ELO stays truthful." % _current)
-		else:
-			_current = BASELINE
+		# (#305). If the restore fails (or the ghost has no scene paths to restore — BOTH files
+		# are required, #338), keep recording against the snapshot actually playing rather than
+		# misattributing to __baseline__ and corrupting both ratings.
+		if _current == BASELINE:
+			return
+		if _baseline_param == "" or _baseline_bin == "" \
+				or not _swap_ghost_model(_baseline_param, _baseline_bin, BASELINE):
+			push_error("SelfPlayManager: BASELINE picked but the scene model could not be restored; keeping '%s' so ELO stays truthful." % _current)
 		return
-	var param := pool_dir.path_join(pick + ".ncnn.param")
-	var bin := pool_dir.path_join(pick + ".ncnn.bin")
-	if _ghost.has_method("reload_model") and _ghost.reload_model(param, bin):
-		if pick != _current:
-			print("SelfPlay: ghost now plays snapshot '%s' (rating %.1f)" % [pick, _pool.member_rating(pick)])
-			opponent_changed.emit(pick)
-		_current = pick
-	else:
-		push_error("SelfPlayManager: could not load snapshot '%s'; keeping '%s'." % [pick, _current])
+	_swap_ghost_model(pool_dir.path_join(pick + ".ncnn.param"), pool_dir.path_join(pick + ".ncnn.bin"), pick)
+
+
+## The ONE ghost-swap path (#338): both the snapshot pick and the BASELINE restore go through
+## here, so a change to reload semantics can never land on one branch and miss the other
+## (which would silently reintroduce the #305 misattribution on the un-updated path).
+func _swap_ghost_model(param: String, bin: String, label: String) -> bool:
+	if not (_ghost.has_method("reload_model") and _ghost.reload_model(param, bin)):
+		push_error("SelfPlayManager: could not load '%s'; keeping '%s'." % [label, _current])
+		return false
+	if label != _current:
+		if label == BASELINE:
+			print("SelfPlay: ghost restored to its scene model (%s)" % BASELINE)
+		else:
+			print("SelfPlay: ghost now plays snapshot '%s' (rating %.1f)" % [label, _pool.member_rating(label)])
+		opponent_changed.emit(label)
+	_current = label
+	return true
 
 func _ledger_path() -> String:
 	return pool_dir.path_join("pool.json")

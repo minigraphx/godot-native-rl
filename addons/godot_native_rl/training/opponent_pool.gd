@@ -105,6 +105,11 @@ func load_ledger(json_text: String) -> bool:
 		if not (rating is float or rating is int):
 			push_error("OpponentPool: malformed ledger member '%s' (%s) — rejecting the ledger." % [member_name, str(entry)])
 			return false
+		# A missing "games" would error at record_match's direct subscript (#338) — the exact
+		# hand-edited-ledger class the rating check above exists for. Defaulting to 0 is
+		# friendlier than rejecting: the rating is the load-bearing field, games is bookkeeping.
+		if not ((entry.get("games") is float) or (entry.get("games") is int)):
+			entry["games"] = 0
 	_members = members
 	_learner_rating = float(parsed.get("learner_rating", DEFAULT_RATING))
 	return true

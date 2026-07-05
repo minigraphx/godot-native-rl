@@ -8,6 +8,7 @@ extends "res://addons/godot_native_rl/sensors/i_sensor_3d.gd"
 # obs_size() is fixed by config + target count; a freed/invalid target zero-fills its slot.
 
 const RelativePositionMath = preload("res://addons/godot_native_rl/sensors/relative_position_math.gd")
+const SensorPaths = preload("res://addons/godot_native_rl/sensors/sensor_paths.gd")
 
 ## Targets to observe, in order; each contributes a slot. Freed/invalid entries zero-fill.
 @export var objects_to_observe: Array[Node3D]
@@ -28,19 +29,26 @@ const RelativePositionMath = preload("res://addons/godot_native_rl/sensors/relat
 @export var use_separate_direction: bool = false
 
 var _warned_invalid := false
+var _paths_resolved := false
 
 func _ready() -> void:
-	for p in object_paths:
-		var n := get_node_or_null(p) as Node3D
-		if n != null:
-			objects_to_observe.append(n)
-		else:
-			push_error("RelativePositionSensor3D: object_paths entry '%s' does not resolve to a Node3D." % str(p))
+	_ensure_paths_resolved()
+
+## Same contract as the 2D sensor (#329): lazy one-shot resolution, unresolved paths reserve a
+## NULL slot that zero-fills — the declared obs width never shrinks.
+func _ensure_paths_resolved() -> void:
+	if _paths_resolved or object_paths.is_empty() or not is_inside_tree():
+		return
+	_paths_resolved = true
+	for n in SensorPaths.resolve(self, object_paths, "Node3D"):
+		objects_to_observe.append(n)
 
 func obs_size() -> int:
+	_ensure_paths_resolved()
 	return objects_to_observe.size() * RelativePositionMath.per_target_size(use_separate_direction, include_x, include_y, include_z)
 
 func get_observation() -> Array:
+	_ensure_paths_resolved()
 	var sensor_xform := global_transform if is_inside_tree() else transform
 	var out: Array = []
 	var any_invalid := false

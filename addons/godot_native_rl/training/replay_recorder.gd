@@ -8,10 +8,13 @@ extends Node
 # - INFERENCE (attach_agent, #194): taps a deployed controller's existing inference_step signal —
 #   no trainer, no socket; record shipped agents in a play scene. Episode boundaries are detected
 #   by the controller's n_steps wrapping (robust regardless of who clears `done`); per-step reward
-#   is the delta of the agent's accumulator. Honest limit: reward accrued between the last
-#   decision and the reset is zeroed by the agent's own reset before we can read it, so the final
-#   partial window's reward is not captured (actions are exact; rewards are exact per decision
-#   window otherwise). Attach several agents to capture a multi-agent inference scene.
+#   is the delta of the agent's accumulator against a RECORDER-side baseline re-snapshotted at
+#   each wrap (#330 — deployed agents deliberately never zero their accumulator, per the repo-wide
+#   do-NOT-zero contract, so assuming zeroing recorded lifetime totals). Honest limits: the reward
+#   between the last decision and the reset, and the new episode's first window, fold into the
+#   baseline and are not captured (actions are exact; rewards exact per decision window
+#   otherwise); an episode shorter than one decision window can miss the wrap entirely (its steps
+#   merge into the neighbor episode). Attach several agents for multi-agent inference scenes.
 #
 # initial_state needs an opt-in game.get_replay_state() hook (exact restore for seeded kinematic
 # games). Spec: docs/superpowers/specs/2026-06-12-episode-replay-design.md
@@ -34,14 +37,17 @@ var _saved_paths: Dictionary = {}   # stream key -> Array[String] (ring per stre
 var _episode_index: Dictionary = {} # stream key -> int
 var _pending_actions: Array = []
 var _steps: Dictionary = {}         # stream key -> Array[step]
-var _initial_state: Dictionary = {} # scene-start snapshot (fallback for a stream's first episode)
 var _stream_initial: Dictionary = {} # stream key -> per-episode snapshot, taken at episode START (#310)
 var _warned_no_state := false
 var _action_repeat := 0
-# instance_id -> {"last_reward","last_n_steps","cadence","name","key"} — keyed by instance id,
-# NOT node name: Godot only enforces name uniqueness among siblings, and multi-agent capture
-# instances the same subscene N times (#309).
+# instance_id -> {"last_reward","last_n_steps","cadence","name","key"} — the runtime lookup is
+# by instance id, NOT node name: Godot only enforces name uniqueness among siblings, and
+# multi-agent capture instances the same subscene N times (#309). The stream key/filename uses a
+# stable PER-ATTACH index instead of the instance id (#331): ids differ every run, which minted
+# fresh filenames per session — out_dir grew without bound and keep_last could never prune or
+# overwrite a previous run. Attach order is scene-deterministic, so index-keyed names are stable.
 var _agent_state: Dictionary = {}
+var _attach_count := 0
 
 func _ready() -> void:
 	_game = get_node_or_null(game_path)
@@ -55,7 +61,6 @@ func _ready() -> void:
 		push_error("ReplayRecorder: no NcnnSync with replay signals found (use attach_agent() for inference-time capture).")
 		return
 	attach_sync(sync)
-	_snapshot_initial_state()
 
 # --- Training path (NcnnSync signals) ---
 
@@ -73,9 +78,7 @@ func _on_actions(actions: Array) -> void:
 	# in-progress stream's initial state under multi-agent capture (#310).
 	var indices: Array = range(actions.size()) if record_all_agents else [agent_index]
 	for idx in indices:
-		var key := _stream_key(idx)
-		if not _steps.has(key) or (_steps[key] as Array).is_empty():
-			_stream_initial[key] = _capture_state()
+		_begin_episode_if_needed(_stream_key(idx))
 
 func _on_step(rewards: Array, dones: Array) -> void:
 	if _pending_actions.is_empty():
@@ -104,15 +107,15 @@ func attach_agent(agent: Node) -> void:
 		push_error("ReplayRecorder.attach_agent: '%s' must expose inference_step + n_steps + reward (crowd units are driven by the shared NcnnCrowdController — attach a wrapper controller instead)." % agent.name)
 		return
 	var iid := agent.get_instance_id()
-	# Stream key carries the instance id (#309): same-named agents (the same subscene instanced
-	# under different parents) must never share a buffer, an episode index, or a file ring.
+	# Stream key carries a stable per-attach index (#309/#331): same-named agents (the same
+	# subscene instanced under different parents) never share a buffer/episode index/file ring,
+	# and re-runs reuse the same filenames so the on-disk ring stays bounded.
 	_agent_state[iid] = {"last_reward": 0.0, "last_n_steps": -1, "cadence": 0,
-		"name": String(agent.name), "key": "inf_%s_%d" % [String(agent.name), iid]}
+		"name": String(agent.name), "key": "inf_%s_%d" % [String(agent.name), _attach_count]}
+	_attach_count += 1
 	agent.inference_step.connect(_on_inference_step.bind(agent))
 	if _game == null:
 		_game = get_node_or_null(game_path)
-	if _initial_state.is_empty():
-		_snapshot_initial_state()
 
 func _on_inference_step(payload: Dictionary, agent: Node) -> void:
 	var state: Dictionary = _agent_state[agent.get_instance_id()]
@@ -122,7 +125,11 @@ func _on_inference_step(payload: Dictionary, agent: Node) -> void:
 		# The controller reset since the last decision — the buffered episode is complete.
 		_finish_episode(key, {"mode": "inference", "agent": String(state["name"]),
 			"action_repeat": _observed_cadence(state)})
-		state["last_reward"] = 0.0
+		# Recorder-side baseline (#330): deployed agents do NOT zero their reward accumulator on
+		# reset (the repo-wide contract — the bridge owns read-and-zero, and there is no bridge
+		# here), so re-baseline on the CURRENT accumulator. The new episode's first delta is 0 by
+		# construction — the pre-reset tail and first fresh window are honestly uncapturable.
+		state["last_reward"] = float(agent.get("reward"))
 	elif int(state["last_n_steps"]) >= 0:
 		# Mid-episode: the n_steps delta between consecutive decisions IS the decision cadence
 		# (#311) — record the observed value instead of trusting a hand-synced export that a
@@ -132,9 +139,7 @@ func _on_inference_step(payload: Dictionary, agent: Node) -> void:
 	# Plain delta of the accumulator — a decrease is a legitimate per-step penalty (#308); resets
 	# are detected exactly by the n_steps wrap above, which zeroes last_reward.
 	var delta := reward_now - float(state["last_reward"])
-	if not _steps.has(key) or (_steps[key] as Array).is_empty():
-		_steps[key] = _steps.get(key, [])
-		_stream_initial[key] = _capture_state()  # episode start (#310)
+	_begin_episode_if_needed(key)
 	_steps[key].append({"action": payload.get("action", {}), "reward": delta})
 	state["last_reward"] = reward_now
 	state["last_n_steps"] = n_steps
@@ -156,8 +161,12 @@ func flush_inference_episodes() -> void:
 func _stream_key(idx: int) -> String:
 	return "train_%d" % idx
 
-func _snapshot_initial_state() -> void:
-	_initial_state = _capture_state()
+## A stream whose buffer is empty is STARTING an episode: snapshot the game now (post-reset,
+## pre-action) — the one episode-start rule, shared by both capture paths (#310/#330).
+func _begin_episode_if_needed(key: String) -> void:
+	if not _steps.has(key) or (_steps[key] as Array).is_empty():
+		_steps[key] = _steps.get(key, [])
+		_stream_initial[key] = _capture_state()
 
 func _capture_state() -> Dictionary:
 	if _game != null and _game.has_method("get_replay_state"):
@@ -176,9 +185,9 @@ func _finish_episode(key: String, extra_meta: Dictionary) -> void:
 		scene_path = String(get_tree().current_scene.scene_file_path)
 	var meta := {"scene": scene_path, "recorded_at": Time.get_datetime_string_from_system()}
 	meta.merge(extra_meta, true)
-	# Per-stream snapshot taken at THIS episode's start (#310); the scene-start snapshot only
-	# backstops a stream whose first episode began before any capture point ran.
-	var ep := ReplayFormat.make_episode(meta, _stream_initial.get(key, _initial_state), steps)
+	# Per-stream snapshot taken at THIS episode's start (#310); every finish is preceded by a
+	# _begin_episode_if_needed on its first step, so the {} fallback is unreachable in practice.
+	var ep := ReplayFormat.make_episode(meta, _stream_initial.get(key, {}), steps)
 	_steps[key] = []
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	var index := int(_episode_index.get(key, 0))

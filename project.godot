@@ -21,6 +21,13 @@ config/features=PackedStringArray("4.5")
 
 enabled=PackedStringArray("res://addons/godot_native_rl/plugin.cfg")
 
+[godot_native_rl]
+
+; THIS repo's root models/ holds regression fixtures nothing shipped loads (~0.7 MiB) — prune it
+; from exports. Downstream projects DON'T get this: the addon default skips only res://test,
+; because res://models is the deploy guide's recommended location for user nets (#337).
+export/skip_roots=PackedStringArray("res://test", "res://models")
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

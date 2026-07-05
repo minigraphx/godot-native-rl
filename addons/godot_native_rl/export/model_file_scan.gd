@@ -9,11 +9,27 @@ extends RefCounted
 
 const MODEL_SUFFIXES: Array[String] = [".ncnn.param", ".ncnn.bin"]
 
-## Non-deploy trees pruned by default (#296): test fixtures and the repo-root models/ scratch
-## dir hold regression nets nothing outside test/ loads (~0.7 MiB measured dead weight per web
-## export). EditorExportPlugin.add_file bypasses the preset's exclude_filter entirely, so the
-## scan itself must scope — shipped trees (examples/*/models, addons/) still force-pack.
-const DEFAULT_SKIP_ROOTS: Array[String] = ["res://test", "res://models"]
+## Non-deploy trees pruned by default (#296/#337): only `res://test` — a tree that is never
+## deploy content in ANY project. `res://models` is deliberately NOT in the addon default: it is
+## the exact path the deploy guide recommends to downstream users, and pruning it silently
+## reintroduced the "cannot read model files" failure this plugin exists to prevent (#337).
+## Projects whose root models/ is scratch (like this repo, ~0.7 MiB of regression fixtures)
+## opt in via the ProjectSetting below. EditorExportPlugin.add_file bypasses the preset's
+## exclude_filter entirely, so the scan itself must scope.
+const DEFAULT_SKIP_ROOTS: Array[String] = ["res://test"]
+const SKIP_ROOTS_SETTING := "godot_native_rl/export/skip_roots"
+
+
+## The skip list the export plugin applies: the ProjectSetting when present (a per-project
+## override surface — no addon-source edits), else the addon-safe default.
+static func effective_skip_roots() -> Array[String]:
+	var out: Array[String] = []
+	if ProjectSettings.has_setting(SKIP_ROOTS_SETTING):
+		for r in ProjectSettings.get_setting(SKIP_ROOTS_SETTING):
+			out.append(String(r))
+		return out
+	out.assign(DEFAULT_SKIP_ROOTS)
+	return out
 
 ## Recursively collect every `*.ncnn.param` / `*.ncnn.bin` under `root` (a res:// dir). Hidden
 ## directories (".godot", ".git", …) and any directory listed in `skip_roots` are skipped.

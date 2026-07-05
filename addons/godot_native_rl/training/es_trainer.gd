@@ -129,7 +129,7 @@ var _best_mean := -INF
 
 func _ready() -> void:
 	var args := RunSpeed.parse_cmdline_args()
-	speed_up = float(args.get("speedup", str(speed_up)))
+	speed_up = RunSpeed.parse_positive_float(args, "speedup", speed_up)
 	# Strict int parses (#290/#324): int("garbage") is 0 and int("1e3") prefix-parses to 1 — an
 	# intended 1000-generation overnight run would exit cleanly after ONE generation. -1 on a bad
 	# override, which the existing < 1 guards below turn into a loud abort.

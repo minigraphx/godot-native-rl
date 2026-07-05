@@ -12,11 +12,18 @@ extends "res://addons/godot_native_rl/sensors/i_sensor_2d.gd"
 
 const RelativePositionMath = preload("res://addons/godot_native_rl/sensors/relative_position_math.gd")
 const EntityObsMath = preload("res://addons/godot_native_rl/sensors/entity_obs_math.gd")
+const SensorPaths = preload("res://addons/godot_native_rl/sensors/sensor_paths.gd")
 
 ## Max entities encoded; only the nearest this many are kept (the rest are dropped).
 @export var max_entities: int = 8
 ## Entities to observe (explicit list); combined with group_name, nearest max_entities kept.
+## NOTE: hand-authoring this typed NODE array in a .tscn does NOT resolve at runtime ("Unable to
+## convert array index 0 from NodePath to Object") — use object_paths there instead (#329).
 @export var objects_to_observe: Array[Node2D]
+## NodePath alternative for hand-authored scenes (#329): resolved once in _ready and appended
+## to objects_to_observe. Obs width here is fixed by max_entities, so an unresolved path only
+## costs the entity (loud error), never the dim.
+@export var object_paths: Array[NodePath] = []
 ## Optional group whose members are also observed (added to objects_to_observe).
 @export var group_name: StringName = &""
 ## Distance normalizer for the relative-position features (0 = closest, 1 = at/over this).
@@ -31,6 +38,18 @@ const EntityObsMath = preload("res://addons/godot_native_rl/sensors/entity_obs_m
 @export var extra_feature_count: int = 0
 
 var _warned_cap := false
+var _paths_resolved := false
+
+func _ready() -> void:
+	_ensure_paths_resolved()
+
+func _ensure_paths_resolved() -> void:
+	if _paths_resolved or object_paths.is_empty() or not is_inside_tree():
+		return
+	_paths_resolved = true
+	for n in SensorPaths.resolve(self, object_paths, "Node2D"):
+		if n != null:  # nulls carry no dim here — _candidates skips them anyway
+			objects_to_observe.append(n)
 
 # Floats per entity = relative-position features + extra scalars.
 func feature_width() -> int:
@@ -61,6 +80,7 @@ func get_observation() -> Array:
 
 # Union of explicit targets and group members, de-duplicated (explicit first, then group).
 func _candidates() -> Array:
+	_ensure_paths_resolved()
 	var out: Array = []
 	for o in objects_to_observe:
 		if o != null and not out.has(o):

@@ -4,7 +4,7 @@ class_name SeekAgent
 extends "res://addons/godot_native_rl/controllers/ncnn_ai_controller_2d.gd"
 
 # The #38 worked example's controller: ALL observations come from the child
-# RelativePositionSensor2D (goal slot + hazard slot -> 4 floats) via the controllers'
+# RelativePositionSensor2D (goal slot + hazard slot -> 6 floats: unit dir + distance per target) via the controllers'
 # collect_sensors() auto-discovery — get_obs() has no hand-coded features. Compare ChaseAgent,
 # which computes its obs by hand: this is the drop-in-sensor version of the same shape of task.
 
