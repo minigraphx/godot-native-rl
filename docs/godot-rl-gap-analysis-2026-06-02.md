@@ -230,7 +230,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | `RunningNormSensor` (online Welford normalisation) | No Python `VecNormalize` at deploy; Welford mean/var, freeze + JSON sidecar |
 | In-editor Policy Debugger (`PolicyDebugOverlay`) | Live obs / action-probs / identity overlay, F3 toggle, debug-build gate, auto-discovery |
 | Web/WASM GDExtension (no COOP/COEP) | Single-threaded ncnn WASM; proven in-browser on itch.io / GitHub Pages unmodified |
-| Native in-engine ES training (`ESTrainer`, #131) | No Python/socket/backprop; OpenAI-ES over the ncnn forward pass, CRN seeding + k-episode fitness, checkpoints are deploy-ready `.ncnn` pairs, warm-start on-device fine-tuning |
+| Native in-engine ES training (`ESTrainer`, #131) | No Python/socket/backprop; OpenAI-ES or sep-CMA-ES (diagonal covariance, O(θ)/gen; best generation mean 13.4 vs 2.3 on chase at 200 gens) over the ncnn forward pass, CRN seeding + k-episode fitness, checkpoints are deploy-ready `.ncnn` pairs, warm-start on-device fine-tuning |
 | Continuous DiagGaussian action sampling (game-side) | `action_dist_stats_path` + log_std sidecar → `mean + std·N(0,1)` without Python at inference |
 
 ---
