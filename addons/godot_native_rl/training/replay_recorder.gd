@@ -24,7 +24,9 @@ const ReplayFormat = preload("res://addons/godot_native_rl/training/replay_forma
 @export var record_all_agents := false  ## training path: capture every agent slot (#195)
 @export var game_path: NodePath
 @export var sync_path: NodePath  ## empty -> auto-find a sibling exposing the replay signals
-## Decision cadence stamped into inference-path meta (training-path meta reads the sync's).
+## FALLBACK decision cadence for inference-path meta when an episode is too short to observe it
+## (#311): the real cadence is derived per episode from the controller's n_steps delta between
+## decisions, so a deploy-time `action_repeat=` override can never desync playback.
 @export var inference_action_repeat := 8
 
 var _game: Node
@@ -32,10 +34,14 @@ var _saved_paths: Dictionary = {}   # stream key -> Array[String] (ring per stre
 var _episode_index: Dictionary = {} # stream key -> int
 var _pending_actions: Array = []
 var _steps: Dictionary = {}         # stream key -> Array[step]
-var _initial_state: Dictionary = {}
+var _initial_state: Dictionary = {} # scene-start snapshot (fallback for a stream's first episode)
+var _stream_initial: Dictionary = {} # stream key -> per-episode snapshot, taken at episode START (#310)
 var _warned_no_state := false
 var _action_repeat := 0
-var _agent_state: Dictionary = {}   # instance_id -> {"last_reward": float, "last_n_steps": int}
+# instance_id -> {"last_reward","last_n_steps","cadence","name","key"} — keyed by instance id,
+# NOT node name: Godot only enforces name uniqueness among siblings, and multi-agent capture
+# instances the same subscene N times (#309).
+var _agent_state: Dictionary = {}
 
 func _ready() -> void:
 	_game = get_node_or_null(game_path)
@@ -62,6 +68,14 @@ func attach_sync(sync: Node) -> void:
 
 func _on_actions(actions: Array) -> void:
 	_pending_actions = actions
+	# A stream whose buffer is empty is STARTING an episode with this action window: snapshot the
+	# game now (post-reset, pre-action). Snapshotting at finish time instead corrupts every other
+	# in-progress stream's initial state under multi-agent capture (#310).
+	var indices: Array = range(actions.size()) if record_all_agents else [agent_index]
+	for idx in indices:
+		var key := _stream_key(idx)
+		if not _steps.has(key) or (_steps[key] as Array).is_empty():
+			_stream_initial[key] = _capture_state()
 
 func _on_step(rewards: Array, dones: Array) -> void:
 	if _pending_actions.is_empty():
@@ -83,10 +97,17 @@ func _on_step(rewards: Array, dones: Array) -> void:
 ## Record a DEPLOYED agent (NCNN_INFERENCE / any consumer of NcnnControllerCore): call once per
 ## agent to capture; several attached agents record side by side. No Sync required.
 func attach_agent(agent: Node) -> void:
-	if not agent.has_signal("inference_step"):
-		push_error("ReplayRecorder.attach_agent: '%s' has no inference_step signal." % agent.name)
+	# Validate the FULL recordable surface (#312): the inference_step signal alone is a broader
+	# contract — crowd units emit it via NcnnCrowdController but carry no n_steps/reward
+	# properties (those live on the shared controller), and int(null) errors on every decision.
+	if not agent.has_signal("inference_step") or agent.get("n_steps") == null or agent.get("reward") == null:
+		push_error("ReplayRecorder.attach_agent: '%s' must expose inference_step + n_steps + reward (crowd units are driven by the shared NcnnCrowdController — attach a wrapper controller instead)." % agent.name)
 		return
-	_agent_state[agent.get_instance_id()] = {"last_reward": 0.0, "last_n_steps": -1}
+	var iid := agent.get_instance_id()
+	# Stream key carries the instance id (#309): same-named agents (the same subscene instanced
+	# under different parents) must never share a buffer, an episode index, or a file ring.
+	_agent_state[iid] = {"last_reward": 0.0, "last_n_steps": -1, "cadence": 0,
+		"name": String(agent.name), "key": "inf_%s_%d" % [String(agent.name), iid]}
 	agent.inference_step.connect(_on_inference_step.bind(agent))
 	if _game == null:
 		_game = get_node_or_null(game_path)
@@ -95,30 +116,40 @@ func attach_agent(agent: Node) -> void:
 
 func _on_inference_step(payload: Dictionary, agent: Node) -> void:
 	var state: Dictionary = _agent_state[agent.get_instance_id()]
-	var key := "inf_" + String(agent.name)
+	var key: String = state["key"]
 	var n_steps := int(agent.get("n_steps"))
 	if n_steps < int(state["last_n_steps"]):
 		# The controller reset since the last decision — the buffered episode is complete.
-		_finish_episode(key, {"mode": "inference", "agent": String(agent.name),
-			"action_repeat": inference_action_repeat})
+		_finish_episode(key, {"mode": "inference", "agent": String(state["name"]),
+			"action_repeat": _observed_cadence(state)})
 		state["last_reward"] = 0.0
+	elif int(state["last_n_steps"]) >= 0:
+		# Mid-episode: the n_steps delta between consecutive decisions IS the decision cadence
+		# (#311) — record the observed value instead of trusting a hand-synced export that a
+		# deploy-time `action_repeat=` override silently desyncs.
+		state["cadence"] = n_steps - int(state["last_n_steps"])
 	var reward_now := float(agent.get("reward"))
+	# Plain delta of the accumulator — a decrease is a legitimate per-step penalty (#308); resets
+	# are detected exactly by the n_steps wrap above, which zeroes last_reward.
 	var delta := reward_now - float(state["last_reward"])
-	if reward_now < float(state["last_reward"]):
-		delta = reward_now  # accumulator was zeroed by a reset between decisions
-	if not _steps.has(key):
-		_steps[key] = []
+	if not _steps.has(key) or (_steps[key] as Array).is_empty():
+		_steps[key] = _steps.get(key, [])
+		_stream_initial[key] = _capture_state()  # episode start (#310)
 	_steps[key].append({"action": payload.get("action", {}), "reward": delta})
 	state["last_reward"] = reward_now
 	state["last_n_steps"] = n_steps
 
+func _observed_cadence(state: Dictionary) -> int:
+	return int(state["cadence"]) if int(state["cadence"]) > 0 else inference_action_repeat
+
 ## Flush any buffered inference steps as final (partial) episodes — call before quitting a
 ## recording session so the tail isn't lost (training episodes flush on their done flags).
 func flush_inference_episodes() -> void:
-	for key in _steps.keys():
-		if String(key).begins_with("inf_") and not (_steps[key] as Array).is_empty():
-			_finish_episode(key, {"mode": "inference", "agent": String(key).trim_prefix("inf_"),
-				"action_repeat": inference_action_repeat, "partial": true})
+	for state in _agent_state.values():
+		var key: String = state["key"]
+		if _steps.has(key) and not (_steps[key] as Array).is_empty():
+			_finish_episode(key, {"mode": "inference", "agent": String(state["name"]),
+				"action_repeat": _observed_cadence(state), "partial": true})
 
 # --- Shared internals ---
 
@@ -126,13 +157,15 @@ func _stream_key(idx: int) -> String:
 	return "train_%d" % idx
 
 func _snapshot_initial_state() -> void:
+	_initial_state = _capture_state()
+
+func _capture_state() -> Dictionary:
 	if _game != null and _game.has_method("get_replay_state"):
-		_initial_state = _game.get_replay_state()
-		return
+		return _game.get_replay_state()
 	if not _warned_no_state:
 		_warned_no_state = true
 		push_warning("ReplayRecorder: game has no get_replay_state() — replays start from the scene's default reset.")
-	_initial_state = {}
+	return {}
 
 func _finish_episode(key: String, extra_meta: Dictionary) -> void:
 	var steps: Array = _steps.get(key, [])
@@ -143,7 +176,9 @@ func _finish_episode(key: String, extra_meta: Dictionary) -> void:
 		scene_path = String(get_tree().current_scene.scene_file_path)
 	var meta := {"scene": scene_path, "recorded_at": Time.get_datetime_string_from_system()}
 	meta.merge(extra_meta, true)
-	var ep := ReplayFormat.make_episode(meta, _initial_state, steps)
+	# Per-stream snapshot taken at THIS episode's start (#310); the scene-start snapshot only
+	# backstops a stream whose first episode began before any capture point ran.
+	var ep := ReplayFormat.make_episode(meta, _stream_initial.get(key, _initial_state), steps)
 	_steps[key] = []
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	var index := int(_episode_index.get(key, 0))
@@ -164,4 +199,3 @@ func _finish_episode(key: String, extra_meta: Dictionary) -> void:
 	while (_saved_paths[key] as Array).size() > keep_last:
 		DirAccess.remove_absolute(_saved_paths[key].pop_front())
 	print("ReplayRecorder: saved %s (%d steps, total_reward %.2f)" % [path, ep["meta"]["n_steps"], ep["meta"]["total_reward"]])
-	_snapshot_initial_state()
