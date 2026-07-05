@@ -117,4 +117,54 @@ func _initialize() -> void:
 	h.assert_eq(W.bin_bytes(s1, PackedFloat32Array([1, 2])), PackedByteArray(),
 		"bin_bytes rejects wrong theta size")
 
+	# --- pnnx warm-start adapter (#328): adopt the REAL shipped chase PPO net ---
+	# The committed chase net is pnnx-exported: foreign layer names, no Input width param, and
+	# FP16-TAGGED weight blobs. The adapter must parse its structure, decode θ, and the
+	# canonicalized net must behave IDENTICALLY on real ncnn.
+	var ppo_param := FileAccess.get_file_as_string("res://examples/chase_the_target/models/chase_the_target.ncnn.param")
+	var ppo_spec: Dictionary = W.spec_from_param_text(ppo_param)
+	h.assert_eq(ppo_spec.get("dims", []), [5, 64, 64, 5], "pnnx chase param parses to [5,64,64,5]")
+	h.assert_eq(String(ppo_spec.get("hidden_activation", "?")), "tanh", "pnnx chase hidden activation tanh")
+	h.assert_eq(String(ppo_spec.get("output_activation", "?")), "", "pnnx chase has raw logits output")
+	var ppo_theta: PackedFloat32Array = W.warm_start_theta(ppo_spec,
+		"res://examples/chase_the_target/models/chase_the_target.ncnn.param",
+		"res://examples/chase_the_target/models/chase_the_target.ncnn.bin")
+	h.assert_eq(ppo_theta.size(), W.theta_size(ppo_spec), "fp16-tagged pnnx bin decodes to a full θ")
+	if ppo_theta.size() == W.theta_size(ppo_spec):
+		# Golden parity: original pnnx pair vs canonical re-emission, same obs, real ncnn.
+		var orig := NcnnRunner.new()
+		var orig_ok := orig.load_model(
+			ProjectSettings.globalize_path("res://examples/chase_the_target/models/chase_the_target.ncnn.param"),
+			ProjectSettings.globalize_path("res://examples/chase_the_target/models/chase_the_target.ncnn.bin"))
+		h.assert_true(orig_ok, "original pnnx chase net loads")
+		var canon := NcnnRunner.new()
+		var canon_ok := canon.load_model_from_buffers(
+			W.param_text(ppo_spec).to_utf8_buffer(), W.bin_bytes(ppo_spec, ppo_theta))
+		h.assert_true(canon_ok, "canonicalized net loads from buffers")
+		if orig_ok and canon_ok:
+			var obs := PackedFloat32Array([0.31, -0.62, 0.88, -0.14, 0.5])
+			var a := orig.run_inference(obs)
+			var b := canon.run_inference(obs)
+			h.assert_eq(a.size(), b.size(), "parity: same logit count")
+			var worst := 0.0
+			for i in range(a.size()):
+				worst = maxf(worst, absf(a[i] - b[i]))
+			# The original stores weights in fp16; decoding fp16 -> fp32 is exact, so the two
+			# nets hold the same effective weights and outputs agree to accumulation noise.
+			h.assert_true(worst < 1e-4, "canonicalized pnnx net is output-identical (worst |err| %f)" % worst)
+		orig.free()
+		canon.free()
+	# Structural mismatch fails loud: same param, wrong scene architecture.
+	h.assert_eq(W.warm_start_theta(W.mlp_spec([5, 16, 5], "relu"),
+		"res://examples/chase_the_target/models/chase_the_target.ncnn.param",
+		"res://examples/chase_the_target/models/chase_the_target.ncnn.bin").size(), 0,
+		"warm_start_theta rejects an architecture mismatch")
+	# Our own canonical pairs still take the strict path (chase_es was written by this codec).
+	var es_spec: Dictionary = W.spec_from_param_text(
+		FileAccess.get_file_as_string("res://examples/chase_the_target/models/chase_es.ncnn.param"))
+	var es_theta: PackedFloat32Array = W.warm_start_theta(es_spec,
+		"res://examples/chase_the_target/models/chase_es.ncnn.param",
+		"res://examples/chase_the_target/models/chase_es.ncnn.bin")
+	h.assert_eq(es_theta.size(), W.theta_size(es_spec), "canonical ES net still warm-starts (strict path)")
+
 	h.finish(self)

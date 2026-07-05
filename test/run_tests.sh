@@ -121,6 +121,9 @@ echo "== Trained ES chase behavioral check (net trained IN-ENGINE, #131) =="
 echo "== Warm-start fine-tuned net behavioral check (on-device adaptation pipeline, #131) =="
 "$GODOT" --headless --path . res://test/integration/trained_es_drift_scene.tscn
 
+echo "== ES warm-start from a pnnx-exported PPO net (structural adapter, #328) =="
+"$GODOT" --headless --path . res://test/integration/es_warm_start_ppo_smoke_scene.tscn
+
 echo "== Trained seek behavioral check (RelativePositionSensor2D example, in-engine CMA-ES net, #38) =="
 "$GODOT" --headless --path . res://test/integration/trained_seek_scene.tscn
 

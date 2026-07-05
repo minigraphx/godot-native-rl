@@ -173,7 +173,9 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   `optimizer=`; `training/cma_math.gd` — diagonal-covariance CMA-ES with self-adapting step size +
   per-coordinate variances, O(θ) per generation), turns each candidate into a live ncnn net in memory
   (`training/ncnn_weights.gd` θ⇄buffers codec — bijective, so `warm_start_*_path` fine-tunes a
-  shipped net on-device), fitness = episodic return from the existing reward system. Checkpoints
+  shipped net on-device; since #328 pt 1 this includes **pnnx-exported PPO nets** — a structural
+  adapter parses foreign MLP params + fp16-tagged bins, CI-proven by adopting the chase PPO net
+  bit-for-bit at gen-1 fitness ~5), fitness = episodic return from the existing reward system. Checkpoints
   ARE deploy artifacts (`.ncnn.{param,bin}` in `out_dir`); multi-agent scenes evaluate candidates
   in parallel waves; fitness comparability is built in (common-random-numbers `seed_games` via the
   agent's `game_path`, k-episode averaging `episodes_per_candidate`, trainer-owned horizon

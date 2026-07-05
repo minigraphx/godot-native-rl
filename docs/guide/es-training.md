@@ -120,6 +120,14 @@ The `.param` is validated against the scene's architecture (fail loud on mismatc
 `chase_es_finetune_parallel.tscn` demonstrates it against a fleeing target the original net
 never saw.
 
+**This includes your pnnx-exported PPO nets** (#328): warm-start accepts nets this codec never
+wrote — a structural adapter parses foreign MLP params (pnnx layer names, stray Reshape,
+fp16-tagged weight blobs) and adopts any net whose architecture matches the scene
+(`hidden_dims`/`hidden_activation` must mirror it, e.g. `[64, 64]` + `"tanh"` for SB3-default
+PPO actors). CI proves it live: the shipped chase PPO net is adopted bit-for-bit and scores
+generation-1 fitness ~5 (an untrained init starts near −1), then CMA-ES keeps improving it —
+so every PPO policy this repo ships can be fine-tuned on-device with no Python.
+
 **What warm-start buys — measured honestly:** *time-to-competence*. In the shipped experiment
 the warm-started population outperformed 300 generations of identical from-scratch training **at
 generation 1** (replicated at two difficulty settings). **What it can't buy:** capability the

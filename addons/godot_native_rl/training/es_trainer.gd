@@ -257,17 +257,13 @@ func _initial_theta() -> PackedFloat32Array:
 		return PackedFloat32Array()
 	if warm_start_bin_path.is_empty():
 		return NcnnWeights.init_theta(_spec, _rng)
-	# The .bin alone can't reveal an architecture mismatch (same float count, different
-	# activations/layout decodes to garbage θ) — the .param can. Fail loud on any difference.
-	var want_param := NcnnWeights.param_text(_spec).strip_edges()
-	var have_param := FileAccess.get_file_as_string(warm_start_param_path).strip_edges()
-	if have_param != want_param:
-		_abort("warm-start net '%s' does not match this scene's architecture (param text differs)." % warm_start_param_path)
-		return PackedFloat32Array()
-	var bin := FileAccess.get_file_as_bytes(warm_start_bin_path)
-	var theta: PackedFloat32Array = NcnnWeights.theta_from_bin(_spec, bin)
+	# Canonical (our own checkpoints) OR structurally-matching pnnx-exported nets (#328): the
+	# shared adapter validates architecture via the .param (the .bin alone can't reveal a
+	# mismatch — same float count with different activations decodes to garbage θ) and handles
+	# pnnx's fp16-tagged weight blobs. Fail loud on any structural difference.
+	var theta: PackedFloat32Array = NcnnWeights.warm_start_theta(_spec, warm_start_param_path, warm_start_bin_path)
 	if theta.is_empty():
-		_abort("warm-start bin '%s' does not decode against this scene's spec." % warm_start_bin_path)
+		_abort("warm-start net '%s' does not match this scene's architecture (see the error above)." % warm_start_param_path)
 	return theta
 
 

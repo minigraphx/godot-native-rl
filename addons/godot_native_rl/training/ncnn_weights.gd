@@ -131,6 +131,146 @@ static func theta_from_bin(spec: Dictionary, bin: PackedByteArray) -> PackedFloa
 	return theta
 
 
+# ---- pnnx warm-start adapter (#328): adopt an EXTERNALLY-exported MLP into the θ codec ----
+# pnnx-exported nets are architecturally plain MLPs but differ from our canonical form three
+# ways: layer names/whitespace (so the exact param-text warm-start check rejects them), an
+# occasional weightless Reshape/Flatten after Input, and FP16-TAGGED weight blobs (tag
+# 0x01306B47; biases stay raw fp32). The two helpers below parse the STRUCTURE and decode the
+# bin regardless, so ESTrainer can warm-start from any shipped PPO net — see warm_start_theta.
+
+const _FP32_TAG := 0
+const _FP16_TAG := 0x01306B47  # ncnn ModelBin: float16 data follows, 4-byte aligned
+
+## Parse an MLP-shaped ncnn `.param` into a spec structurally (names/whitespace-independent).
+## Accepts Input + optional weightless Reshape/Flatten + InnerProduct/activation stacks; anything
+## else fails loud with {} (use the pnnx path for real). Input width derives from the first
+## InnerProduct (pnnx omits the Input dim param).
+static func spec_from_param_text(param_text: String) -> Dictionary:
+	var dims: Array = []
+	var acts: Array = []  # activation name after each linear ("" if none)
+	var type_to_act := {"ReLU": "relu", "TanH": "tanh", "Sigmoid": "sigmoid"}
+	for raw_line in param_text.split("\n"):
+		var tokens := raw_line.split(" ", false)
+		if tokens.size() < 2 or not tokens[0].is_valid_identifier():
+			continue  # magic / counts / blank
+		var ltype := String(tokens[0])
+		match ltype:
+			"Input", "Reshape", "Flatten":
+				continue  # weightless plumbing
+			"InnerProduct":
+				var out_features := 0
+				var weight_size := 0
+				var has_bias := false
+				for t in tokens:
+					if t.begins_with("0="):
+						out_features = int(t.substr(2))
+					elif t.begins_with("1="):
+						has_bias = int(t.substr(2)) == 1
+					elif t.begins_with("2="):
+						weight_size = int(t.substr(2))
+				if out_features <= 0 or weight_size <= 0 or weight_size % out_features != 0 or not has_bias:
+					push_error("NcnnWeights.spec_from_param_text: unsupported InnerProduct line '%s'." % raw_line.strip_edges())
+					return {}
+				if dims.is_empty():
+					dims.append(weight_size / out_features)
+				elif int(dims[-1]) != weight_size / out_features:
+					push_error("NcnnWeights.spec_from_param_text: layer fan-in %d does not chain from previous width %d." % [weight_size / out_features, int(dims[-1])])
+					return {}
+				dims.append(out_features)
+				acts.append("")
+			_:
+				if type_to_act.has(ltype):
+					if acts.is_empty():
+						push_error("NcnnWeights.spec_from_param_text: activation before any linear layer.")
+						return {}
+					acts[-1] = type_to_act[ltype]
+				else:
+					push_error("NcnnWeights.spec_from_param_text: unsupported layer type '%s' — not a plain MLP." % ltype)
+					return {}
+	if dims.size() < 2:
+		push_error("NcnnWeights.spec_from_param_text: no InnerProduct layers found.")
+		return {}
+	# Hidden activations must be uniform (that's what the canonical writer can express).
+	var hidden := ""
+	for i in range(acts.size() - 1):
+		if i == 0:
+			hidden = acts[0]
+		elif acts[i] != hidden:
+			push_error("NcnnWeights.spec_from_param_text: mixed hidden activations (%s vs %s)." % [hidden, acts[i]])
+			return {}
+	return mlp_spec(dims, hidden, acts[-1])
+
+
+## Decode θ from an EXTERNAL model's `.bin` for `spec`: like theta_from_bin, but honours the
+## per-blob tag — fp32 (0) or fp16 (0x01306B47, 4-byte aligned) weights; biases always raw fp32.
+static func theta_from_model_bin(spec: Dictionary, bin: PackedByteArray) -> PackedFloat32Array:
+	var dims: Array = spec.get("dims", [])
+	if dims.size() < 2:
+		push_error("NcnnWeights.theta_from_model_bin: invalid spec")
+		return PackedFloat32Array()
+	var theta := PackedFloat32Array()
+	var offset := 0
+	for i in range(dims.size() - 1):
+		var n_weights := int(dims[i]) * int(dims[i + 1])
+		var n_bias := int(dims[i + 1])
+		if offset + 4 > bin.size():
+			push_error("NcnnWeights.theta_from_model_bin: bin truncated at layer %d tag." % i)
+			return PackedFloat32Array()
+		var tag := bin.decode_u32(offset)
+		offset += 4
+		match tag:
+			_FP32_TAG:
+				if offset + n_weights * 4 > bin.size():
+					push_error("NcnnWeights.theta_from_model_bin: bin truncated in fp32 weights of layer %d." % i)
+					return PackedFloat32Array()
+				theta += bin.slice(offset, offset + n_weights * 4).to_float32_array()
+				offset += n_weights * 4
+			_FP16_TAG:
+				var half_bytes := n_weights * 2
+				if offset + half_bytes > bin.size():
+					push_error("NcnnWeights.theta_from_model_bin: bin truncated in fp16 weights of layer %d." % i)
+					return PackedFloat32Array()
+				for w in range(n_weights):
+					theta.append(bin.decode_half(offset + w * 2))
+				offset += half_bytes + (half_bytes % 4)  # ModelBin aligns fp16 blobs to 4 bytes
+			_:
+				push_error("NcnnWeights.theta_from_model_bin: unsupported weight tag 0x%08X in layer %d (know fp32/fp16)." % [tag, i])
+				return PackedFloat32Array()
+		if offset + n_bias * 4 > bin.size():
+			push_error("NcnnWeights.theta_from_model_bin: bin truncated in bias of layer %d." % i)
+			return PackedFloat32Array()
+		theta += bin.slice(offset, offset + n_bias * 4).to_float32_array()
+		offset += n_bias * 4
+	if offset != bin.size():
+		push_error("NcnnWeights.theta_from_model_bin: %d trailing bytes after the last layer — architecture mismatch." % (bin.size() - offset))
+		return PackedFloat32Array()
+	return theta
+
+
+## Warm-start θ from a net on disk for `spec` (#328): our own canonical pairs decode via the
+## strict exact-text path; pnnx-exported MLPs are accepted STRUCTURALLY (same dims/activations)
+## and decoded tag-aware. Returns empty (with a pushed error) when the net doesn't match `spec`.
+static func warm_start_theta(spec: Dictionary, param_path: String, bin_path: String) -> PackedFloat32Array:
+	var have_param := FileAccess.get_file_as_string(param_path)
+	var bin := FileAccess.get_file_as_bytes(bin_path)
+	if have_param.is_empty() or bin.is_empty():
+		push_error("NcnnWeights.warm_start_theta: cannot read '%s' / '%s'." % [param_path, bin_path])
+		return PackedFloat32Array()
+	if have_param.strip_edges() == param_text(spec).strip_edges():
+		return theta_from_bin(spec, bin)  # our own canonical output — strict fp32 decode
+	var file_spec := spec_from_param_text(have_param)
+	if file_spec.is_empty():
+		return PackedFloat32Array()  # parser pushed the specific reason
+	if file_spec["dims"] != spec["dims"] or file_spec["hidden_activation"] != spec["hidden_activation"] \
+			or file_spec["output_activation"] != spec["output_activation"]:
+		push_error("NcnnWeights.warm_start_theta: '%s' is %s/%s/%s but this scene builds %s/%s/%s."
+			% [param_path, str(file_spec["dims"]), file_spec["hidden_activation"], file_spec["output_activation"],
+			str(spec["dims"]), spec["hidden_activation"], spec["output_activation"]])
+		return PackedFloat32Array()
+	print("[NcnnWeights] warm-start: adopting externally-exported net '%s' (structural match %s)." % [param_path, str(spec["dims"])])
+	return theta_from_model_bin(spec, bin)
+
+
 ## He-scaled gaussian init: weights ~ N(0, sqrt(2/fan_in)), biases 0. Deterministic under the
 ## caller's seeded RNG (ES runs want reproducibility).
 static func init_theta(spec: Dictionary, rng: RandomNumberGenerator) -> PackedFloat32Array:

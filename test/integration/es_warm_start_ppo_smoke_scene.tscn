@@ -1,0 +1,29 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://examples/chase_the_target/chase_world.tscn" id="1"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/training/es_trainer.gd" id="2"]
+[ext_resource type="Script" path="res://test/integration/es_warm_start_ppo_checker.gd" id="3"]
+
+[node name="ESWarmStartPPOSmoke" type="Node2D"]
+
+[node name="ChaseWorld" parent="." instance=ExtResource("1")]
+
+[node name="ESTrainer" type="Node" parent="."]
+script = ExtResource("2")
+hidden_dims = [64, 64]
+hidden_activation = "tanh"
+optimizer = "cma_es"
+half_population = 2
+sigma = 0.05
+generations = 2
+episode_decisions = 60
+episodes_per_candidate = 1
+action_repeat = 8
+speed_up = 20.0
+warm_start_param_path = "res://examples/chase_the_target/models/chase_the_target.ncnn.param"
+warm_start_bin_path = "res://examples/chase_the_target/models/chase_the_target.ncnn.bin"
+out_dir = "user://es_warm_ppo_smoke"
+checkpoint_stem = "warm_ppo"
+
+[node name="Checker" type="Node" parent="."]
+script = ExtResource("3")
