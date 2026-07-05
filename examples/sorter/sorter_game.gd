@@ -67,10 +67,14 @@ func seed_rng(s: int) -> void:
 
 
 func reset_episode() -> void:
-	_tile_count = _rng.randi_range(min_tiles, max_tiles)
+	# Clamp to the PRE-BUILT slot count and iterate ALL slots below: max_tiles can be changed at
+	# runtime (a curriculum, a test pinning the count), and iterating `range(max_tiles)` after a
+	# shrink left the higher slots active AND in the sensor group with stale layouts — orphaned
+	# ghost tiles the policy could see (caught by the #313 parallel smoke's flakiness).
+	_tile_count = clampi(_rng.randi_range(min_tiles, max_tiles), 1, _tiles.size())
 	var layout: Array = SorterMath.tile_layout(_rng, _tile_count, arena_size, edge_margin)
 	_prev_overlaps = []
-	for i in range(max_tiles):
+	for i in range(_tiles.size()):
 		var tile: Node2D = _tiles[i]
 		var live := i < _tile_count
 		tile.active = live
