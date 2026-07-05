@@ -10,7 +10,7 @@ extends Node
 @export var max_pit_ratio := 0.5  ## pits_hit must stay under half the goals reached
 ## Anti-livelock (#293): if no terminal lands within this window, reseed the episode. A competent
 ## policy needs <=112 frames for the worst 8x8 route (14 moves x action_repeat 8), so 300 is
-## generous. Rationale: the run is seeded, but the GridSensor2D obs go through physics queries
+## generous. Rationale: even with the run seeded (#300), the GridSensor2D obs go through physics queries
 ## whose one-frame staleness can interleave differently per machine/engine — one unlucky
 ## interleave cascaded into a deterministic 0-goal loop on 4.6.3 CI. A fresh layout breaks any
 ## such loop; the goals/pit bars below still measure policy quality across the extra layouts.
@@ -30,6 +30,10 @@ func _ready() -> void:
 		_fail("missing game/agent")
 		return
 	_game.seed_rng(3)
+	# The game's _ready already rolled the FIRST layout from the unseeded RNG (tree order:
+	# world before checker) — re-roll from the seeded stream or episode 1 is random per run
+	# and every later episode replays at a shifted frame phase (#300, the #298 chase gotcha).
+	_game.reset_episode()
 
 func _physics_process(_delta: float) -> void:
 	if _game == null or _agent == null:

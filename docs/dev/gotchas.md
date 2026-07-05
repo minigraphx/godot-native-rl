@@ -93,7 +93,7 @@
 ## Deploy `action_repeat` must match the training cadence (locomotion)
 
 The quadruped hurdles policy trained at `action_repeat=4` collapses under the Sync default of 8
-at deploy (~4 m, zero hurdles vs ~31 m / 4 hurdles): motor-velocity targets held twice as long
+at deploy (~4 m, zero hurdles vs ~40.9 m / 6 hurdles): motor-velocity targets held twice as long
 overshoot the joint swings of a dynamic gait. Statically-stable gaits (M1 walk) happen to
 tolerate it, which hides the bug. Pin `action_repeat` on the Sync node of every deploy/eval
 scene to the value the policy was trained with (the M2 scenes do).

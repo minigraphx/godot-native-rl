@@ -27,12 +27,12 @@ func _ready() -> void:
 func _build() -> void:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
+	var box := BoxMesh.new()  # meshes are shareable resources — one for every tick (#303)
+	box.size = Vector3(tick_length, 0.02, tick_depth)
 	for i in range(maxi(count, 0)):
 		var z := marker_z(i, start_z, spacing)
 		for side in [-1.0, 1.0]:
 			var tick := MeshInstance3D.new()
-			var box := BoxMesh.new()
-			box.size = Vector3(tick_length, 0.02, tick_depth)
 			tick.mesh = box
 			tick.material_override = mat
 			tick.position = Vector3(side * (width - tick_length) * 0.5, y, z)
@@ -42,14 +42,12 @@ func _build() -> void:
 			label.text = "%d m" % int(round(z))
 			label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 			label.modulate = color
-			label.pixel_size = label_size / 64.0  # ~label_size metres tall at default font size
+			# Label3D's default font_size is 32 (not 64) — divide by the REAL glyph size or the
+			# ruler text renders at half the intended world height (#303).
+			label.pixel_size = label_size / 32.0  # ~label_size metres tall at the default font size
 			label.position = Vector3(-(width * 0.5 + 0.8), y + 0.35, z)
 			add_child(label)
 
 # Pure helper (testable): the Z position of marker `i`.
 static func marker_z(i: int, p_start: float, p_spacing: float) -> float:
 	return p_start + float(i) * p_spacing
-
-# Back-compat alias for the original stripe naming (same math).
-static func stripe_z(i: int, p_start: float, p_spacing: float) -> float:
-	return marker_z(i, p_start, p_spacing)

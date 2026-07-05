@@ -58,11 +58,20 @@ func _physics_process(delta: float) -> void:
 		reward += goal_reward
 	elif _game.at_pit():
 		reward -= pit_penalty
-	if _game.resolve_terminal():
+	var terminal: bool = _game.resolve_terminal()
+	if terminal:
 		done = true
 		needs_reset = true
 	if needs_reset:
 		needs_reset = false
+		if not terminal:
+			# Horizon self-reset (reset_after) with NO terminal: re-roll the layout too (#299).
+			# resolve_terminal() already reset the game on goal/pit (re-rolling again here would
+			# consume extra seeded draws), but a bare controller reset leaves the layout
+			# unchanged — and with deterministic_inference a stuck policy then reproduces the
+			# identical action loop forever. The shipped play scene/web demo had no other shield
+			# (#297's timeout protects only the CI checker).
+			_game.reset_episode()
 		reset()
 		# Do NOT zero_reward() here: the bridge reads reward+done together THEN zeroes (the
 		# hide&seek-documented contract). Zeroing now would wipe the terminal +-1 before the

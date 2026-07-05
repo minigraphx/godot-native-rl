@@ -9,9 +9,16 @@ extends RefCounted
 
 const MODEL_SUFFIXES: Array[String] = [".ncnn.param", ".ncnn.bin"]
 
+## Non-deploy trees pruned by default (#296): test fixtures and the repo-root models/ scratch
+## dir hold regression nets nothing outside test/ loads (~0.7 MiB measured dead weight per web
+## export). EditorExportPlugin.add_file bypasses the preset's exclude_filter entirely, so the
+## scan itself must scope — shipped trees (examples/*/models, addons/) still force-pack.
+const DEFAULT_SKIP_ROOTS: Array[String] = ["res://test", "res://models"]
+
 ## Recursively collect every `*.ncnn.param` / `*.ncnn.bin` under `root` (a res:// dir). Hidden
-## directories (".godot", ".git", …) are skipped. Returns res:// paths.
-static func find_model_files(root: String) -> PackedStringArray:
+## directories (".godot", ".git", …) and any directory listed in `skip_roots` are skipped.
+## Returns res:// paths. Pass `skip_roots = []` for an unpruned scan.
+static func find_model_files(root: String, skip_roots: Array[String] = DEFAULT_SKIP_ROOTS) -> PackedStringArray:
 	var found := PackedStringArray()
 	var stack: Array[String] = [root]
 	while not stack.is_empty():
@@ -24,7 +31,7 @@ static func find_model_files(root: String) -> PackedStringArray:
 		while entry != "":
 			var full := dir_path.path_join(entry)
 			if dir.current_is_dir():
-				if not entry.begins_with("."):
+				if not entry.begins_with(".") and not (full in skip_roots):
 					stack.push_back(full)
 			else:
 				for suffix in MODEL_SUFFIXES:

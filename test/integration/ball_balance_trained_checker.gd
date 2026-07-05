@@ -30,6 +30,9 @@ func _ready() -> void:
 		_fail("missing game/agent")
 		return
 	_game.seed_rng(11)
+	# Post-seed re-roll (#300): _ready's episode came from the unseeded RNG. Jolt variance
+	# still dominates run-to-run (see the min_streak rationale above); this pins what CAN be.
+	_game.reset_episode()
 
 func _physics_process(_delta: float) -> void:
 	if _game == null or _agent == null:

@@ -17,6 +17,7 @@ func _ready() -> void:
 		_fail("missing game/agent")
 		return
 	_game.seed_rng(5)
+	_game.reset_episode()  # post-seed re-roll (#300): _ready rolled episode 1 unseeded
 
 func _physics_process(_delta: float) -> void:
 	if _game == null:

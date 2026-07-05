@@ -22,6 +22,11 @@ var _pool = OpponentPool.new()
 var _ghost: Node
 var _rng := RandomNumberGenerator.new()
 var _current := BASELINE
+# The ghost's scene-preconfigured model, remembered so a BASELINE pick can RESTORE it (#305):
+# without this, every BASELINE pick after a snapshot swap left the ghost playing the last
+# snapshot's weights while ELO recorded the match against __baseline__.
+var _baseline_param := ""
+var _baseline_bin := ""
 
 func _ready() -> void:
 	if not is_in_group("SELF_PLAY"):
@@ -32,6 +37,9 @@ func _ready() -> void:
 	if _ghost == null:
 		push_error("SelfPlayManager: ghost_agent_path not set/invalid.")
 		return
+	if "model_param_path" in _ghost and "model_bin_path" in _ghost:
+		_baseline_param = String(_ghost.model_param_path)
+		_baseline_bin = String(_ghost.model_bin_path)
 	_load_ledger()
 	if _pool.is_empty():
 		# Rated placeholder for the ghost's preconfigured (scene-set) model.
@@ -71,7 +79,20 @@ func current_opponent() -> String:
 func _assign_next_opponent() -> void:
 	var pick: String = _pool.pick_opponent(_rng, pick_mode)
 	if pick == "" or pick == BASELINE:
-		_current = BASELINE
+		# BASELINE means the ghost's SCENE model — restore it if a snapshot swap displaced it
+		# (#305). If the restore fails (or the ghost has no scene paths to restore), keep
+		# recording against the snapshot actually playing rather than misattributing to
+		# __baseline__ and corrupting both ratings.
+		if _current != BASELINE:
+			if _baseline_param != "" and _ghost.has_method("reload_model") \
+					and _ghost.reload_model(_baseline_param, _baseline_bin):
+				print("SelfPlay: ghost restored to its scene model (%s)" % BASELINE)
+				_current = BASELINE
+				opponent_changed.emit(BASELINE)
+			else:
+				push_error("SelfPlayManager: BASELINE picked but the scene model could not be restored; keeping '%s' so ELO stays truthful." % _current)
+		else:
+			_current = BASELINE
 		return
 	var param := pool_dir.path_join(pick + ".ncnn.param")
 	var bin := pool_dir.path_join(pick + ".ncnn.bin")

@@ -94,6 +94,17 @@ func load_ledger(json_text: String) -> bool:
 	if not (parsed is Dictionary) or not (parsed.get("members") is Dictionary):
 		push_error("OpponentPool: malformed ledger JSON.")
 		return false
-	_members = parsed["members"]
+	# Validate member entries too (#306): a hand-edited/partial ledger with a non-Dictionary
+	# member errors at PICK time under elo_proximity (script error mid-pick, opponent swapping
+	# bricked); a missing rating silently starves that member (proximity weight ~2e-16, never
+	# picked, never repaired). Same fail-loud posture as the outer-shape check above.
+	var members: Dictionary = parsed["members"]
+	for member_name in members:
+		var entry = members[member_name]
+		var rating = entry.get("rating") if entry is Dictionary else null
+		if not (rating is float or rating is int):
+			push_error("OpponentPool: malformed ledger member '%s' (%s) — rejecting the ledger." % [member_name, str(entry)])
+			return false
+	_members = members
 	_learner_rating = float(parsed.get("learner_rating", DEFAULT_RATING))
 	return true

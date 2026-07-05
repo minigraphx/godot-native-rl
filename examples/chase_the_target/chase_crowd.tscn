@@ -46,4 +46,4 @@ script = ExtResource("3")
 
 [node name="FitCamera2D" type="Camera2D" parent="."]
 script = ExtResource("fitcam2d")
-world_rect = Rect2(0, 0, 1000, 600)
+world_rect = Rect2(0, 0, 1200, 440)

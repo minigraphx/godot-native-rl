@@ -12,6 +12,9 @@ class StubGhost:
 	extends Node
 	var reloads: Array = []
 	var accept := true
+	# The scene-preconfigured model surface a real controller exposes (#305).
+	var model_param_path := "res://scene_model.ncnn.param"
+	var model_bin_path := "res://scene_model.ncnn.bin"
 	func reload_model(param: String, bin: String) -> bool:
 		reloads.append([param, bin])
 		return accept
@@ -79,5 +82,52 @@ func _initialize() -> void:
 	var cur := m2.current_opponent()
 	m2.report_match(true)  # tries to assign next; reload fails
 	h.assert_eq(m2.current_opponent(), cur, "failed reload keeps current opponent")
+	ghost2.accept = true
+
+	# --- #305: a BASELINE pick after a snapshot swap RESTORES the ghost's scene model ---
+	# Ledger with __baseline__ + one snapshot (the shipped train_selfplay flow persists exactly
+	# this after phase 1); force deterministic picks via "latest" then a direct baseline path.
+	_write_ledger({
+		"__baseline__": {"rating": 1200.0, "games": 1},
+		"gen1": {"rating": 1200.0, "games": 1},
+	}, 1200.0)
+	var ghost3 := StubGhost.new()
+	get_root().add_child(ghost3)
+	var m3 = Manager.new()
+	get_root().add_child(m3)
+	m3.set_ghost_for_test(ghost3)
+	m3.pool_dir = POOL_DIR
+	m3.pick_mode = "latest"  # deterministically picks gen1 (the newest non-baseline member)
+	m3._ready()
+	h.assert_eq(m3.current_opponent(), "gen1", "snapshot loaded first (latest pick)")
+	h.assert_true(String(ghost3.reloads[-1][0]).ends_with("gen1.ncnn.param"), "ghost holds the snapshot")
+	# Under seeded uniform picks, BASELINE comes up within a few assignments (deterministic
+	# under the seed). Pre-fix, that pick left the ghost on gen1's weights while _current
+	# claimed __baseline__.
+	m3.pick_mode = "uniform"
+	var restored := false
+	for _i in range(16):
+		m3._assign_next_opponent()
+		if m3.current_opponent() == "__baseline__":
+			restored = true
+			break
+	h.assert_true(restored, "#305: uniform picks reached BASELINE within 16 tries")
+	h.assert_eq(String(ghost3.reloads[-1][0]), "res://scene_model.ncnn.param",
+		"#305: BASELINE pick restored the ghost's scene-preconfigured model")
+	h.assert_eq(m3.current_opponent(), "__baseline__", "ELO attribution matches the restored model")
+
+	# --- #306: malformed ledger member entries are rejected loudly at load ---
+	var Pool = preload("res://addons/godot_native_rl/training/opponent_pool.gd")
+	var bad_pool = Pool.new()
+	h.assert_true(not bad_pool.load_ledger(JSON.stringify({
+		"members": {"gen1": 1200.0}, "learner_rating": 1200.0})),
+		"#306: non-Dictionary member value rejected (would script-error at pick time)")
+	h.assert_true(not bad_pool.load_ledger(JSON.stringify({
+		"members": {"gen1": {"games": 3}}, "learner_rating": 1200.0})),
+		"#306: member without a numeric rating rejected (would silently starve under elo_proximity)")
+	var good_pool = Pool.new()
+	h.assert_true(good_pool.load_ledger(JSON.stringify({
+		"members": {"gen1": {"rating": 1234, "games": 3}}, "learner_rating": 1200.0})),
+		"#306: int ratings (JSON round-trip) still accepted")
 
 	h.finish(self)
