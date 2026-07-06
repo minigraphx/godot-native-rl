@@ -173,7 +173,7 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   `optimizer=`; `training/cma_math.gd` — diagonal-covariance CMA-ES with self-adapting step size +
   per-coordinate variances, O(θ) per generation), turns each candidate into a live ncnn net in memory
   (`training/ncnn_weights.gd` θ⇄buffers codec — bijective, so `warm_start_*_path` fine-tunes a
-  shipped net on-device; since #328 pt 1 this includes **pnnx-exported PPO nets** — a structural
+  shipped net on-device; since #328 this includes **pnnx-exported PPO nets** — a structural
   adapter parses foreign MLP params (incl. fused `9=` activations, #340) + fp16-tagged bins,
   CI-proven by adopting the chase PPO net bit-for-bit at gen-1 fitness ~5; plain MLPs only —
   CNN policies refuse loud), fitness = episodic return from the existing reward system. Checkpoints
@@ -200,7 +200,14 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   same-arch fine-tuning has ~no headroom when the obs lack the features the shift demands (no
   target velocity → informed pursuit is already the representable optimum). Seeded chase evals:
   the checker re-rolls the first layout post-seed or the run is nondeterministic (game._ready
-  rolls it from the unseeded RNG).
+  rolls it from the unseeded RNG). **On unseedable-physics envs (#328 pt 2, closed):**
+  `quadruped_es_finetune{,_parallel}.tscn` warm-start the shipped PPO walker (adopted bit-for-bit
+  via the pnnx adapter) but Jolt has no CRN — measured limit: adequately budgeted (λ=32/k=3, 8
+  tiled worlds) ES **preserves** the physics warm-start (234–330 band, never collapses) but
+  **can't climb** it; an under-sized run (λ=8/k=2) collapsed 336→35, a budget artifact, not the
+  physics. Set `seed_games=false` (no `seed_rng` to hit) and `bless_margin>0` (the blessing test
+  compares noisy means, so a drifted gen can else displace the warm-start, #354). Improve physics
+  policies with the Python gradient backends; ES climbs only on kinematic/seedable envs.
   **Gotcha found here:** ncnn's from-memory load ALIASES the source buffer (`DataReaderFromMemory`
   zero-copy) — the runner reads from a private owned copy that outlives the net; never assume a
   from-memory load copied the weights. (And never SUBCLASS ncnn classes in the extension — iOS

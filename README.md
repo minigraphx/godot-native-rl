@@ -111,6 +111,14 @@ features the observations lack (no target velocity here → informed pursuit is 
 representable optimum) — details in the ES spec. The adapted net ships with a pipeline
 regression (`trained_es_drift_scene.tscn`).
 
+The adapter also adopts **pnnx-exported PPO nets** (`quadruped_es_finetune_parallel.tscn`
+warm-starts the shipped quadruped walker, bit-for-bit). The measured limit there is physical:
+**unseedable-physics envs have no common random numbers** (Jolt is cross-run nondeterministic),
+so — adequately budgeted (λ=32, k=3, 8 tiled worlds) — ES **preserves** the warm-start (never
+collapses) but **can't climb** it; an under-sized run collapses, a budget artifact rather than a
+physics law. To *improve* a physics policy use the gradient backends (PPO/SAC); in-engine ES is
+for kinematic/seedable envs. Corrected experiment + numbers in the ES spec.
+
 ## What you get
 - `NcnnRunner` C++ node: `load_model`, `run_inference`, `run_inference_image`,
   `run_discrete_action`, `run_inference_multi` (recurrent/LSTM state-carry), `run_inference_batch` (crowds).

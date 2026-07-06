@@ -81,6 +81,15 @@ signal episode_starting(slot: int, candidate_index: int, generation: int, episod
 @export var out_dir := "user://es_checkpoints"
 @export var checkpoint_stem := "es_policy"
 @export var checkpoint_every := 0  ## write <stem>_gen<N> every N generations (0 = final/best only)
+## Bless <stem>_best only when a generation's mean beats the incumbent best mean by MORE than this
+## margin (default 0 = bless on any improvement). The blessing test compares generation MEANS,
+## which carry the same eval noise as the ranking — on a no-CRN env (e.g. Jolt physics) a drifted
+## generation can luck into a noisy mean above the warm-start's and displace it with a genuinely
+## worse net (#354). A margin > 0 makes displacement harder than retention, so a warm-start
+## survives small noisy challengers; it does NOT eliminate the risk (a large enough noise spike
+## still passes) — for a hard guarantee, re-evaluate the incumbent on fresh episodes. Set it to a
+## few percent of your fitness scale on unseedable-physics fine-tunes.
+@export var bless_margin := 0.0
 ## Warm-start θ from a shipped net (both paths or neither). The .param file must match the
 ## architecture this scene builds ([obs_dim] + hidden_dims + [action_dim], activations) — the
 ## trainer compares it against its own generated param text and aborts on mismatch.
@@ -408,7 +417,9 @@ func _finish_generation() -> void:
 	generation_finished.emit(_generation, mean, best)
 	# Bless BEFORE the update: the measured mean belongs to the population around the CURRENT θ;
 	# the post-update θ has never been evaluated and may be worse (noisy ranks, big alpha step).
-	if mean > _best_mean:
+	# The margin (default 0) makes noisy displacement harder than retention on no-CRN envs (#354);
+	# gen 0 always blesses since _best_mean starts at -INF and any real mean beats -INF + margin.
+	if mean > _best_mean + bless_margin:
 		_best_mean = mean
 		_save_checkpoint("%s_best" % checkpoint_stem)
 	if _cma != null:

@@ -142,6 +142,13 @@ limit: adequately budgeted, ES **preserves** a physics warm-start but **doesn't 
 → no reliable improving direction). To actually improve a physics policy, use the gradient backends
 (PPO/SAC). For kinematic/seedable envs, ES climbs fine (see the chase benchmark above).
 
+> **Blessing caveat on no-CRN envs:** `*_best` is displaced whenever a generation's *measured
+> mean* beats the incumbent, and that comparison carries the same noise as the ranking — so under
+> heavy eval noise a drifted generation can luck into a high mean and overwrite the warm-start with
+> a worse net. The shipped physics scenes set `bless_margin` (require the challenger to beat the
+> best by a margin) to make that harder; it is not a hard guarantee. Set `seed_games = false` on a
+> knowingly-unseedable env to silence the CRN warning (the shipped quadruped ES scenes do).
+
 **What warm-start buys — measured honestly:** *time-to-competence*. In the shipped experiment
 the warm-started population outperformed 300 generations of identical from-scratch training **at
 generation 1** (replicated at two difficulty settings). **What it can't buy:** capability the

@@ -246,7 +246,7 @@ Single-world throttled the budget ~8×, which is what forced the tiny λ/k.
 |---|---|---|
 | gen-1 mean | 336 | 324 |
 | final mean | **35** (collapse) | **270** |
-| mean band over run | 336→35 monotone | **234–330** (bounded) |
+| mean band over run | 336→35 (noisy decline, rebounds ~103→~125 mid-run) | **234–330** (bounded) |
 | best candidate over run | — | **332–411** throughout |
 
 **Corrected verdict:** the catastrophic collapse was the **under-budget, not the physics**. With a
@@ -257,8 +257,15 @@ is within noise of the warm-start — CMA can hold the optimum but can't reliabl
 direction when the ranking is physics noise. So the honest physics result is milder and more useful
 than the original null: **unseeded-physics ES fine-tuning, adequately budgeted, preserves the
 warm-start but doesn't improve it; catastrophic divergence is an under-population artifact, not a
-law.** The safety property held throughout (blessing precedes each update — a failed fine-tune never
-ships worse than its warm start). To actually climb on physics, use the gradient backends (PPO/SAC),
-which don't rank candidates; for kinematic/seedable envs (chase, seek) ES climbs fine (#298). This
+law.** On the safety property: gen 0 **always** blesses the warm-start (`_best_mean` starts at
+−INF), and the warm-start is only ever displaced by a generation whose *measured mean* beats it —
+but that blessing test compares generation means, which carry the same eval noise as the ranking
+(#354). On a no-CRN env a drifted generation can luck into a noisy mean above the warm-start's and
+overwrite `*_best` with a worse net (this run's blessed net was the gen-11 mean 330 vs gen-1 324 —
+within noise). So "a failed fine-tune never ships worse than its warm start" is **not** an
+unconditional guarantee; the `bless_margin` export (set to 15 in the shipped scenes) makes noisy
+displacement harder than retention, but only re-evaluating the incumbent on fresh episodes would
+make it airtight. To actually climb on physics, use the gradient backends (PPO/SAC), which don't
+rank candidates; for kinematic/seedable envs (chase, seek) ES climbs fine (#298). This
 closes #328; the adapter is the durable deliverable, and the corrected experiment is a cleaner
 number than the first.
