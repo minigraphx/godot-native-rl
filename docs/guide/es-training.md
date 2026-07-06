@@ -131,11 +131,16 @@ covers chase, rover, fly_by, quadruped, hexapod and 3dball; CNN policies (visual
 refused loud by design.
 
 **Physics envs without CRN — measured limit (#328 pt 2):** the quadruped fine-tune experiment
-(`quadruped_es_finetune.tscn`) adopted the shipped PPO walker perfectly (gen-1 mean fitness 336)
-but sep-CMA-ES then drifted AWAY from the optimum (336 → 35 over 150 generations): Jolt can't be
-seeded, so candidate ranking is mostly physics noise at small populations. Blessing kept the
-warm-start θ bit-for-bit, so nothing was lost — but treat unseedable-physics fine-tuning as
-requiring much larger episode averaging, or don't.
+adopted the shipped PPO walker perfectly (gen-1 mean fitness ~330 on a real articulated-physics
+policy). Whether sep-CMA-ES can then improve it is limited by CRN: Jolt is cross-run
+nondeterministic, so candidate rankings carry physics noise. **Budget matters more than the
+physics here** — an under-sized first run (λ=8, k=2) collapsed 336→35 and looked catastrophic, but
+that was under-population (CMA's default λ for a 6600-param net is ~30, not 8); a properly-sized
+re-run (`quadruped_es_finetune_parallel.tscn`, 8 tiled worlds, λ=32, k=3) instead **holds** in a
+234–330 band with the population always carrying near-warm-start candidates (332–411). The honest
+limit: adequately budgeted, ES **preserves** a physics warm-start but **doesn't climb** it (no CRN
+→ no reliable improving direction). To actually improve a physics policy, use the gradient backends
+(PPO/SAC). For kinematic/seedable envs, ES climbs fine (see the chase benchmark above).
 
 **What warm-start buys — measured honestly:** *time-to-competence*. In the shipped experiment
 the warm-started population outperformed 300 generations of identical from-scratch training **at

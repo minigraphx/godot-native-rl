@@ -219,25 +219,46 @@ step size + per-coordinate variances. One paired run (indicative, not a statisti
 beyond run-to-run noise. The Evolution Lab demo now runs `cma_es` (faster visible learning in the
 browser); `chase_es_train_parallel.tscn` keeps `openai_es` so the committed net stays reproducible.
 
-## Quadruped warm-start fine-tune (2026-07-06, #328 pt 2 — measured NULL result)
+## Quadruped warm-start fine-tune (2026-07-06, #328 pt 2 — measured, then CORRECTED under self-review)
 
-The #328 pt 1 adapter made this a zero-code experiment: `quadruped_es_finetune.tscn` warm-starts
-the shipped pnnx PPO walker ([29,64,64,8] tanh, adopted bit-for-bit) and runs sep-CMA-ES
-single-world (Jolt multi-ragdoll gotcha), σ=0.03, λ=8 × 2 episodes, 300-decision horizon,
-`action_repeat=4` pinned to the training cadence. 150 generations, ~75 min.
+The #328 pt 1 adapter made this a zero-code experiment. Adoption works unambiguously: warm-starting
+the shipped pnnx PPO walker ([29,64,64,8] tanh, 6600 params, adopted bit-for-bit) scores gen-1 mean
+fitness ~330 — a real articulated-physics policy running under the in-engine trainer. The question
+was whether sep-CMA-ES can then *fine-tune* it with no common random numbers (Jolt is cross-run
+nondeterministic and the game has no `seed_rng()`, so CRN is unavailable — see #298 for why that
+matters to a rank-based optimizer).
 
-| gen | 1 | 10 | 20 | 40 | 60–100 | 150 |
-|---|---|---|---|---|---|---|
-| mean fitness | **336** | 224 | 174 | 103 | ~117–133 | 35 |
+**First run (`quadruped_es_finetune.tscn`, WRONG conclusion):** single-world, σ=0.03, **λ=8 × k=2**,
+150 gens. Fitness collapsed **336 → 35**, and I wrote it up as "unseeded-physics fine-tuning does
+not work." **A self-review (code-review skill, adversarially verified) found that conclusion
+over-attributed to physics.** Three avoidable confounds were un-owned: (1) **λ=8 is ~4× below the
+CMA-ES default** λ = 4+⌊3·ln(n)⌋ = **30** for n=6600 — under-population alone can diverge CMA; (2)
+k=2 gives high per-candidate variance; (3) the "single-world (Jolt multi-ragdoll gotcha)" rationale
+was **factually wrong** — the shipped PPO nets train on **8 tiled quadruped ragdolls in one Jolt
+space** (`quadruped_walk_train_parallel.tscn`, the default in `train_quadruped.sh`); the gotcha is
+about creatures *racing side-by-side in close quarters*, not spatially-separated tiled training.
+Single-world throttled the budget ~8×, which is what forced the tiny λ/k.
 
-**Verdict: adoption works, unseeded-physics fine-tuning does not (at this budget).** The gen-1
-mean (336) proves the adapter + warm-start end-to-end on a real articulated-physics policy. But
-the quadruped game has no `seed_rng()` (Jolt is cross-run nondeterministic regardless), so
-common random numbers are impossible — between-candidate ranking is mostly spawn/contact noise
-at λ=8/k=2, and CMA follows that noise AWAY from the PPO optimum monotonically. The safety
-property held exactly: blessing fires before the first update, so `quad_es_best` is the adopted
-PPO θ **bit-for-bit** (verified, worst |diff| 0.0 over all 6600 floats) — a failed fine-tune can
-never ship worse than its warm start. If anyone retries: k ≥ 5 episodes/candidate and a larger
-λ (wall-clock ×5–10), or make the env seedable/kinematic — the chase experiments (#298) show
-the method works when CRN holds. This closes #328: the adapter is the durable deliverable; the
-experiment's answer is a number, not a feature.
+**Corrected run (`quadruped_es_finetune_parallel.tscn`):** 8 tiled Jolt worlds (no ragdoll collapse
+— ESTrainer parallel waves handle it exactly as PPO does), **λ=32 × k=3**, 100 gens.
+
+| | first run (λ=8,k=2, 1 world) | corrected (λ=32,k=3, 8 worlds) |
+|---|---|---|
+| gen-1 mean | 336 | 324 |
+| final mean | **35** (collapse) | **270** |
+| mean band over run | 336→35 monotone | **234–330** (bounded) |
+| best candidate over run | — | **332–411** throughout |
+
+**Corrected verdict:** the catastrophic collapse was the **under-budget, not the physics**. With a
+properly-sized population the mean stays within ~30% of the warm-start and the population always
+holds near-warm-start-quality candidates (332–411) — it does **not** fall off a cliff. What the
+no-CRN limit *does* cost is the ability to *climb*: the blessed net (gen-11 mean 330 vs gen-1 324)
+is within noise of the warm-start — CMA can hold the optimum but can't reliably find an improving
+direction when the ranking is physics noise. So the honest physics result is milder and more useful
+than the original null: **unseeded-physics ES fine-tuning, adequately budgeted, preserves the
+warm-start but doesn't improve it; catastrophic divergence is an under-population artifact, not a
+law.** The safety property held throughout (blessing precedes each update — a failed fine-tune never
+ships worse than its warm start). To actually climb on physics, use the gradient backends (PPO/SAC),
+which don't rank candidates; for kinematic/seedable envs (chase, seek) ES climbs fine (#298). This
+closes #328; the adapter is the durable deliverable, and the corrected experiment is a cleaner
+number than the first.
