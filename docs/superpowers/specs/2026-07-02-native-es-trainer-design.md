@@ -218,3 +218,26 @@ climb to the baseline's endpoint and ~3× less budget to the shipped-net level, 
 step size + per-coordinate variances. One paired run (indicative, not a statistics claim), but far
 beyond run-to-run noise. The Evolution Lab demo now runs `cma_es` (faster visible learning in the
 browser); `chase_es_train_parallel.tscn` keeps `openai_es` so the committed net stays reproducible.
+
+## Quadruped warm-start fine-tune (2026-07-06, #328 pt 2 — measured NULL result)
+
+The #328 pt 1 adapter made this a zero-code experiment: `quadruped_es_finetune.tscn` warm-starts
+the shipped pnnx PPO walker ([29,64,64,8] tanh, adopted bit-for-bit) and runs sep-CMA-ES
+single-world (Jolt multi-ragdoll gotcha), σ=0.03, λ=8 × 2 episodes, 300-decision horizon,
+`action_repeat=4` pinned to the training cadence. 150 generations, ~75 min.
+
+| gen | 1 | 10 | 20 | 40 | 60–100 | 150 |
+|---|---|---|---|---|---|---|
+| mean fitness | **336** | 224 | 174 | 103 | ~117–133 | 35 |
+
+**Verdict: adoption works, unseeded-physics fine-tuning does not (at this budget).** The gen-1
+mean (336) proves the adapter + warm-start end-to-end on a real articulated-physics policy. But
+the quadruped game has no `seed_rng()` (Jolt is cross-run nondeterministic regardless), so
+common random numbers are impossible — between-candidate ranking is mostly spawn/contact noise
+at λ=8/k=2, and CMA follows that noise AWAY from the PPO optimum monotonically. The safety
+property held exactly: blessing fires before the first update, so `quad_es_best` is the adopted
+PPO θ **bit-for-bit** (verified, worst |diff| 0.0 over all 6600 floats) — a failed fine-tune can
+never ship worse than its warm start. If anyone retries: k ≥ 5 episodes/candidate and a larger
+λ (wall-clock ×5–10), or make the env seedable/kinematic — the chase experiments (#298) show
+the method works when CRN holds. This closes #328: the adapter is the durable deliverable; the
+experiment's answer is a number, not a feature.

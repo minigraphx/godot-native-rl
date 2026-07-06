@@ -130,6 +130,13 @@ Scope: plain MLP actors — standalone OR fused (`9=`) activations both parse (#
 covers chase, rover, fly_by, quadruped, hexapod and 3dball; CNN policies (visual_chase) are
 refused loud by design.
 
+**Physics envs without CRN — measured limit (#328 pt 2):** the quadruped fine-tune experiment
+(`quadruped_es_finetune.tscn`) adopted the shipped PPO walker perfectly (gen-1 mean fitness 336)
+but sep-CMA-ES then drifted AWAY from the optimum (336 → 35 over 150 generations): Jolt can't be
+seeded, so candidate ranking is mostly physics noise at small populations. Blessing kept the
+warm-start θ bit-for-bit, so nothing was lost — but treat unseedable-physics fine-tuning as
+requiring much larger episode averaging, or don't.
+
 **What warm-start buys — measured honestly:** *time-to-competence*. In the shipped experiment
 the warm-started population outperformed 300 generations of identical from-scratch training **at
 generation 1** (replicated at two difficulty settings). **What it can't buy:** capability the
