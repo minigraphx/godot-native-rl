@@ -1,0 +1,27 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://examples/quadruped_walk/quadruped_world.tscn" id="1"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/training/es_trainer.gd" id="2"]
+
+[node name="QuadrupedESFinetune" type="Node3D"]
+
+[node name="World" parent="." instance=ExtResource("1")]
+
+[node name="ESTrainer" type="Node" parent="."]
+script = ExtResource("2")
+hidden_dims = [64, 64]
+hidden_activation = "tanh"
+optimizer = "cma_es"
+half_population = 4
+sigma = 0.03
+generations = 150
+episode_decisions = 300
+episodes_per_candidate = 2
+action_repeat = 4
+speed_up = 15.0
+warm_start_param_path = "res://examples/quadruped_walk/models/quadruped_walk.ncnn.param"
+warm_start_bin_path = "res://examples/quadruped_walk/models/quadruped_walk.ncnn.bin"
+out_dir = "user://es_checkpoints/quadruped_finetune"
+checkpoint_stem = "quad_es"
+checkpoint_every = 10
+exit_on_finish = true
