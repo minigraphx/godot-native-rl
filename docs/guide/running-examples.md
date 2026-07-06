@@ -64,6 +64,19 @@ not the standalone demo.
 For parallel training (8 agents tiled in one process for ~6× faster training), see
 [training.md](training.md).
 
+## Seek the Target (2D — the RelativePositionSensor2D worked example)
+
+Reach a goal while dodging a patrolling hazard, where the agent's **entire observation is one
+drop-in `RelativePositionSensor2D`** (goal + hazard slots → 6 floats; unit direction + distance
+per target, zero hand-coded obs). The shipped net is the **first example trained entirely
+in-engine** — no Python, no export step — by `ESTrainer` with sep-CMA-ES (`seek_es_train_parallel.tscn`);
+the checkpoint is the deploy artifact. See [Training in-engine (ES)](es-training.md).
+
+```bash
+godot --path . res://examples/seek_target/seek_target.tscn
+godot --headless --path . --quit-after 300 res://examples/seek_target/seek_target.tscn
+```
+
 ## Hide & Seek (2D self-play)
 
 A 2D 1v1 self-play example (parameter sharing): a seeker vs a hider trained by one shared PPO

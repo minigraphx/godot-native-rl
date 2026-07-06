@@ -31,6 +31,27 @@ agent's `get_obs()` and concatenate with your other features.
 - **`RelativePositionSensor3D`** (`sensors/relative_position_sensor_3d.gd`) — the 3D form over
   `objects_to_observe` (`Array[Node3D]`), direction in the sensor's local frame (forward = −Z), with
   `include_x`/`include_y`/`include_z` toggles and the same two modes + `max_distance` clipping.
+  > **Hand-authoring in a `.tscn`?** An exported typed *node* array (`objects_to_observe`) does
+  > **not** resolve at runtime instantiation ("Unable to convert array index 0 from NodePath to
+  > Object" — a Godot gotcha). Both `RelativePositionSensor2D/3D` (and `EntitySensor2D/3D`) also
+  > expose **`object_paths: Array[NodePath]`**, resolved once in `_ready` and appended to
+  > `objects_to_observe`. Use it in hand-written scenes. An unresolved path **reserves a
+  > zero-filled slot** (the declared obs width never shrinks) and logs a loud error, so a typo can
+  > never silently change the policy's input dimension (#329).
+- **`EntitySensor2D`** (`sensors/entity_sensor_2d.gd`) — **variable-length** entity observations for
+  the attention encoder (#46): the nearest up-to-`max_entities` entities encoded as a **fixed-width**
+  flat block `[N*F entity features (zero-padded)] + [N presence flags]`, so a variable entity count
+  rides in the flags rather than the vector length. Entities are the union of `objects_to_observe`
+  (or `object_paths`) and any nodes in `group_name`. Each entity contributes the same egocentric
+  relative-position features as `RelativePositionSensor` (mode/`include_*`/`max_distance` apply)
+  optionally followed by `extra_feature_count` custom scalars from a duck-typed
+  `get_entity_features()` on the entity node. **`scope_root`** (a `NodePath`) confines `group_name`
+  membership to that subtree — set it to the sensor's own world root so **ParallelArena-tiled**
+  training doesn't leak every world's entities into every sensor (scene-tree groups are global; #336).
+  The seek/sorter examples are worked demos.
+- **`EntitySensor3D`** (`sensors/entity_sensor_3d.gd`) — the 3D form over `Array[Node3D]` entities,
+  same block layout, flags, `group_name`/`scope_root`/`object_paths`, and `get_entity_features()`
+  hook.
 - **`CameraSensor`** (`sensors/camera_sensor.gd`) — image observations from a `SubViewport`
   (`godot_rl` issue #78). Dimension-agnostic: point it at a `SubViewport` holding a `Camera2D` or
   `Camera3D`. Unlike the float sensors above, it returns a **hex-encoded `String`** of raw `uint8`
@@ -83,7 +104,8 @@ navigation map.
 This encoding matches `godot_rl`'s raycast convention, so ported environments behave the same —
 and the observations feed `NcnnRunner` for zero-runtime deployment on mobile/web/console.
 
-All flat-float sensors (`RaycastSensor2D/3D`, `RelativePositionSensor2D/3D`, `GridSensor2D/3D`)
+All flat-float sensors (`RaycastSensor2D/3D`, `RelativePositionSensor2D/3D`, `EntitySensor2D/3D`,
+`GridSensor2D/3D`)
 extend `ISensor2D` / `ISensor3D` and expose `get_observation() -> Array` + `obs_size() -> int`. An
 agent can let the controller gather them automatically instead of concatenating by hand:
 
