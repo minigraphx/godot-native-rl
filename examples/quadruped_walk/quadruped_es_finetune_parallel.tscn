@@ -1,0 +1,32 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://addons/godot_native_rl/training/parallel_arena.gd" id="1"]
+[ext_resource type="PackedScene" path="res://examples/quadruped_walk/quadruped_world.tscn" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/training/es_trainer.gd" id="3"]
+
+[node name="QuadrupedESFinetuneParallel" type="Node3D"]
+
+[node name="ParallelArena" type="Node3D" parent="."]
+script = ExtResource("1")
+world_scene = ExtResource("2")
+count = 8
+spacing = 200.0
+
+[node name="ESTrainer" type="Node" parent="."]
+script = ExtResource("3")
+hidden_dims = [64, 64]
+hidden_activation = "tanh"
+optimizer = "cma_es"
+half_population = 16
+sigma = 0.03
+generations = 100
+episode_decisions = 300
+episodes_per_candidate = 3
+action_repeat = 4
+speed_up = 15.0
+warm_start_param_path = "res://examples/quadruped_walk/models/quadruped_walk.ncnn.param"
+warm_start_bin_path = "res://examples/quadruped_walk/models/quadruped_walk.ncnn.bin"
+out_dir = "user://es_checkpoints/quadruped_finetune_parallel"
+checkpoint_stem = "quad_es_par"
+checkpoint_every = 10
+exit_on_finish = true
