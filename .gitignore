@@ -75,3 +75,5 @@ models/coop_mapoca.pt.shape.json
 
 # Large regenerable BC demos (#260) — regenerate via examples/sorter/record_sorter_demos.tscn
 examples/sorter/demos/*.json
+/user_recipes/
+models/chase_reward_designed.json

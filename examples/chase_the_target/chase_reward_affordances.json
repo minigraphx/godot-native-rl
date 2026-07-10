@@ -1,0 +1,9 @@
+{
+	"value_functions": {
+		"distance": "current agent->target distance (px)",
+		"max_distance": "arena diagonal length, a normalizer"
+	},
+	"signals": {
+		"target_caught": "fires when the agent touches the target and it relocates"
+	}
+}

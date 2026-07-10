@@ -295,6 +295,20 @@ godot_rl v0.8.2-compatible. **Architecture + data flow + deploy contract:
   `ACTION_REPEAT`/`BASE_PORT`/`STORAGE` (e.g. `sqlite:///optuna.db` to persist/resume)`/STUDY_NAME`.
   Pure helpers (HP space, minibatch-divisibility fix, `ep_rew_mean` extraction) unit-tested in
   `test/python/test_tune_optuna.py`.
+- **Design rewards with an LLM (Eureka-style, #62):** `.venv-train/bin/python scripts/design_reward_llm.py
+  --provider anthropic|openrouter|ollama --model <m>` — an outer search where an LLM proposes
+  declarative reward **recipes** (JSON over the shipped `RewardBuilder` vocabulary; NO code
+  execution) and each candidate is scored by a **fixed task metric** (Eureka's key idea — never
+  optimize the reward you search over). Same outer-loop shape as the Optuna tuner (one headless
+  training run per candidate on `base_port + i`), sampler swapped Optuna→LLM. Recipes are
+  interpreted game-side by `addons/godot_native_rl/reward/reward_recipe.gd`, validated against the
+  game's `get_reward_affordances()` manifest so an LLM can't reference a hook that doesn't exist;
+  `ChaseAgent` builds from a recipe when `reward_recipe_path`/`reward_recipe=` is set (empty =
+  shipped reward). Pure core `scripts/reward_design.py` (recipe validation, the three provider
+  adapters behind one HTTP-seam interface, prompt/reflection, evolution, fitness) is stdlib +
+  unit-tested with no network/venv (`test/python/test_reward_design.py`); the game-side dogfood
+  (`test/unit/test_reward_recipe.gd`) proves the committed chase recipe reproduces `ChaseAgent`'s
+  reward exactly. v1 = chase only; the live loop needs `.venv-train` + an API key (or local Ollama).
 - **Throughput check:** `./scripts/throughput_compare.sh` — short fresh runs of the parallel vs
   single-agent scene into temp dirs (never touches `models/`); prints samples/sec + speedup **plus a
   per-step phase breakdown** (`collect_obs` / `serialize_send` / `await_action`) so you can see whether

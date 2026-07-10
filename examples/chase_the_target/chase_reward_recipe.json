@@ -1,0 +1,7 @@
+{
+	"terms": [
+		{"type": "progress_shaping", "value_fn": "distance", "scale_fn": "max_distance", "rebase_on": ["target_caught"]},
+		{"type": "event_bonus", "signal": "target_caught", "amount": 1.0},
+		{"type": "step_penalty", "amount": 0.001}
+	]
+}

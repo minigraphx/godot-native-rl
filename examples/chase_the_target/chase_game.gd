@@ -87,6 +87,20 @@ func apply_curriculum(params: Dictionary) -> void:
 	if params.has("arena_size_y"):
 		arena_size.y = float(params["arena_size_y"])
 
+# Reward-affordance manifest (#62): the value-functions + signals a declarative reward RECIPE may
+# reference (the LLM's strict vocabulary; RewardRecipe validates every recipe against this). Kept
+# in sync with examples/chase_the_target/chase_reward_affordances.json by a unit test.
+func get_reward_affordances() -> Dictionary:
+	return {
+		"value_functions": {
+			"distance": "current agent->target distance (px)",
+			"max_distance": "arena diagonal length, a normalizer",
+		},
+		"signals": {
+			"target_caught": "fires when the agent touches the target and it relocates",
+		},
+	}
+
 # --- Lightweight visualizer ---
 # The agent/target are bare Node2Ds (no sprites), so the scene renders nothing on its own. This
 # draws the arena, the target, and the agent so the deploy scene is watchable (e.g. the web export

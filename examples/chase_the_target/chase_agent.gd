@@ -6,12 +6,17 @@ extends "res://addons/godot_native_rl/controllers/ncnn_ai_controller_2d.gd"
 const ACTION_KEY := "move"
 const ACTION_COUNT := 5
 const RewardBuilderScript = preload("res://addons/godot_native_rl/reward/reward_builder.gd")
+const RewardRecipe = preload("res://addons/godot_native_rl/reward/reward_recipe.gd")
 const ChaseObs = preload("res://examples/chase_the_target/chase_obs.gd")
 # RewardAdapterScript is inherited from NcnnAIController2D — do not redeclare.
 
 @export var game_path: NodePath
 @export var step_penalty := 0.001
 @export var touch_bonus := 1.0
+## LLM-reward-design search hook (#62): if set, the reward is built from this JSON recipe (validated
+## against the game's affordance manifest) instead of the hand-coded builder below. Empty (default)
+## keeps the shipped reward exactly — the search launcher sets it per candidate.
+@export var reward_recipe_path := ""
 
 var _game  # ChaseGame (typed at runtime via duck-typing to avoid class_name scope issues)
 var _action_index := 0
@@ -27,14 +32,34 @@ func _ready() -> void:
 	if _game == null:
 		push_warning("ChaseAgent: game_path is not set or invalid — agent will produce null observations.")
 		return
-	reward_source = RewardBuilderScript.new() \
-		.add_progress_shaping(_game.distance, _game.max_distance, ["target_caught"]) \
-		.add_event_bonus("target_caught", touch_bonus) \
-		.add_step_penalty(step_penalty) \
-		.build()
 	var adapter := RewardAdapterScript.new()
 	add_child(adapter)
-	adapter.on_signal_event(_game, "target_caught", "target_caught")
+	# The #62 search launcher injects a per-candidate recipe via `reward_recipe=<path>` on the
+	# cmdline (forwarded through GODOT_EXTRA_ARGS) when the export isn't scene-set.
+	if reward_recipe_path == "":
+		for arg in OS.get_cmdline_args():
+			if arg.begins_with("reward_recipe="):
+				reward_recipe_path = arg.split("=", true, 1)[1]
+				break
+	if reward_recipe_path != "":
+		# Recipe-driven reward (#62 search): build from the JSON recipe, validated against the
+		# game's manifest; a bad/unknown-hook recipe fails loud and falls back to the shipped reward
+		# so a training run never silently optimizes nothing.
+		var recipe: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(reward_recipe_path))
+		var built: Dictionary = RewardRecipe.build(_game, recipe, _game.get_reward_affordances())
+		if not built.is_empty():
+			reward_source = built["reward"]
+			for wiring in built["signal_events"]:
+				adapter.on_signal_event(wiring[0], wiring[1], wiring[2])
+		else:
+			push_error("ChaseAgent: reward_recipe_path '%s' invalid — using the shipped reward." % reward_recipe_path)
+	if reward_source == null:
+		reward_source = RewardBuilderScript.new() \
+			.add_progress_shaping(_game.distance, _game.max_distance, ["target_caught"]) \
+			.add_event_bonus("target_caught", touch_bonus) \
+			.add_step_penalty(step_penalty) \
+			.build()
+		adapter.on_signal_event(_game, "target_caught", "target_caught")
 	_curriculum = get_tree().get_first_node_in_group("CURRICULUM")
 	if _curriculum != null:
 		_game.target_caught.connect(func() -> void: _episode_catches += 1)

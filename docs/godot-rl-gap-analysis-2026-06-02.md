@@ -39,7 +39,12 @@ reward so the policy imitates with zero env reward. Pure helpers + torch-guarded
 guarded CleanRL+GAIL CI smoke. Shipped as a training *method* (like RND/#27 — no committed deploy net):
 pure GAIL on the small chase demo set learns to chase but is sample-inefficient (4 catches in a 300k
 run, not yet robust). AMP — adversarial *reference-motion* priors — is the deferred half; it needs
-motion-clip data this repo doesn't record. #62 Eureka (LLM reward design) is the last batch item.)
+motion-clip data this repo doesn't record. #62 Eureka (LLM reward design) v1 shipped
+(`scripts/design_reward_llm.py`): an LLM proposes declarative reward RECIPES over the shipped
+RewardBuilder vocabulary (no code exec; game-side `reward_recipe.gd` validates against a
+per-game affordance manifest), scored by a fixed task metric, reusing the Optuna-tuner outer loop.
+Provider adapters for OpenRouter / local Ollama / Anthropic; chase-only v1; pure core + the
+recipe-reproduces-the-shipped-reward dogfood are CI-tested, the live loop needs `.venv-train`+key.)
 (2026-06-13 refresh: #60 M4 the generation race shipped — `quadruped_race.tscn` runs the committed
 500k/2.5M/6M training generations as a SEQUENTIAL race (one creature, model-swapped between runs in
 clean solo physics) onto a leaderboard. The learning arc: 500k ~12 m, 2.5M ~21 m, 6M ~26 m —
