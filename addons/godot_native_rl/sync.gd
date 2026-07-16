@@ -23,14 +23,24 @@ func build_env_info_message() -> Dictionary:
 		"agent_policy_names": PolicyNames.policy_names_from_agents(agents_training, multi_policy),
 	}
 
-func build_step_message(obs: Array, reward: Array, done: Array, truncated: Array, info: Array) -> Dictionary:
+func build_step_message(obs: Array, reward: Array, done: Array, truncated: Array, info: Array, action_mask: Array = []) -> Dictionary:
 	# `truncated` is ADDITIVE (#12): stock godot_rl 0.8.2 reads only obs/reward/done/info and
 	# ignores unknown keys, so `done` keeps meaning terminated-OR-truncated on the old wire while
 	# truncation-aware trainers (our PettingZoo/RLlib adapters) get the real Gymnasium split.
-	return {"type": "step", "obs": obs, "reward": reward, "done": done, "truncated": truncated, "info": info}
+	# `action_mask` is ADDITIVE too (#385): emitted only when >=1 training agent implements
+	# get_action_mask(), so the wire is byte-identical for every existing scene (unknown keys ignored).
+	var msg := {"type": "step", "obs": obs, "reward": reward, "done": done, "truncated": truncated, "info": info}
+	if not action_mask.is_empty():
+		msg["action_mask"] = action_mask
+	return msg
 
-func build_reset_message(obs: Array) -> Dictionary:
-	return {"type": "reset", "obs": obs}
+func build_reset_message(obs: Array, action_mask: Array = []) -> Dictionary:
+	# `action_mask` is ADDITIVE (#385): MaskablePPO needs a mask for the first obs after reset;
+	# key omitted when empty so the wire stays byte-identical for non-masking scenes.
+	var msg := {"type": "reset", "obs": obs}
+	if not action_mask.is_empty():
+		msg["action_mask"] = action_mask
+	return msg
 
 # Mirrors godot_rl_agents' `_extract_action_dict` verbatim (incl. `index += size`
 # for discrete). Used only by the ncnn inference path (added in Part 2). The exact
@@ -93,6 +103,9 @@ var args = null
 var initialized := false
 var just_reset := false
 var n_action_steps := 0
+# Cached in _get_agents() (#385): true iff >=1 training agent implements get_action_mask(). When
+# false, the step/reset messages pass [] so the action_mask key is omitted (byte-identical wire).
+var _any_masking := false
 # Opt-in step-phase profiler (cmdline `profile=true`); null = disabled (zero overhead).
 var _profiler = null
 var _profile_interval := 1000
@@ -232,7 +245,10 @@ func _training_process() -> void:
 	if just_reset:
 		just_reset = false
 		var obs := _get_obs_from_agents(agents_training)
-		_send_dict_as_json_message(build_reset_message(obs))
+		# #385: MaskablePPO needs a mask for the first obs after reset. Collected at the same point
+		# as obs; [] when no agent masks so the key is omitted (byte-identical wire).
+		var mask_arr := _get_action_masks_from_agents() if _any_masking else []
+		_send_dict_as_json_message(build_reset_message(obs, mask_arr))
 		get_tree().set_pause(false)
 		return
 	var t_phase_start := Time.get_ticks_usec()
@@ -244,8 +260,11 @@ func _training_process() -> void:
 		var done_arr := _get_done_from_agents()
 		var obs := _get_obs_from_agents(agents_training)
 		var info_arr := _get_info_from_agents()
+		# #385: collect masks at the SAME point as obs (post done-clear/auto-reset) for #379-class
+		# same-frame coherence; [] when no agent masks so the action_mask key is omitted.
+		var mask_arr := _get_action_masks_from_agents() if _any_masking else []
 		var t_obs_done := Time.get_ticks_usec()
-		_send_dict_as_json_message(build_step_message(obs, reward_arr, done_arr, truncated_arr, info_arr))
+		_send_dict_as_json_message(build_step_message(obs, reward_arr, done_arr, truncated_arr, info_arr, mask_arr))
 		step_sent.emit(reward_arr, done_arr)
 		var t_sent := Time.get_ticks_usec()
 		did_send = true
@@ -286,6 +305,8 @@ func _get_agents() -> void:
 			agents_inference.append(agent)
 		elif agent.control_mode == agent.ControlModes.HUMAN:
 			agents_heuristic.append(agent)
+	# Cache once (#385): only pay the has_method scan per scene, not per step.
+	_any_masking = agents_training.any(func(a): return a.has_method("get_action_mask"))
 
 func _set_heuristic(h, agents: Array) -> void:
 	for agent in agents:
@@ -446,6 +467,14 @@ func _get_info_from_agents() -> Array:
 	for agent in agents_training:
 		infos.append(agent.get_info())
 	return infos
+
+# additive per-agent action mask collection (#385), mirrors _get_info_from_agents. Duck-typed so
+# any scene whose agents predate action masking simply reports {} (and _any_masking omits the key).
+func _get_action_masks_from_agents() -> Array:
+	var masks := []
+	for agent in agents_training:
+		masks.append(agent.get_action_mask() if agent.has_method("get_action_mask") else {})
+	return masks
 
 func _set_agent_actions(actions, agents: Array) -> void:
 	for i in range(actions.size()):
