@@ -27,8 +27,8 @@ func build_step_message(obs: Array, reward: Array, done: Array, truncated: Array
 	# `truncated` is ADDITIVE (#12): stock godot_rl 0.8.2 reads only obs/reward/done/info and
 	# ignores unknown keys, so `done` keeps meaning terminated-OR-truncated on the old wire while
 	# truncation-aware trainers (our PettingZoo/RLlib adapters) get the real Gymnasium split.
-	# `action_mask` is ADDITIVE too (#385): emitted only when >=1 training agent implements
-	# get_action_mask(), so the wire is byte-identical for every existing scene (unknown keys ignored).
+	# `action_mask` is ADDITIVE too (#385): emitted only when >=1 training agent returns a non-empty
+	# mask, so the wire is byte-identical for every non-masking scene (unknown keys ignored).
 	var msg := {"type": "step", "obs": obs, "reward": reward, "done": done, "truncated": truncated, "info": info}
 	if not action_mask.is_empty():
 		msg["action_mask"] = action_mask
