@@ -1,6 +1,8 @@
 class_name InferenceMath
 extends RefCounted
 
+const MASKED_LOGIT := -6.0e4  # fp16-safe (min fp16 ~= -6.55e4); matches the attention-encoder mask sentinel
+
 # Pure helpers for the deploy-side inference path. argmax mirrors the C++
 # run_discrete_action selection: first index wins on ties; empty input -> -1
 # (the error sentinel) so callers handle the image and float paths uniformly.
@@ -55,3 +57,25 @@ static func sample_categorical(probs: PackedFloat32Array, u: float) -> int:
 		if u < cumulative:
 			return i
 	return probs.size() - 1
+
+# #385: return a copy of `logits` with masked (mask[i]==0) slots set to MASKED_LOGIT, so argmax
+# can never select them and softmax gives them sampling probability exactly 0 (exp underflows).
+# Fails loud but never bricks inference: a size mismatch or an all-masked row returns the logits
+# UNMASKED (the caller degrades to ordinary argmax) — Unity contractually requires >=1 valid action.
+static func apply_action_mask(logits: PackedFloat32Array, mask: Array) -> PackedFloat32Array:
+	if mask.size() != logits.size():
+		push_error("apply_action_mask: mask size %d != logits size %d; ignoring mask." % [mask.size(), logits.size()])
+		return logits
+	var any_valid := false
+	for v in mask:
+		if int(v) != 0:
+			any_valid = true
+			break
+	if not any_valid:
+		push_error("apply_action_mask: all actions masked; ignoring mask (falling back to unmasked argmax).")
+		return logits
+	var out := logits.duplicate()
+	for i in range(out.size()):
+		if int(mask[i]) == 0:
+			out[i] = MASKED_LOGIT
+	return out

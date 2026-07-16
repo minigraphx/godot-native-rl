@@ -41,4 +41,19 @@ func _initialize() -> void:
 	h.assert_eq(InferenceMath.sample_categorical(PackedFloat32Array(), 0.5), -1, "empty -> -1")
 	h.assert_eq(InferenceMath.sample_categorical(p, -0.5), 0, "u<0 -> first bucket")
 
+	# apply_action_mask (#385): masked slots -> -6e4 sentinel; fresh array; edge fallbacks
+	var m := InferenceMath.apply_action_mask(PackedFloat32Array([1.0, 2.0, 3.0, 4.0, 5.0]), [1, 0, 1, 0, 1])
+	h.assert_eq(m[0], 1.0, "unmasked slot 0 preserved")
+	h.assert_true(m[1] <= -6.0e4, "masked slot 1 -> sentinel")
+	h.assert_eq(m[2], 3.0, "unmasked slot 2 preserved")
+	h.assert_true(m[3] <= -6.0e4, "masked slot 3 -> sentinel")
+	# argmax over the masked logits never returns a masked index
+	h.assert_eq(InferenceMath.argmax(m), 4, "argmax skips masked slots")
+	# size mismatch -> unmasked passthrough (loud)
+	var mm := InferenceMath.apply_action_mask(PackedFloat32Array([1.0, 2.0]), [1, 0, 1])
+	h.assert_eq(mm[1], 2.0, "size-mismatch returns logits unmasked")
+	# all-masked -> unmasked passthrough (loud), argmax still well-defined
+	var am := InferenceMath.apply_action_mask(PackedFloat32Array([1.0, 9.0]), [0, 0])
+	h.assert_eq(InferenceMath.argmax(am), 1, "all-masked falls back to unmasked argmax")
+
 	h.finish(self)
