@@ -103,9 +103,6 @@ var args = null
 var initialized := false
 var just_reset := false
 var n_action_steps := 0
-# Cached in _get_agents() (#385): true iff >=1 training agent implements get_action_mask(). When
-# false, the step/reset messages pass [] so the action_mask key is omitted (byte-identical wire).
-var _any_masking := false
 # Opt-in step-phase profiler (cmdline `profile=true`); null = disabled (zero overhead).
 var _profiler = null
 var _profile_interval := 1000
@@ -246,8 +243,8 @@ func _training_process() -> void:
 		just_reset = false
 		var obs := _get_obs_from_agents(agents_training)
 		# #385: MaskablePPO needs a mask for the first obs after reset. Collected at the same point
-		# as obs; [] when no agent masks so the key is omitted (byte-identical wire).
-		var mask_arr := _get_action_masks_from_agents() if _any_masking else []
+		# as obs; [] when no agent supplies a mask so the key is omitted (byte-identical wire).
+		var mask_arr := _action_masks_for_wire()
 		_send_dict_as_json_message(build_reset_message(obs, mask_arr))
 		get_tree().set_pause(false)
 		return
@@ -261,8 +258,8 @@ func _training_process() -> void:
 		var obs := _get_obs_from_agents(agents_training)
 		var info_arr := _get_info_from_agents()
 		# #385: collect masks at the SAME point as obs (post done-clear/auto-reset) for #379-class
-		# same-frame coherence; [] when no agent masks so the action_mask key is omitted.
-		var mask_arr := _get_action_masks_from_agents() if _any_masking else []
+		# same-frame coherence; [] when no agent supplies a mask so the action_mask key is omitted.
+		var mask_arr := _action_masks_for_wire()
 		var t_obs_done := Time.get_ticks_usec()
 		_send_dict_as_json_message(build_step_message(obs, reward_arr, done_arr, truncated_arr, info_arr, mask_arr))
 		step_sent.emit(reward_arr, done_arr)
@@ -305,8 +302,6 @@ func _get_agents() -> void:
 			agents_inference.append(agent)
 		elif agent.control_mode == agent.ControlModes.HUMAN:
 			agents_heuristic.append(agent)
-	# Cache once (#385): only pay the has_method scan per scene, not per step.
-	_any_masking = agents_training.any(func(a): return a.has_method("get_action_mask"))
 
 func _set_heuristic(h, agents: Array) -> void:
 	for agent in agents:
@@ -469,12 +464,24 @@ func _get_info_from_agents() -> Array:
 	return infos
 
 # additive per-agent action mask collection (#385), mirrors _get_info_from_agents. Duck-typed so
-# any scene whose agents predate action masking simply reports {} (and _any_masking omits the key).
+# any scene whose agents don't mask simply reports {} for that agent.
 func _get_action_masks_from_agents() -> Array:
 	var masks := []
 	for agent in agents_training:
 		masks.append(agent.get_action_mask() if agent.has_method("get_action_mask") else {})
 	return masks
+
+# #385: the per-agent masks to put on the wire, or [] when NO agent supplies a real mask — so the
+# action_mask key is omitted and the wire stays byte-identical for non-masking scenes. Gating on
+# mask CONTENT (not has_method) is load-bearing: the base controllers ship a default
+# get_action_mask() -> {}, so has_method is true for every agent; only a non-empty dict means a
+# scene actually masks. Masks are state-dependent, so this is re-evaluated each step.
+func _action_masks_for_wire() -> Array:
+	var masks := _get_action_masks_from_agents()
+	for m in masks:
+		if not m.is_empty():
+			return masks
+	return []
 
 func _set_agent_actions(actions, agents: Array) -> void:
 	for i in range(actions.size()):

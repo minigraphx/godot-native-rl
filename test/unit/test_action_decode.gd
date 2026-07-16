@@ -178,4 +178,17 @@ func _initialize() -> void:
 	var unmasked := ActionDecode.decode_actions(logits, space, true, null, {}, {})
 	h.assert_eq(unmasked["move"], 2, "no mask -> unchanged argmax")
 
+	# #385: masking under STOCHASTIC sampling — a masked slot (-6e4 -> softmax prob 0 via exp
+	# underflow) must NEVER be sampled, even with a high raw logit. Slot 2 is the peak but masked;
+	# over many seeded draws the decoded index is always a VALID slot.
+	var mask := {"move": [1, 1, 0, 1, 1]}  # slot 2 masked (the raw peak)
+	var rng_mask := RandomNumberGenerator.new(); rng_mask.seed = 77
+	var masked_ever_picked := false
+	for i in range(200):
+		var idx: int = ActionDecode.decode_actions(logits, space, false, rng_mask, {}, mask)["move"]
+		if idx == 2:
+			masked_ever_picked = true
+			break
+	h.assert_true(not masked_ever_picked, "#385: masked slot never sampled under stochastic decode")
+
 	h.finish(self)

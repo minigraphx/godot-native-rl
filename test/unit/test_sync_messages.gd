@@ -81,6 +81,20 @@ func _initialize() -> void:
 	var plain := Node.new()
 	s.agents_training = [ma, plain]
 	h.assert_eq(s._get_action_masks_from_agents(), [{"move": [1, 0, 1, 1, 1]}, {}], "#385: agents without get_action_mask() report {}")
+
+	# #385 byte-identical-wire invariant: the base controllers ship a DEFAULT get_action_mask()->{},
+	# so has_method is true for every real agent. The wire gate must key off mask CONTENT, not
+	# has_method — a scene where every agent returns {} must send NO action_mask key.
+	var EmptyStub = preload("res://test/unit/action_mask_empty_stub.gd")
+	var e1 := EmptyStub.new()
+	var e2 := EmptyStub.new()
+	s.agents_training = [e1, e2]
+	h.assert_eq(s._action_masks_for_wire(), [], "#385: all-empty masks -> [] so the wire key is omitted (byte-identical)")
+	# but if ONE agent supplies a real mask, the whole per-agent array is carried
+	s.agents_training = [e1, ma]
+	h.assert_eq(s._action_masks_for_wire(), [{}, {"move": [1, 0, 1, 1, 1]}], "#385: a real mask on any agent carries the per-agent array")
+	e1.free()
+	e2.free()
 	plain.free()
 	ma.free()
 

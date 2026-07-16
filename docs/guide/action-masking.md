@@ -26,9 +26,11 @@ is a bug — see the fallback below.
 ## The wire field (training)
 
 `NcnnSync` adds an **additive `action_mask`** field to each step/reset message, emitted **only when
-at least one training agent implements `get_action_mask()`** (cached at handshake). Scenes with no
-masking send byte-identical messages to before — the field is fully backward-compatible, and
-unknown fields are ignored by stock godot_rl tooling.
+at least one training agent returns a non-empty mask** that step. (The gate is on mask *content*,
+not `has_method`: the base controllers ship a default `get_action_mask() -> {}`, so every agent has
+the method — only a non-empty dict means a scene actually masks.) Scenes with no masking send
+byte-identical messages to before — the field is fully backward-compatible, and unknown fields are
+ignored by stock godot_rl tooling.
 
 ## Deploy behavior (the moat)
 
@@ -76,3 +78,11 @@ decode-side and needs **no retrain** (GridWorld's off-grid moves already clamp t
 masked-trained net wouldn't measurably improve goal-reaching). Native masked *deploy* is proven on
 that net by the 0-violations regression above; the MaskablePPO *training* path is proven by the
 guarded smoke. (#385)
+
+## Scope
+
+Masking applies on the single-agent inference core **and** the batched crowd controller
+(`NcnnCrowdController`) — both read each agent's `get_action_mask()` before argmax. The in-engine ES
+trainer (`ESTrainer`, #131) evaluates candidates **unmasked** — masked in-engine training is out of
+scope for #385 (which delivers the MaskablePPO path); an ES-side mask would be a follow-up. Masking
+is discrete/multi-discrete only; continuous action heads are never masked.
