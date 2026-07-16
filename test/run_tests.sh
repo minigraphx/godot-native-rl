@@ -189,6 +189,9 @@ echo "== Trained 3DBall behavioral check (headless) =="
 echo "== Trained GridWorld behavioral check (headless) =="
 "$GODOT" --headless --path . res://test/integration/gridworld_trained_scene.tscn
 
+echo "== Trained GridWorld MASKED behavioral check — net never picks a masked action (headless) =="
+"$GODOT" --headless --path . res://test/integration/gridworld_masked_scene.tscn
+
 echo "== Trained FlyBy (PPO continuous) behavioral check (headless) =="
 "$GODOT" --headless --path . res://test/integration/trained_fly_by_scene.tscn
 
