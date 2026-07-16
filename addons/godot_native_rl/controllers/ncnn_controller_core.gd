@@ -140,7 +140,8 @@ func choose_and_apply_action(agent, runner) -> void:
 			output = _run_recurrent_and_advance(runner, obs_vec)
 		debug_obs = obs_vec
 	var action_space: Dictionary = agent.get_action_space()
-	var action: Dictionary = ActionDecode.decode_actions(output, action_space, deterministic_inference, rng, action_dist_stats)
+	var action_mask: Dictionary = agent.get_action_mask() if agent.has_method("get_action_mask") else {}
+	var action: Dictionary = ActionDecode.decode_actions(output, action_space, deterministic_inference, rng, action_dist_stats, action_mask)
 	if action.is_empty():
 		push_error("NcnnControllerCore.choose_and_apply_action: action decode failed (empty/mismatched output); skipping action.")
 		return

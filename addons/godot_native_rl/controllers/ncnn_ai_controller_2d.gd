@@ -276,6 +276,11 @@ func get_inference_image() -> Image:
 func get_info() -> Dictionary:
 	return {}
 
+# #385: per-decision discrete action mask, keyed like the action space ({"move":[1,1,0,1,1]}, 0=invalid).
+# Default {} = no masking. Read by both the Sync (training wire) and the core (deploy inference).
+func get_action_mask() -> Dictionary:
+	return {}
+
 # --- Concrete contract methods used by NcnnSync (delegate to the shared core) ---
 func get_obs_space() -> Dictionary:
 	return NcnnControllerCore.obs_space_from_obs(get_obs())
