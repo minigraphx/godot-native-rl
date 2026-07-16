@@ -170,4 +170,12 @@ func _initialize() -> void:
 	h.assert_true(absf(r_ctwo["x"][0] - 0.3) < 1e-6 and absf(r_ctwo["y"][0] - (-0.7)) < 1e-6,
 		"multi-continuous: zero-std positional mapping -> means")
 
+	# #385: masking forces the decoded discrete action to the best VALID index
+	var space := {"move": {"size": 5, "action_type": "discrete"}}
+	var logits := PackedFloat32Array([0.1, 0.2, 9.0, 0.3, 0.4])  # raw argmax = 2
+	var masked := ActionDecode.decode_actions(logits, space, true, null, {}, {"move": [1, 1, 0, 1, 1]})
+	h.assert_eq(masked["move"], 4, "masked argmax picks best valid index (2 is masked)")
+	var unmasked := ActionDecode.decode_actions(logits, space, true, null, {}, {})
+	h.assert_eq(unmasked["move"], 2, "no mask -> unchanged argmax")
+
 	h.finish(self)
