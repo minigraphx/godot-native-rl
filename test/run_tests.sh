@@ -314,6 +314,35 @@ else
 	echo "SKIP: sb3-contrib not installed in .venv-train (.venv-train/bin/pip install -r requirements-recurrent.txt to enable)."
 fi
 
+echo "== MaskablePPO GridWorld smoke (skipped if sb3-contrib not installed in .venv-train, #385) =="
+# Trains the --maskable path a few steps over the real masked gridworld env, then converts the
+# exported ONNX to ncnn — proving the MaskablePPO training+export path end-to-end. Deploy-side
+# masking is gated separately by the always-on gridworld_masked_scene regression above.
+if [ -x .venv-train/bin/python ] && .venv-train/bin/python -c "import sb3_contrib" >/dev/null 2>&1; then
+	MASK_TMP="$(mktemp -d)"
+	.venv-train/bin/python scripts/train_gridworld.py --maskable \
+		--timesteps "${MASKABLE_SMOKE_TIMESTEPS:-2000}" --speedup 8 --action_repeat 4 \
+		--save_model_path "$MASK_TMP/gw_mask.zip" --onnx_export_path "$MASK_TMP/gw_mask.onnx" &
+	MASK_TRAINER_PID=$!
+	sleep 5
+	"$GODOT" --headless --path . res://examples/gridworld/gridworld_train.tscn "speedup=8" "action_repeat=4" &
+	MASK_GODOT_PID=$!
+	set +e
+	wait "$MASK_TRAINER_PID"; MASK_RC=$?
+	kill "$MASK_GODOT_PID" 2>/dev/null
+	set -e
+	test "$MASK_RC" -eq 0 || { echo "FAIL: MaskablePPO smoke trainer exited $MASK_RC" >&2; rm -rf "$MASK_TMP"; exit 1; }
+	test -f "$MASK_TMP/gw_mask.onnx" || { echo "FAIL: MaskablePPO smoke did not export ONNX" >&2; rm -rf "$MASK_TMP"; exit 1; }
+	.venv-train/bin/python scripts/export_to_ncnn.py "$MASK_TMP/gw_mask.onnx" --outdir "$MASK_TMP"
+	for f in gw_mask.ncnn.param gw_mask.ncnn.bin; do
+		test -f "$MASK_TMP/$f" || { echo "FAIL: MaskablePPO smoke did not produce $f" >&2; rm -rf "$MASK_TMP"; exit 1; }
+	done
+	rm -rf "$MASK_TMP"
+	echo "MaskablePPO GridWorld smoke OK."
+else
+	echo "SKIP: sb3-contrib not installed in .venv-train (.venv-train/bin/pip install -r requirements-recurrent.txt to enable)."
+fi
+
 echo "== CleanRL + RND intrinsic-reward smoke (skipped if godot_rl absent in .venv-train) =="
 # Exercises the #27 RND intrinsic-reward path end-to-end (sampling novelty, normalizing, mixing into
 # the env reward, training the predictor) on a tiny chase run. CI's .venv-train has godot_rl, so this

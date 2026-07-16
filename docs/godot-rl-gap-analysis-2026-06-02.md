@@ -208,6 +208,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | In-game ONNX inference (C#/.NET) | ✅ | ❌ | By design |
 | In-game ncnn inference | ❌ | ✅ | **Advantage** |
 | Discrete action deploy | ✅ | ✅ | — |
+| Discrete action masking (Unity `WriteDiscreteActionMask`) | ❌ | ✅ additive `action_mask` wire field + MaskablePPO training + **native masked ncnn inference at deploy** (web/WASM/console/mobile) — no ONNX/.NET runtime masks per-step without custom glue | **Advantage** (#385) |
 | Continuous + multi-key deploy | ❌ | ✅ item 21 | **Advantage** |
 | Camera/image deploy | ❌ | ✅ item 36 | **Advantage** |
 | Grayscale (1-channel) camera deploy | ❌ | ❌ needs C++ `PIXEL_GRAY` | **Gap** (#36) |

@@ -20,7 +20,7 @@ const DEMOS := [
 	["res://examples/fly_by/fly_by.tscn", "Fly By (3D, PPO)", "Continuous-control plane (pitch/turn), DiagGaussian sampling."],
 	["res://examples/visual_chase/visual_chase.tscn", "Visual Chase (CNN)", "Chase from PIXELS ONLY — a CNN over a code-rasterized frame."],
 	["res://examples/3dball/ball_balance.tscn", "3DBall (Unity parity)", "Balance a ball on a tilting platform (continuous)."],
-	["res://examples/gridworld/gridworld.tscn", "GridWorld (Unity parity)", "Navigate an 8x8 grid to the goal, avoid pits (GridSensor2D)."],
+	["res://examples/gridworld/gridworld.tscn", "GridWorld (Unity parity)", "Navigate an 8x8 grid to the goal, avoid pits (GridSensor2D + action masking)."],
 	["res://examples/hide_and_seek/hide_and_seek_multipolicy.tscn", "Hide & Seek (multi-policy)", "Two distinct trained policies — seeker vs hider."],
 	["res://examples/coop_collect/coop_collect.tscn", "Coop Collect (MA-POCA)", "Two agents share a reward and split up to collect items."],
 	["res://examples/quadruped_walk/quadruped_walk_track.tscn", "Quadruped Walk (locomotion)", "Code-built quadruped walks ~21m toward the finish (Jolt)."],
