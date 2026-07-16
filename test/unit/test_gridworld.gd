@@ -48,4 +48,10 @@ func _initialize() -> void:
 		game.reset_episode()
 		h.assert_true(not game.at_goal() and not game.at_pit(), "spawn %d clear of terminals" % i)
 
+	# #385: off-grid moves are masked; interior cell is fully valid; corners mask two directions
+	# mask order: [stay, up, down, left, right]
+	h.assert_eq(Game.action_mask(Vector2i(0, 0), Vector2i(8, 8)), [1, 0, 1, 0, 1], "top-left masks up+left")
+	h.assert_eq(Game.action_mask(Vector2i(7, 7), Vector2i(8, 8)), [1, 1, 0, 1, 0], "bottom-right masks down+right")
+	h.assert_eq(Game.action_mask(Vector2i(3, 3), Vector2i(8, 8)), [1, 1, 1, 1, 1], "interior fully valid")
+
 	h.finish(self)
