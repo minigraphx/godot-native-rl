@@ -1,0 +1,56 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://examples/go_to_goal/go_to_goal_game.gd" id="1"]
+[ext_resource type="Script" path="res://examples/go_to_goal/go_to_goal_agent.gd" id="2"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sensors/relative_position_sensor_2d.gd" id="3"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sensors/goal_sensor.gd" id="4"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="5"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/debug/policy_debug_overlay.gd" id="6"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/camera/fit_camera_2d.gd" id="7"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/debug/demo_legend.gd" id="legend"]
+
+[node name="GoToGoal" type="Node2D"]
+script = ExtResource("1")
+agent_body_path = NodePath("AgentBody")
+target_paths = [NodePath("Target0"), NodePath("Target1"), NodePath("Target2")]
+
+[node name="Target0" type="Node2D" parent="."]
+
+[node name="Target1" type="Node2D" parent="."]
+
+[node name="Target2" type="Node2D" parent="."]
+
+[node name="AgentBody" type="Node2D" parent="."]
+
+[node name="GoToGoalAgent" type="Node2D" parent="AgentBody"]
+script = ExtResource("2")
+game_path = NodePath("../..")
+control_mode = 3
+model_param_path = "res://examples/go_to_goal/models/go_to_goal.ncnn.param"
+model_bin_path = "res://examples/go_to_goal/models/go_to_goal.ncnn.bin"
+
+[node name="RelPosSensor" type="Node2D" parent="AgentBody/GoToGoalAgent"]
+script = ExtResource("3")
+object_paths = [NodePath("../../../Target0"), NodePath("../../../Target1"), NodePath("../../../Target2")]
+max_distance = 1200.0
+use_separate_direction = true
+
+[node name="GoalSensor" type="Node" parent="AgentBody/GoToGoalAgent"]
+script = ExtResource("4")
+num_goals = 3
+goal_source_path = NodePath("../../..")
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("5")
+control_mode = 2
+
+[node name="PolicyDebugOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("6")
+
+[node name="FitCamera2D" type="Camera2D" parent="."]
+script = ExtResource("7")
+world_rect = Rect2(0, 0, 1000, 600)
+
+[node name="DemoLegend" type="CanvasLayer" parent="."]
+script = ExtResource("legend")
+lines = PackedStringArray("Three targets: RED = Target0   GREEN = Target1   BLUE = Target2", "The HIGHLIGHTED (ringed) target is the signaled goal", "ONE goal-conditioned net pursues whichever target is signaled")
