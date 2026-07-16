@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://examples/go_to_goal/go_to_goal_game.gd" id="1"]
 [ext_resource type="Script" path="res://examples/go_to_goal/go_to_goal_agent.gd" id="2"]
