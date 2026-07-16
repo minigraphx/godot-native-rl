@@ -644,7 +644,7 @@ thread-parallel batched crowd inference (`run_inference_batch` + `NcnnCrowdContr
 LOD policy switching (`NcnnLODRunner` — cheap reflex net every frame, accurate net every N / on state
 change, #21), **native in-engine ES training** (`ESTrainer` — no Python/socket/backprop, runs on every
 deploy target incl. web, the checkpoint IS the deploy artifact, #131), **native per-step discrete
-action masking at deploy** (`ActionDecode.apply_action_mask`, `-6e4` fp16-safe sentinel — an
-ONNX/.NET server can't mask per-step without custom glue, #385), and Godot-native ideas (Signal→Reward, `NavMeshSensor2D/3D` (navigable path obs, #20), `AnimationPolicyAdapter`
+action masking at deploy** (`ActionDecode.decode_actions` → `InferenceMath.apply_action_mask`, `-6e4`
+fp16-safe sentinel — an ONNX/.NET server can't mask per-step without custom glue, #385), and Godot-native ideas (Signal→Reward, `NavMeshSensor2D/3D` (navigable path obs, #20), `AnimationPolicyAdapter`
 — policy actions → `AnimationTree` blend params, #22) — none replicable by
 a Python-server framework or a managed-runtime one. Lead with these in all docs.

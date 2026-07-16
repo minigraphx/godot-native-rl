@@ -333,7 +333,8 @@ if [ -x .venv-train/bin/python ] && .venv-train/bin/python -c "import sb3_contri
 	set -e
 	test "$MASK_RC" -eq 0 || { echo "FAIL: MaskablePPO smoke trainer exited $MASK_RC" >&2; rm -rf "$MASK_TMP"; exit 1; }
 	test -f "$MASK_TMP/gw_mask.onnx" || { echo "FAIL: MaskablePPO smoke did not export ONNX" >&2; rm -rf "$MASK_TMP"; exit 1; }
-	.venv-train/bin/python scripts/export_to_ncnn.py "$MASK_TMP/gw_mask.onnx" --outdir "$MASK_TMP"
+	.venv-train/bin/python scripts/export_to_ncnn.py "$MASK_TMP/gw_mask.onnx" --outdir "$MASK_TMP" \
+		|| { echo "FAIL: MaskablePPO smoke ncnn conversion failed" >&2; rm -rf "$MASK_TMP"; exit 1; }
 	for f in gw_mask.ncnn.param gw_mask.ncnn.bin; do
 		test -f "$MASK_TMP/$f" || { echo "FAIL: MaskablePPO smoke did not produce $f" >&2; rm -rf "$MASK_TMP"; exit 1; }
 	done
