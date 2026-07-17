@@ -209,6 +209,7 @@ C++ runner (needs a `PIXEL_GRAY` path in `NcnnRunner`).
 | In-game ncnn inference | ❌ | ✅ | **Advantage** |
 | Discrete action deploy | ✅ | ✅ | — |
 | Discrete action masking (Unity `WriteDiscreteActionMask`) | ❌ | ✅ additive `action_mask` wire field + MaskablePPO training + **native masked ncnn inference at deploy** (web/WASM/console/mobile) — no ONNX/.NET runtime masks per-step without custom glue | **Advantage** (#385) |
+| Goal-conditioned observations (Unity goal signals / `GoalSensor`) | ❌ | ✅ `GoalSensor` one-hot goal channel + the GoToGoal trained example (**one net, many goals**) + a **goal-blind ablation** proving the signal is load-bearing (trained net reaches all 3 signaled targets; goal channel zeroed collapses to one); runs native on web/WASM/console/mobile | **Advantage/parity** (#386) |
 | Continuous + multi-key deploy | ❌ | ✅ item 21 | **Advantage** |
 | Camera/image deploy | ❌ | ✅ item 36 | **Advantage** |
 | Grayscale (1-channel) camera deploy | ❌ | ❌ needs C++ `PIXEL_GRAY` | **Gap** (#36) |
