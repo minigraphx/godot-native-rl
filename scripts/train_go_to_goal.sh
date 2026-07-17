@@ -11,16 +11,9 @@ TIMESTEPS="${TIMESTEPS:-300000}"
 SPEEDUP="${SPEEDUP:-8}"
 ACTION_REPEAT="${ACTION_REPEAT:-4}"
 SCENE="${SCENE:-res://examples/go_to_goal/go_to_goal_train_parallel.tscn}"
-MASKABLE="${MASKABLE:-0}"
-
-TRAINER_ARGS=(--timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT")
-if [ "$MASKABLE" = "1" ] || [ "$MASKABLE" = "true" ]; then
-	TRAINER_ARGS+=(--maskable)
-	echo "Action masking enabled (sb3-contrib MaskablePPO, #385)."
-fi
 
 echo "Starting SB3 PPO trainer (timesteps=$TIMESTEPS)..."
-"$PY" scripts/train_go_to_goal.py "${TRAINER_ARGS[@]}" &
+"$PY" scripts/train_go_to_goal.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" &
 TRAINER_PID=$!
 
 sleep 5
