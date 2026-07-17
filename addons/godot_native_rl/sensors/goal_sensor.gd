@@ -28,7 +28,10 @@ func _resolve_goal() -> int:
 		if _source != null and _source.has_method("get_current_goal"):
 			return int(_source.get_current_goal())
 		if not _warned:
-			push_error("GoalSensor: goal_source_path %s has no get_current_goal(); emitting zeros." % str(goal_source_path))
+			if _source == null:
+				push_error("GoalSensor: goal_source_path %s resolves to no node; emitting zeros." % str(goal_source_path))
+			else:
+				push_error("GoalSensor: goal_source_path %s has no get_current_goal(); emitting zeros." % str(goal_source_path))
 			_warned = true
 		return -1
 	return current_goal

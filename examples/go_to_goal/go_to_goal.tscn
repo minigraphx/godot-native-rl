@@ -43,6 +43,7 @@ goal_source_path = NodePath("../../..")
 [node name="Sync" type="Node" parent="."]
 script = ExtResource("5")
 control_mode = 2
+action_repeat = 4
 
 [node name="PolicyDebugOverlay" type="CanvasLayer" parent="."]
 script = ExtResource("6")
