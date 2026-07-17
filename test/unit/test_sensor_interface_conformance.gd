@@ -9,6 +9,7 @@ const RelativePositionSensor2D = preload("res://addons/godot_native_rl/sensors/r
 const RelativePositionSensor3D = preload("res://addons/godot_native_rl/sensors/relative_position_sensor_3d.gd")
 const GridSensor2D = preload("res://addons/godot_native_rl/sensors/grid_sensor_2d.gd")
 const GridSensor3D = preload("res://addons/godot_native_rl/sensors/grid_sensor_3d.gd")
+const GoalSensor = preload("res://addons/godot_native_rl/sensors/goal_sensor.gd")
 
 func _initialize() -> void:
 	var h := Harness.new()
@@ -36,5 +37,12 @@ func _initialize() -> void:
 	var gs3 = GridSensor3D.new()
 	h.assert_true(gs3 is ISensor3D, "GridSensor3D is ISensor3D")
 	gs3.free()
+
+	# GoalSensor is dimension-agnostic (like RunningNormSensor) — no 2D/3D split, so it isn't
+	# ISensor2D/ISensor3D; conformance here is the duck-typed contract collect_sensors() relies on.
+	var goal := GoalSensor.new()
+	h.assert_true(goal.has_method("get_observation"), "GoalSensor has get_observation()")
+	h.assert_true(goal.has_method("obs_size"), "GoalSensor has obs_size()")
+	goal.free()
 
 	h.finish(self)

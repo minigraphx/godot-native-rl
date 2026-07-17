@@ -23,14 +23,24 @@ func build_env_info_message() -> Dictionary:
 		"agent_policy_names": PolicyNames.policy_names_from_agents(agents_training, multi_policy),
 	}
 
-func build_step_message(obs: Array, reward: Array, done: Array, truncated: Array, info: Array) -> Dictionary:
+func build_step_message(obs: Array, reward: Array, done: Array, truncated: Array, info: Array, action_mask: Array = []) -> Dictionary:
 	# `truncated` is ADDITIVE (#12): stock godot_rl 0.8.2 reads only obs/reward/done/info and
 	# ignores unknown keys, so `done` keeps meaning terminated-OR-truncated on the old wire while
 	# truncation-aware trainers (our PettingZoo/RLlib adapters) get the real Gymnasium split.
-	return {"type": "step", "obs": obs, "reward": reward, "done": done, "truncated": truncated, "info": info}
+	# `action_mask` is ADDITIVE too (#385): emitted only when >=1 training agent returns a non-empty
+	# mask, so the wire is byte-identical for every non-masking scene (unknown keys ignored).
+	var msg := {"type": "step", "obs": obs, "reward": reward, "done": done, "truncated": truncated, "info": info}
+	if not action_mask.is_empty():
+		msg["action_mask"] = action_mask
+	return msg
 
-func build_reset_message(obs: Array) -> Dictionary:
-	return {"type": "reset", "obs": obs}
+func build_reset_message(obs: Array, action_mask: Array = []) -> Dictionary:
+	# `action_mask` is ADDITIVE (#385): MaskablePPO needs a mask for the first obs after reset;
+	# key omitted when empty so the wire stays byte-identical for non-masking scenes.
+	var msg := {"type": "reset", "obs": obs}
+	if not action_mask.is_empty():
+		msg["action_mask"] = action_mask
+	return msg
 
 # Mirrors godot_rl_agents' `_extract_action_dict` verbatim (incl. `index += size`
 # for discrete). Used only by the ncnn inference path (added in Part 2). The exact
@@ -232,7 +242,10 @@ func _training_process() -> void:
 	if just_reset:
 		just_reset = false
 		var obs := _get_obs_from_agents(agents_training)
-		_send_dict_as_json_message(build_reset_message(obs))
+		# #385: MaskablePPO needs a mask for the first obs after reset. Collected at the same point
+		# as obs; [] when no agent supplies a mask so the key is omitted (byte-identical wire).
+		var mask_arr := _action_masks_for_wire()
+		_send_dict_as_json_message(build_reset_message(obs, mask_arr))
 		get_tree().set_pause(false)
 		return
 	var t_phase_start := Time.get_ticks_usec()
@@ -244,8 +257,11 @@ func _training_process() -> void:
 		var done_arr := _get_done_from_agents()
 		var obs := _get_obs_from_agents(agents_training)
 		var info_arr := _get_info_from_agents()
+		# #385: collect masks at the SAME point as obs (post done-clear/auto-reset) for #379-class
+		# same-frame coherence; [] when no agent supplies a mask so the action_mask key is omitted.
+		var mask_arr := _action_masks_for_wire()
 		var t_obs_done := Time.get_ticks_usec()
-		_send_dict_as_json_message(build_step_message(obs, reward_arr, done_arr, truncated_arr, info_arr))
+		_send_dict_as_json_message(build_step_message(obs, reward_arr, done_arr, truncated_arr, info_arr, mask_arr))
 		step_sent.emit(reward_arr, done_arr)
 		var t_sent := Time.get_ticks_usec()
 		did_send = true
@@ -446,6 +462,26 @@ func _get_info_from_agents() -> Array:
 	for agent in agents_training:
 		infos.append(agent.get_info())
 	return infos
+
+# additive per-agent action mask collection (#385), mirrors _get_info_from_agents. Duck-typed so
+# any scene whose agents don't mask simply reports {} for that agent.
+func _get_action_masks_from_agents() -> Array:
+	var masks := []
+	for agent in agents_training:
+		masks.append(agent.get_action_mask() if agent.has_method("get_action_mask") else {})
+	return masks
+
+# #385: the per-agent masks to put on the wire, or [] when NO agent supplies a real mask — so the
+# action_mask key is omitted and the wire stays byte-identical for non-masking scenes. Gating on
+# mask CONTENT (not has_method) is load-bearing: the base controllers ship a default
+# get_action_mask() -> {}, so has_method is true for every agent; only a non-empty dict means a
+# scene actually masks. Masks are state-dependent, so this is re-evaluated each step.
+func _action_masks_for_wire() -> Array:
+	var masks := _get_action_masks_from_agents()
+	for m in masks:
+		if not m.is_empty():
+			return masks
+	return []
 
 func _set_agent_actions(actions, agents: Array) -> void:
 	for i in range(actions.size()):

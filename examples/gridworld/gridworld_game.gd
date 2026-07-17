@@ -50,6 +50,17 @@ static func step_cell(cell: Vector2i, action: int, cells: Vector2i) -> Vector2i:
 static func goal_vector(agent: Vector2i, goal: Vector2i, cells: Vector2i) -> Array:
 	return [float(goal.x - agent.x) / cells.x, float(goal.y - agent.y) / cells.y]
 
+# #385: per-cell discrete action mask (order [stay, up, down, left, right]; 0=stay always valid;
+# a direction is invalid only at its edge). Matches step_cell's deltas.
+static func action_mask(cell: Vector2i, cells: Vector2i) -> Array:
+	return [
+		1,
+		1 if cell.y > 0 else 0,             # up
+		1 if cell.y < cells.y - 1 else 0,   # down
+		1 if cell.x > 0 else 0,             # left
+		1 if cell.x < cells.x - 1 else 0,   # right
+	]
+
 # --- Runtime ---
 func seed_rng(s: int) -> void:
 	_rng.seed = s
@@ -107,6 +118,9 @@ func goal_obs() -> Array:
 
 func agent_cell() -> Vector2i:
 	return _agent_cell
+
+func current_action_mask() -> Array:
+	return action_mask(_agent_cell, grid_cells)
 
 func set_state_for_test(agent: Vector2i, goal: Vector2i, pits: Array) -> void:
 	_agent_cell = agent

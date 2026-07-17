@@ -62,6 +62,42 @@ func _initialize() -> void:
 	hz.free()
 	s2.free()
 
+	# #385: additive action_mask field — present iff an agent implements get_action_mask()
+	var MaskStub = preload("res://test/unit/action_mask_stub.gd")  # returns {"move":[1,0,1,1,1]}
+	var ma := MaskStub.new()
+	s.agents_training = [ma]
+	var masks := s._get_action_masks_from_agents()
+	h.assert_eq(masks, [{"move": [1, 0, 1, 1, 1]}], "#385: collects per-agent action_mask")
+	var step_m := s.build_step_message([[0.1]], [1.0], [false], [false], [{}], masks)
+	h.assert_eq(step_m["action_mask"], [{"move": [1, 0, 1, 1, 1]}], "#385: step message carries action_mask when present")
+	var step_none := s.build_step_message([[0.1]], [1.0], [false], [false], [{}], [])
+	h.assert_true(not step_none.has("action_mask"), "#385: action_mask key omitted when empty (backward-compatible)")
+	# reset message mirrors the same additive contract (MaskablePPO needs a mask for the first obs)
+	var reset_m := s.build_reset_message([[0.2]], masks)
+	h.assert_eq(reset_m["action_mask"], [{"move": [1, 0, 1, 1, 1]}], "#385: reset message carries action_mask when present")
+	var reset_none := s.build_reset_message([[0.2]])
+	h.assert_true(not reset_none.has("action_mask"), "#385: reset action_mask key omitted when empty (backward-compatible)")
+	# duck-typed: an agent without get_action_mask() contributes {}
+	var plain := Node.new()
+	s.agents_training = [ma, plain]
+	h.assert_eq(s._get_action_masks_from_agents(), [{"move": [1, 0, 1, 1, 1]}, {}], "#385: agents without get_action_mask() report {}")
+
+	# #385 byte-identical-wire invariant: the base controllers ship a DEFAULT get_action_mask()->{},
+	# so has_method is true for every real agent. The wire gate must key off mask CONTENT, not
+	# has_method — a scene where every agent returns {} must send NO action_mask key.
+	var EmptyStub = preload("res://test/unit/action_mask_empty_stub.gd")
+	var e1 := EmptyStub.new()
+	var e2 := EmptyStub.new()
+	s.agents_training = [e1, e2]
+	h.assert_eq(s._action_masks_for_wire(), [], "#385: all-empty masks -> [] so the wire key is omitted (byte-identical)")
+	# but if ONE agent supplies a real mask, the whole per-agent array is carried
+	s.agents_training = [e1, ma]
+	h.assert_eq(s._action_masks_for_wire(), [{}, {"move": [1, 0, 1, 1, 1]}], "#385: a real mask on any agent carries the per-agent array")
+	e1.free()
+	e2.free()
+	plain.free()
+	ma.free()
+
 	a.free()
 	b.free()
 	s.free()

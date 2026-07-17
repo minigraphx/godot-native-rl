@@ -6,6 +6,9 @@ extends RefCounted
 # (insertion order):
 #   discrete   -> argmax over the next `size` values            -> int in [0, size)
 #   discrete (stochastic) -> sample from softmax(values) via rng when deterministic=false
+#   discrete (masked) -> when `action_mask` has an entry for the key, InferenceMath.apply_action_mask
+#                 (#385) is applied to the segment BEFORE argmax/softmax-sample, so a masked slot can
+#                 never be selected; continuous keys ignore the mask (push_warning + proceed)
 #   continuous -> the next `size` values, optionally tanh-squashed (per-key "squash": true)
 #   continuous (stochastic) -> mean + std·N(0,1) via rng when deterministic=false and an
 #                 action_dist {"std": [...]} sidecar is supplied (PPO DiagGaussian); std is applied
@@ -17,7 +20,7 @@ extends RefCounted
 
 const InferenceMath = preload("res://addons/godot_native_rl/controllers/inference_math.gd")
 
-static func decode_actions(output: PackedFloat32Array, action_space: Dictionary, deterministic: bool = true, rng: RandomNumberGenerator = null, action_dist: Dictionary = {}) -> Dictionary:
+static func decode_actions(output: PackedFloat32Array, action_space: Dictionary, deterministic: bool = true, rng: RandomNumberGenerator = null, action_dist: Dictionary = {}, action_mask: Dictionary = {}) -> Dictionary:
 	var result := {}
 	var index := 0
 	var cont_index := 0  # advances per continuous value consumed; indexes action_dist["std"] positionally
@@ -33,6 +36,8 @@ static func decode_actions(output: PackedFloat32Array, action_space: Dictionary,
 			return {}
 		var segment: PackedFloat32Array = output.slice(index, index + size)
 		if action_type == "discrete":
+			if action_mask.has(key):
+				segment = InferenceMath.apply_action_mask(segment, action_mask[key])
 			if deterministic:
 				result[key] = InferenceMath.argmax(segment)
 			else:
@@ -41,6 +46,8 @@ static func decode_actions(output: PackedFloat32Array, action_space: Dictionary,
 				var u: float = rng.randf() if rng != null else randf()
 				result[key] = InferenceMath.sample_categorical(probs, u)
 		elif action_type == "continuous":
+			if action_mask.has(key):
+				push_warning("decode_actions: action_mask on continuous key '%s' ignored (masking is discrete-only)." % key)
 			var squash: bool = entry.get("squash", false)
 			# Stochastic continuous (PPO DiagGaussian): sample mean + std·N(0,1), then optional tanh.
 			# Only when non-deterministic AND a std sidecar is present; else the mean (unchanged).

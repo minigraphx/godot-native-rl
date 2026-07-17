@@ -125,6 +125,26 @@ children are not separately collected (this is what enables sensor wrappers to o
 sensor without double-counting). `CameraSensor` returns image obs under its own key and is
 composed separately.
 
+## Goal-conditioning sensor (dimension-agnostic)
+
+- **`GoalSensor`** (`sensors/goal_sensor.gd`, `num_goals`) — a **goal-signal** obs channel: a
+  `num_goals`-wide **one-hot** of the current goal, so one policy can be conditioned to pursue
+  whichever of several tasks/targets is active this episode (the Unity ML-Agents "goal signal"
+  idea). Like the sensor wrappers it has **no `2D`/`3D` split** — a goal id has no geometry — so it
+  extends plain `Node`. It implements the shared contract (`get_observation() -> Array` +
+  `obs_size() -> int`, with `obs_size() == num_goals` fixed by config), so `collect_sensors()`
+  auto-discovers it and appends the one-hot to the observation. The goal is **pulled** from
+  `goal_source_path` (a duck-typed `get_current_goal()` on that node) when set — so the game owns
+  the goal and the sensor stays passive — with a **push fallback** (`set_goal(id)` / the
+  `current_goal` field) when no source path is wired. An out-of-range or `-1` id emits all zeros.
+  **`goal_blind`** zeroes the channel regardless of the goal — this is the **ablation control** used
+  by the goal-blind regression to prove the signal is load-bearing; **never set it in a shipped
+  scene**. The **GoToGoal** example (`examples/go_to_goal/`) is the worked demo: 3 targets, exactly
+  one signaled per episode via the one-hot, and ONE net trained with stock SB3 PPO reaches whichever
+  is signaled — with the same net going goal-blind collapsing to a single target
+  (`go_to_goal_trained_scene.tscn` vs `go_to_goal_blind_scene.tscn`). Pure one-hot logic lives in
+  `sensors/goal_math.gd` (`GoalMath.one_hot`, headless-unit-tested).
+
 ## Sensor wrappers (dimension-agnostic)
 
 Two sensors *wrap* another sensor instead of reading geometry. Because they only touch the inner

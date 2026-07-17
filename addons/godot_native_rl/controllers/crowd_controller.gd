@@ -86,7 +86,9 @@ func decide() -> void:
 			continue
 		var agent = _agents[i]
 		var action_space: Dictionary = agent.get_action_space()
-		var action: Dictionary = ActionDecode.decode_actions(output, action_space, deterministic_inference, _rng, {})
+		# #385: apply the per-unit discrete action mask at deploy, same as the single-agent core.
+		var action_mask: Dictionary = agent.get_action_mask() if agent.has_method("get_action_mask") else {}
+		var action: Dictionary = ActionDecode.decode_actions(output, action_space, deterministic_inference, _rng, {}, action_mask)
 		if action.is_empty():
 			push_error("NcnnCrowdController: action decode failed for agent %d; skipping." % i)
 			continue

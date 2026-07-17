@@ -170,4 +170,25 @@ func _initialize() -> void:
 	h.assert_true(absf(r_ctwo["x"][0] - 0.3) < 1e-6 and absf(r_ctwo["y"][0] - (-0.7)) < 1e-6,
 		"multi-continuous: zero-std positional mapping -> means")
 
+	# #385: masking forces the decoded discrete action to the best VALID index
+	var space := {"move": {"size": 5, "action_type": "discrete"}}
+	var logits := PackedFloat32Array([0.1, 0.2, 9.0, 0.3, 0.4])  # raw argmax = 2
+	var masked := ActionDecode.decode_actions(logits, space, true, null, {}, {"move": [1, 1, 0, 1, 1]})
+	h.assert_eq(masked["move"], 4, "masked argmax picks best valid index (2 is masked)")
+	var unmasked := ActionDecode.decode_actions(logits, space, true, null, {}, {})
+	h.assert_eq(unmasked["move"], 2, "no mask -> unchanged argmax")
+
+	# #385: masking under STOCHASTIC sampling — a masked slot (-6e4 -> softmax prob 0 via exp
+	# underflow) must NEVER be sampled, even with a high raw logit. Slot 2 is the peak but masked;
+	# over many seeded draws the decoded index is always a VALID slot.
+	var mask := {"move": [1, 1, 0, 1, 1]}  # slot 2 masked (the raw peak)
+	var rng_mask := RandomNumberGenerator.new(); rng_mask.seed = 77
+	var masked_ever_picked := false
+	for i in range(200):
+		var idx: int = ActionDecode.decode_actions(logits, space, false, rng_mask, {}, mask)["move"]
+		if idx == 2:
+			masked_ever_picked = true
+			break
+	h.assert_true(not masked_ever_picked, "#385: masked slot never sampled under stochastic decode")
+
 	h.finish(self)

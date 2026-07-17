@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Orchestrates SB3 PPO training of the GridWorld agent over the godot-rl bridge (#48):
+# Orchestrates SB3 PPO training of the GoToGoal agent over the godot-rl bridge (#386):
 # trainer first (server on 11008), then the headless Godot scene. Defaults to the tiled
-# parallel scene. Convert after: .venv-train/bin/python scripts/export_to_ncnn.py models/gridworld.onnx
+# parallel scene. Convert after: .venv-train/bin/python scripts/export_to_ncnn.py models/go_to_goal.onnx
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -10,17 +10,10 @@ PY="${PY:-.venv-train/bin/python}"
 TIMESTEPS="${TIMESTEPS:-300000}"
 SPEEDUP="${SPEEDUP:-8}"
 ACTION_REPEAT="${ACTION_REPEAT:-4}"
-SCENE="${SCENE:-res://examples/gridworld/gridworld_train_parallel.tscn}"
-MASKABLE="${MASKABLE:-0}"
-
-TRAINER_ARGS=(--timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT")
-if [ "$MASKABLE" = "1" ] || [ "$MASKABLE" = "true" ]; then
-	TRAINER_ARGS+=(--maskable)
-	echo "Action masking enabled (sb3-contrib MaskablePPO, #385)."
-fi
+SCENE="${SCENE:-res://examples/go_to_goal/go_to_goal_train_parallel.tscn}"
 
 echo "Starting SB3 PPO trainer (timesteps=$TIMESTEPS)..."
-"$PY" scripts/train_gridworld.py "${TRAINER_ARGS[@]}" &
+"$PY" scripts/train_go_to_goal.py --timesteps "$TIMESTEPS" --speedup "$SPEEDUP" --action_repeat "$ACTION_REPEAT" &
 TRAINER_PID=$!
 
 sleep 5

@@ -30,6 +30,11 @@ func _expected_obs_size() -> int:
 func get_action_space() -> Dictionary:
 	return {ACTION_KEY: {"size": ACTION_COUNT, "action_type": "discrete"}}
 
+func get_action_mask() -> Dictionary:
+	if _game == null:
+		return {}
+	return {ACTION_KEY: _game.current_action_mask()}
+
 func get_obs() -> Dictionary:
 	if _game == null:
 		return {"obs": [0.0, 0.0]}
