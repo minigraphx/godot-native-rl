@@ -1,0 +1,33 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://examples/go_to_goal/go_to_goal_world.tscn" id="1"]
+[ext_resource type="Script" path="res://addons/godot_native_rl/sync.gd" id="2"]
+[ext_resource type="Script" path="res://test/integration/go_to_goal_checker.gd" id="3"]
+
+[node name="GoToGoalBlind" type="Node2D"]
+
+[node name="GoToGoalWorld" parent="." instance=ExtResource("1")]
+
+[node name="GoToGoalAgent" parent="GoToGoalWorld/AgentBody" index="0"]
+control_mode = 3
+model_param_path = "res://examples/go_to_goal/models/go_to_goal.ncnn.param"
+model_bin_path = "res://examples/go_to_goal/models/go_to_goal.ncnn.bin"
+
+[node name="GoalSensor" parent="GoToGoalWorld/AgentBody/GoToGoalAgent" index="1"]
+goal_blind = true
+
+[node name="Sync" type="Node" parent="."]
+script = ExtResource("2")
+control_mode = 2
+action_repeat = 4
+
+[node name="TrainedChecker" type="Node" parent="."]
+script = ExtResource("3")
+game_path = NodePath("../GoToGoalWorld")
+agent_path = NodePath("../GoToGoalWorld/AgentBody/GoToGoalAgent")
+frames_to_run = 5400
+game_seed = 42
+require_goal = false
+min_goals = 6
+min_distinct_ids = 3
+max_wrong_ratio = 0.5

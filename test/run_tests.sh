@@ -151,6 +151,12 @@ echo "== ES warm-start from a pnnx-exported PPO net (structural adapter, #328) =
 echo "== Trained seek behavioral check (RelativePositionSensor2D example, in-engine CMA-ES net, #38) =="
 "$GODOT" --headless --path . res://test/integration/trained_seek_scene.tscn
 
+echo "== Trained GoToGoal reaches-signaled check (GoalSensor example, goal-conditioned net, #386) =="
+"$GODOT" --headless --path . res://test/integration/go_to_goal_trained_scene.tscn
+
+echo "== GoToGoal GOAL-BLIND ablation check — same net, goal channel zeroed, must FAIL the trained bar (#386) =="
+"$GODOT" --headless --path . res://test/integration/go_to_goal_blind_scene.tscn
+
 echo "== Evolution Lab demo smoke (live-training showcase wiring, #291) =="
 "$GODOT" --headless --path . res://test/integration/evolution_lab_smoke_scene.tscn
 
@@ -203,7 +209,7 @@ PY_TRAIN="${PY_TRAIN:-.venv-train/bin/python}"
 # Backstop cleanup: with `set -e`, a crash in export_int8.py / train_sf.sh aborts before the
 # inline `rm -rf` runs, so these temp dirs would leak. The EXIT trap reaps whichever are set.
 INT8_TMP="" SF_TMP=""
-trap 'rm -rf "${INT8_TMP:-}" "${SF_TMP:-}" "${RLLIB_TMP:-}" "${CLEANRL_TMP:-}" "${CLEANRL_ICM_TMP:-}" "${CLEANRL_GAIL_TMP:-}" "${MAPOCA_TMP:-}" "${CURRIC_TMP:-}" "${SORTER_TMP:-}" 2>/dev/null || true' EXIT
+trap 'rm -rf "${INT8_TMP:-}" "${SF_TMP:-}" "${RLLIB_TMP:-}" "${CLEANRL_TMP:-}" "${CLEANRL_ICM_TMP:-}" "${CLEANRL_GAIL_TMP:-}" "${MAPOCA_TMP:-}" "${CURRIC_TMP:-}" "${SORTER_TMP:-}" "${GOTOGOAL_TMP:-}" 2>/dev/null || true' EXIT
 INT8_TMP="$(mktemp -d)"
 "$PY_TRAIN" scripts/export_int8.py models/synthetic_cnn.ncnn.param models/synthetic_cnn.ncnn.bin \
 	--width 8 --height 8 --channels 3 --samples 256 --n-verify 100 --outdir "$INT8_TMP"
@@ -342,6 +348,37 @@ if [ -x .venv-train/bin/python ] && .venv-train/bin/python -c "import sb3_contri
 	echo "MaskablePPO GridWorld smoke OK."
 else
 	echo "SKIP: sb3-contrib not installed in .venv-train (.venv-train/bin/pip install -r requirements-recurrent.txt to enable)."
+fi
+
+echo "== GoToGoal PPO trainer smoke (skipped if godot_rl absent in .venv-train, #386) =="
+# Trains the goal-conditioned reach env a few steps over the godot-rl bridge, then converts the
+# exported ONNX to ncnn — proving the #386 train+export path end-to-end. Deploy-side goal
+# conditioning is gated separately by the always-on go_to_goal_{trained,blind} regressions above.
+if [ -x .venv-train/bin/python ] && .venv-train/bin/python -c "import godot_rl" >/dev/null 2>&1; then
+	GOTOGOAL_TMP="$(mktemp -d)"
+	.venv-train/bin/python scripts/train_go_to_goal.py \
+		--timesteps "${GOTOGOAL_SMOKE_TIMESTEPS:-2048}" --speedup 8 --action_repeat 4 \
+		--save_model_path "$GOTOGOAL_TMP/go_to_goal_smoke.zip" \
+		--onnx_export_path "$GOTOGOAL_TMP/go_to_goal_smoke.onnx" &
+	GOTOGOAL_TRAINER_PID=$!
+	sleep 5
+	"$GODOT" --headless --path . res://examples/go_to_goal/go_to_goal_train_parallel.tscn "speedup=8" "action_repeat=4" &
+	GOTOGOAL_GODOT_PID=$!
+	set +e
+	wait "$GOTOGOAL_TRAINER_PID"; GOTOGOAL_RC=$?
+	kill "$GOTOGOAL_GODOT_PID" 2>/dev/null
+	set -e
+	test "$GOTOGOAL_RC" -eq 0 || { echo "FAIL: GoToGoal smoke trainer exited $GOTOGOAL_RC" >&2; rm -rf "$GOTOGOAL_TMP"; exit 1; }
+	test -f "$GOTOGOAL_TMP/go_to_goal_smoke.onnx" || { echo "FAIL: GoToGoal smoke did not export ONNX" >&2; rm -rf "$GOTOGOAL_TMP"; exit 1; }
+	.venv-train/bin/python scripts/export_to_ncnn.py "$GOTOGOAL_TMP/go_to_goal_smoke.onnx" --outdir "$GOTOGOAL_TMP" \
+		|| { echo "FAIL: GoToGoal smoke ncnn conversion failed" >&2; rm -rf "$GOTOGOAL_TMP"; exit 1; }
+	for f in go_to_goal_smoke.ncnn.param go_to_goal_smoke.ncnn.bin; do
+		test -f "$GOTOGOAL_TMP/$f" || { echo "FAIL: GoToGoal smoke did not produce $f" >&2; rm -rf "$GOTOGOAL_TMP"; exit 1; }
+	done
+	rm -rf "$GOTOGOAL_TMP"
+	echo "GoToGoal PPO trainer smoke OK."
+else
+	echo "SKIP: godot_rl not installed in .venv-train (run scripts/setup_training.sh to enable the GoToGoal smoke)."
 fi
 
 echo "== CleanRL + RND intrinsic-reward smoke (skipped if godot_rl absent in .venv-train) =="
